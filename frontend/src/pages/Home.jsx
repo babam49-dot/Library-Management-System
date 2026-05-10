@@ -1,18 +1,14 @@
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import Footer from '../components/Footer'
+import DarkModeToggle from '../components/DarkModeToggle'
+import { useTheme } from '../context/ThemeContext'
 
 export default function Home() {
   const [scrollY, setScrollY] = useState(0)
-  const [isDark, setIsDark] = useState(true) // Default to dark mode as requested
+  const { isDark } = useTheme()
   const [books, setBooks] = useState([])
-  const [stats] = useState({
-    books: 0,
-    members: 0,
-    arrivals: 0,
-    satisfaction: 0
-  })
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -143,12 +139,10 @@ export default function Home() {
         `}
       </style>
 
-      {/* Theme Toggle */}
-      <button 
-        onClick={() => setIsDark(!isDark)}
-        style={{ position: 'fixed', bottom: 30, right: 30, zIndex: 1000, width: 50, height: 50, borderRadius: '50%', background: 'var(--card-bg)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', fontSize: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', backdropFilter: 'blur(10px)', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
-        {isDark ? '☀️' : '🌙'}
-      </button>
+      {/* Theme Toggle - Global */}
+      <div style={{ position: 'fixed', bottom: 30, right: 30, zIndex: 1000, boxShadow: '0 4px 16px rgba(0,0,0,0.25)' }}>
+        <DarkModeToggle />
+      </div>
 
       {/* Navigation */}
       <nav style={{ 
@@ -170,7 +164,8 @@ export default function Home() {
           <a href="#books" className="nav-link">Books</a>
           <a href="#contact" className="nav-link">Contact</a>
         </div>
-        <div style={{ display: 'flex', gap: 16 }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <DarkModeToggle />
           <Link to="/login" className="btn-outline">Sign In</Link>
           <Link to="/register" className="btn-gold">Join Now</Link>
         </div>

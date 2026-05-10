@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
+import DarkModeToggle from '../components/DarkModeToggle'
 
 const ROLES = [
   { 
@@ -53,6 +55,7 @@ export default function SignIn() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
+  const { isDark } = useTheme()
   const navigate = useNavigate()
 
   const submit = async (e) => {
@@ -60,7 +63,6 @@ export default function SignIn() {
     setError('')
     setLoading(true)
     try {
-      // Backend only requires email and password right now, staffId is just for UI completeness based on user request
       const u = await login({ email, password })
       if (u.RoleID === 1) navigate('/admin')
       else if (u.RoleID === 2) navigate('/staff')
@@ -73,25 +75,38 @@ export default function SignIn() {
   }
 
   const roleInfo = ROLES.find(r => r.id === selectedRole)
+  const bg = isDark ? '#0d0906' : '#faf6f0'
+  const leftBg = isDark ? 'linear-gradient(160deg, #1a0f0a 0%, #0d0906 100%)' : 'linear-gradient(160deg, #f0e6d4 0%, #faf6f0 100%)'
+  const leftBorder = isDark ? '#3d2010' : '#e5d5c5'
+  const textPrimary = isDark ? '#e8d5b0' : '#3d2010'
+  const textMuted = isDark ? '#a08060' : '#8b6a4a'
+  const rightBg = isDark ? '#1a1008' : '#fcfaf7'
+  const inputBg = isDark ? '#2a1a0c' : '#fff'
+  const inputBorder = isDark ? '#5a3a20' : '#e5d5c5'
+  const inputText = isDark ? '#e8d5b0' : '#1a0f0a'
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', fontFamily: "'Georgia', serif", background: '#1a0f0a' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', fontFamily: "'Georgia', serif", background: bg, position: 'relative' }}>
+      {/* Global dark mode toggle */}
+      <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 1000 }}>
+        <DarkModeToggle />
+      </div>
       {/* Left panel */}
       <div style={{
-        width: '42%', background: 'linear-gradient(160deg, #2d1a0e 0%, #1a0f0a 100%)',
+        width: '42%', background: leftBg,
         padding: '48px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-        borderRight: '1px solid #3d2010'
+        borderRight: `1px solid ${leftBorder}`
       }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 48 }}>
             <div style={{ width: 36, height: 36, background: '#c4813a', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#fff', fontSize: 16 }}>L</div>
-            <span style={{ color: '#e8d5b0', fontWeight: 700, fontSize: 18, letterSpacing: 0.5 }}>Lenket Library</span>
+            <span style={{ color: textPrimary, fontWeight: 700, fontSize: 18, letterSpacing: 0.5 }}>Lenket Library</span>
           </div>
-          <h1 style={{ color: '#fff', fontSize: 42, fontWeight: 700, lineHeight: 1.1, marginBottom: 12 }}>
+          <h1 style={{ color: isDark ? '#fff' : '#1a0f0a', fontSize: 42, fontWeight: 700, lineHeight: 1.1, marginBottom: 12 }}>
             Sign in to your<br />
             <span style={{ color: '#c4813a', fontStyle: 'italic' }}>library account.</span>
           </h1>
-          <p style={{ color: '#a08060', fontSize: 15, lineHeight: 1.6, marginTop: 16, maxWidth: '85%' }}>
+          <p style={{ color: textMuted, fontSize: 15, lineHeight: 1.6, marginTop: 16, maxWidth: '85%' }}>
             Select your role below to access the right portal. Each role has tailored tools and permissions within the system.
           </p>
         </div>
@@ -127,10 +142,10 @@ export default function SignIn() {
       </div>
 
       {/* Right panel */}
-      <div style={{ flex: 1, background: '#fcfaf7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 48px' }}>
+      <div style={{ flex: 1, background: rightBg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 48px' }}>
         <div style={{ width: '100%', maxWidth: 440 }}>
           
-          <p style={{ color: '#8b6a4a', fontSize: 15, marginBottom: 28 }}>{roleInfo.infoText}</p>
+          <p style={{ color: textMuted, fontSize: 15, marginBottom: 28 }}>{roleInfo.infoText}</p>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: roleInfo.bgColor, borderRadius: 8, padding: '12px 16px', marginBottom: 24, color: roleInfo.themeColor, fontSize: 13, fontWeight: 600 }}>
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: roleInfo.themeColor }}></div>

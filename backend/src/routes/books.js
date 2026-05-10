@@ -103,27 +103,57 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 router.post('/', auth, upload.single('coverImage'), async (req, res) => {
+  const connection = await pool.getConnection();
   try {
-    const { title, isbn, year, edition, language, description, publisherId, categoryId } = req.body;
-    if (!title) return fail(res, 'title required');
+    await connection.beginTransaction();
+    const { title, isbn, year, edition, language, description, publisherId, categoryId, authorIds, numberOfCopies, shelfLocation } = req.body;
+    if (!title) {
+      await connection.rollback();
+      return fail(res, 'title required');
+    }
 
     let coverImagePath = null;
     if (req.file) {
       coverImagePath = '/uploads/' + req.file.filename;
     } else if (req.body.coverImage) {
-      // In case they pass a URL string instead of a file
       coverImagePath = req.body.coverImage;
     }
 
-    const [[mBook]] = await pool.execute("SELECT MAX(BookID) as m FROM Books");
+    const [[mBook]] = await connection.execute("SELECT MAX(BookID) as m FROM Books");
     const bookId = (mBook.m || 0) + 1;
 
-    await pool.execute(
+    await connection.execute(
       'INSERT INTO Books (BookID, Title, ISBN, Year, Edition, Language, Description, PublisherID, CategoryID, CoverImage) VALUES (?,?,?,?,?,?,?,?,?,?)',
       [bookId, title, isbn || null, year || null, edition || null, language || 'English', description || '', publisherId || null, categoryId || null, coverImagePath]
     );
-    return ok(res, 'Book added', { BookID: bookId, CoverImage: coverImagePath });
-  } catch (err) { return fail(res, err.message, 500); }
+
+    if (authorIds) {
+      let authors = [];
+      try { authors = Array.isArray(authorIds) ? authorIds : JSON.parse(authorIds); } catch(e) {}
+      for (const aid of authors) {
+        await connection.execute('INSERT IGNORE INTO BookAuthors (BookID, AuthorID) VALUES (?,?)', [bookId, aid]);
+      }
+    }
+
+    if (numberOfCopies && parseInt(numberOfCopies) > 0) {
+      const num = parseInt(numberOfCopies);
+      const shelf = shelfLocation || 'General Stack';
+      for (let i = 0; i < num; i++) {
+        await connection.execute(
+          'INSERT INTO BookCopies (BookID, Status, ShelfLocation, AcquisitionDate) VALUES (?,?,?,CURDATE())',
+          [bookId, 'Available', shelf]
+        );
+      }
+    }
+
+    await connection.commit();
+    return ok(res, 'Book added successfully', { BookID: bookId, CoverImage: coverImagePath });
+  } catch (err) { 
+    await connection.rollback();
+    return fail(res, err.message, 500); 
+  } finally {
+    connection.release();
+  }
 });
 
 // GET /api/books/:id

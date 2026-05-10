@@ -199,4 +199,40 @@ router.get('/damage-reports', auth, async (req, res) => {
   } catch (err) { return fail(res, err.message, 500); }
 });
 
+// GET /api/admin/analytics
+router.get('/analytics', auth, async (req, res) => {
+  try {
+    const [topBooks] = await pool.execute(
+      `SELECT b.Title as name, COUNT(br.BorrowID) as borrows
+       FROM BorrowingRecords br
+       JOIN BookCopies bc ON bc.CopyID = br.CopyID
+       JOIN Books b ON b.BookID = bc.BookID
+       GROUP BY b.BookID
+       ORDER BY borrows DESC
+       LIMIT 5`
+    );
+
+    const [trends] = await pool.execute(
+      `SELECT DATE_FORMAT(BorrowDate, '%Y-%m') as month, COUNT(BorrowID) as count
+       FROM BorrowingRecords
+       GROUP BY month
+       ORDER BY month DESC
+       LIMIT 6`
+    );
+
+    const [categoryDistrib] = await pool.execute(
+      `SELECT c.CategoryName as name, COUNT(b.BookID) as value
+       FROM Books b
+       JOIN Categories c ON c.CategoryID = b.CategoryID
+       GROUP BY c.CategoryID`
+    );
+
+    return ok(res, 'Analytics data', {
+      topBooks,
+      trends: trends.reverse(),
+      categoryDistrib
+    });
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
 module.exports = router;
