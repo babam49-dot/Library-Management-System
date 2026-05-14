@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
-import DarkModeToggle from '../components/DarkModeToggle'
+import DashboardShell from '../components/DashboardShell'
 import axios from 'axios'
 
 const API = 'http://localhost:4000/api'
@@ -34,6 +34,12 @@ export default function StaffDashboard() {
   const [returnForm, setReturnForm] = useState({ borrowId: '', condition: 'Good' })
   const [actionMsg, setActionMsg] = useState('')
 
+  // Metadata Forms
+  const [authorForm, setAuthorForm] = useState({ FirstName: '', LastName: '', Bio: '', Nationality: '' })
+  const [categoryForm, setCategoryForm] = useState({ CategoryName: '', Description: '' })
+  const [publisherForm, setPublisherForm] = useState({ PublisherName: '', Email: '', Phone: '', Address: '' })
+  const [metaMsg, setMetaMsg] = useState('')
+
   const getHeaders = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('lms_token')}` } })
 
   const bg = isDark ? '#0a0e1a' : '#f8f9fa'
@@ -52,11 +58,11 @@ export default function StaffDashboard() {
       setStats(s.data.data)
       const p = await axios.get(`${API}/staff/pending-members`, getHeaders())
       setPendingMembers(p.data.data)
-      const pubs = await axios.get(`${API}/books/publishers`, getHeaders())
+      const pubs = await axios.get(`${API}/catalog/publishers`, getHeaders())
       setPublishers(pubs.data.data)
-      const cats = await axios.get(`${API}/books/categories`, getHeaders())
+      const cats = await axios.get(`${API}/catalog/categories`, getHeaders())
       setCategories(cats.data.data)
-      const auths = await axios.get(`${API}/books/authors`, getHeaders())
+      const auths = await axios.get(`${API}/catalog/authors`, getHeaders())
       setAuthors(auths.data.data)
       const borrows = await axios.get(`${API}/staff/borrowing-records`, getHeaders())
       setBorrowingRecords(borrows.data.data)
@@ -67,13 +73,13 @@ export default function StaffDashboard() {
 
   const handleApprove = async (id) => {
     if (!window.confirm('Approve this member?')) return
-    await axios.patch(`${API}/staff/approve-member/${id}`, {}, getHeaders())
+    await axios.patch(`${API}/users/${id}/status`, { status: 'Active' }, getHeaders())
     fetchData()
   }
 
   const handleReject = async (id) => {
     if (!window.confirm('Reject this member?')) return
-    await axios.patch(`${API}/staff/reject-member/${id}`, {}, getHeaders())
+    await axios.patch(`${API}/users/${id}/status`, { status: 'Inactive' }, getHeaders())
     fetchData()
   }
 
@@ -147,234 +153,276 @@ export default function StaffDashboard() {
     }
   }
 
+  const handleAddMeta = async (e, type, form, setForm, initial) => {
+    e.preventDefault()
+    setMetaMsg('')
+    try {
+      await axios.post(`${API}/catalog/${type}`, form, getHeaders())
+      setMetaMsg(`Added successfully!`)
+      setForm(initial)
+      fetchData()
+    } catch (err) { setMetaMsg('Error: ' + (err.response?.data?.message || err.message)) }
+  }
+
+  const handleDeleteMeta = async (type, id) => {
+    if (!window.confirm('Delete this record?')) return
+    setMetaMsg('')
+    try {
+      await axios.delete(`${API}/catalog/${type}/${id}`, getHeaders())
+      setMetaMsg(`Deleted successfully!`)
+      fetchData()
+    } catch (err) { setMetaMsg('Error: ' + (err.response?.data?.message || err.message)) }
+  }
+
+  const TABS = [
+    { key: 'overview', label: 'Circulation Overview', icon: '📊' },
+    { key: 'members', label: 'Member Approvals', icon: '👤', badge: pendingMembers.length },
+    { key: 'catalog', label: 'Register Book', icon: '📚' },
+    { key: 'metadata', label: 'Manage Metadata', icon: '🏷️' },
+    { key: 'circulation', label: 'Issue / Return', icon: '🔄' },
+  ]
+  const tabLabel = TABS.find(t => t.key === tab)?.label || 'Staff Dashboard'
+
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', fontFamily: "'Inter', 'Georgia', sans-serif", background: bg }}>
-      {/* Sidebar */}
-      <div style={{ width: 260, background: sidebar, color: '#e8d5b0', padding: 24, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 40 }}>
-          <div style={{ width: 36, height: 36, background: 'linear-gradient(135deg,#10b981,#059669)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#fff', fontSize: 18 }}>S</div>
-          <span style={{ fontWeight: 700, fontSize: 17, color: '#fff' }}>Staff Portal</span>
+    <DashboardShell role="staff" navItems={TABS} activeTab={tab} setTab={setTab} user={user} logout={logout} tabLabel={tabLabel}>
+
+      {tab === 'overview' && stats && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20 }}>
+          <StatCard title="Active Borrows" value={stats.activeBorrowings} color="#10b981" />
+          <StatCard title="Returns Today" value={stats.returnsToday} color="#3b82f6" />
+          <StatCard title="Overdue Books" value={stats.overdueCount} color="#ef4444" highlight={stats.overdueCount > 0} />
+          <StatCard title="Pending Members" value={stats.pendingMembers} color="#f59e0b" highlight={stats.pendingMembers > 0} />
         </div>
+      )}
 
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
-          {[
-            { key: 'overview', label: 'Dashboard Overview', icon: '📊' },
-            { key: 'members', label: 'Member Approvals', icon: '👤', badge: pendingMembers.length },
-            { key: 'catalog', label: 'Catalog Registration', icon: '📚' },
-            { key: 'circulation', label: 'Issue / Return', icon: '🔄' },
-          ].map(item => (
-            <button key={item.key} onClick={() => setTab(item.key)} style={navBtnStyle(tab === item.key, isDark)}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span>{item.icon}</span>
-                <span>{item.label}</span>
-              </span>
-              {item.badge > 0 && <span style={{ background: '#ef4444', color: '#fff', padding: '2px 8px', borderRadius: 12, fontSize: 11 }}>{item.badge}</span>}
-            </button>
-          ))}
-        </nav>
+      {tab === 'members' && (
+        <div style={{ background: 'rgba(255,255,255,0.05)', backdropFilter:'blur(12px)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)', fontWeight: 600, color: '#f1f5f9', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <span>Pending Member Registrations</span>
+            <span style={{ fontSize:13, color:'#64748b' }}>{pendingMembers.length} pending</span>
+          </div>
+          {pendingMembers.length === 0 ? (
+            <div style={{ padding: 60, textAlign: 'center', color: '#64748b' }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
+              No pending member registrations.
+            </div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
+              <thead>
+                <tr style={{ background: 'rgba(255,255,255,0.04)', color: '#64748b' }}>
+                  <th style={{ padding: 16 }}>Name</th>
+                  <th style={{ padding: 16 }}>Email</th>
+                  <th style={{ padding: 16 }}>University ID</th>
+                  <th style={{ padding: 16, textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingMembers.map(m => (
+                  <tr key={m.UserID} className="table-row" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                    <td style={{ padding: 16, fontWeight: 600, color: '#f1f5f9' }}>{m.FullName}</td>
+                    <td style={{ padding: 16, color: '#64748b' }}>{m.Email}</td>
+                    <td style={{ padding: 16, color: '#64748b' }}>{m.StudentID}</td>
+                    <td style={{ padding: 16, textAlign: 'right' }}>
+                      <button onClick={() => handleReject(m.UserID)} className="action-btn" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', padding: '6px 14px', borderRadius: 8, cursor: 'pointer', marginRight: 8, fontWeight:600 }}>Reject</button>
+                      <button onClick={() => handleApprove(m.UserID)} className="action-btn" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)', padding: '6px 14px', borderRadius: 8, cursor: 'pointer', fontWeight:600 }}>Approve</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
 
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 20, marginTop: 'auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg,#10b981,#059669)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 14 }}>
-              {user?.FullName?.charAt(0) || 'S'}
+      {tab === 'catalog' && (
+        <div style={{ background: 'rgba(255,255,255,0.05)', backdropFilter:'blur(12px)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)', padding: 32, maxWidth: 800 }}>
+          <p style={{ color: '#64748b', marginBottom: 20, fontSize:14 }}>Upload a new book to the library catalog, linking categories and assigning shelf locations.</p>
+          {bookMsg && <div style={{ padding: 12, marginBottom: 20, background: bookMsg.startsWith('Error') ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)', color: bookMsg.startsWith('Error') ? '#ef4444' : '#10b981', borderRadius: 10, border: `1px solid ${bookMsg.startsWith('Error') ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)'}` }}>{bookMsg}</div>}
+          <form onSubmit={submitBook} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div style={{ gridColumn: 'span 2' }}>
+              <label style={lblStyle}>Book Title *</label>
+              <input required type="text" name="title" value={bookForm.title} onChange={handleBookChange} style={inputStyle} />
             </div>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{user?.FullName}</div>
-              <div style={{ fontSize: 11, color: '#94a3b8' }}>Library Staff</div>
+              <label style={lblStyle}>ISBN</label>
+              <input type="text" name="isbn" value={bookForm.isbn} onChange={handleBookChange} style={inputStyle} />
             </div>
-          </div>
-          <button onClick={logout} style={{ width: '100%', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', color: '#94a3b8', padding: '10px', borderRadius: 8, cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-            Sign Out
-          </button>
+            <div>
+              <label style={lblStyle}>Publication Year</label>
+              <input type="number" name="year" value={bookForm.year} onChange={handleBookChange} style={inputStyle} />
+            </div>
+            <div>
+              <label style={lblStyle}>Publisher</label>
+              <select name="publisherId" value={bookForm.publisherId} onChange={handleBookChange} style={inputStyle}>
+                <option value="">-- Select Publisher --</option>
+                {publishers.map(p => <option key={p.PublisherID} value={p.PublisherID}>{p.PublisherName}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={lblStyle}>Category</label>
+              <select name="categoryId" value={bookForm.categoryId} onChange={handleBookChange} style={inputStyle}>
+                <option value="">-- Select Category --</option>
+                {categories.map(c => <option key={c.CategoryID} value={c.CategoryID}>{c.CategoryName}</option>)}
+              </select>
+            </div>
+            <div style={{ gridColumn: 'span 2' }}>
+              <label style={lblStyle}>Authors (Hold Ctrl to select multiple)</label>
+              <select multiple name="authorIds" value={bookForm.authorIds} onChange={handleBookChange} style={{ ...inputStyle, minHeight: 80 }}>
+                {authors.map(a => <option key={a.AuthorID} value={a.AuthorID}>{a.Name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={lblStyle}>Number of Copies *</label>
+              <input required type="number" min="1" name="numberOfCopies" value={bookForm.numberOfCopies} onChange={handleBookChange} style={inputStyle} />
+            </div>
+            <div>
+              <label style={lblStyle}>Shelf Location</label>
+              <input type="text" name="shelfLocation" value={bookForm.shelfLocation} onChange={handleBookChange} placeholder="e.g. A1-05" style={inputStyle} />
+            </div>
+            <div style={{ gridColumn: 'span 2' }}>
+              <label style={lblStyle}>Cover Image</label>
+              <input type="file" accept="image/*" ref={fileInputRef} onChange={e => setCoverFile(e.target.files[0])} style={{ ...inputStyle, padding: '8px 12px' }} />
+            </div>
+            <div style={{ gridColumn: 'span 2' }}>
+              <label style={lblStyle}>Description</label>
+              <textarea name="description" value={bookForm.description} onChange={handleBookChange} style={{ ...inputStyle, minHeight: 80, fontFamily: 'inherit' }}></textarea>
+            </div>
+            <div style={{ gridColumn: 'span 2' }}>
+              <button type="submit" disabled={bookLoading} style={{ background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff', border: 'none', padding: '14px', borderRadius: 12, fontWeight: 700, cursor: bookLoading ? 'not-allowed' : 'pointer', width: '100%', fontSize: 16, boxShadow:'0 4px 20px rgba(16,185,129,0.3)' }}>
+                {bookLoading ? 'Registering...' : 'Register Book & Copies →'}
+              </button>
+            </div>
+          </form>
         </div>
-      </div>
+      )}
 
-      {/* Main content */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* Top bar */}
-        <div style={{ background: cardBg, borderBottom: `1px solid ${border}`, padding: '16px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h2 style={{ fontSize: 22, color: textPrimary, fontWeight: 700, margin: 0 }}>
-              {tab === 'overview' ? 'Circulation Overview' : tab === 'members' ? 'Member Approvals' : tab === 'catalog' ? 'Register New Book' : 'Circulation Management'}
-            </h2>
-            <div style={{ fontSize: 13, color: textMuted, marginTop: 4 }}>
-              {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ background: '#d1fae5', color: '#065f46', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>Staff</span>
-            <DarkModeToggle />
-          </div>
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: 32 }}>
-
-        {tab === 'overview' && stats && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20 }}>
-            <StatCard title="Active Borrows" value={stats.activeBorrowings} />
-            <StatCard title="Returns Today" value={stats.returnsToday} />
-            <StatCard title="Overdue Books" value={stats.overdueCount} highlight={stats.overdueCount > 0} />
-            <StatCard title="Pending Members" value={stats.pendingMembers} highlight={stats.pendingMembers > 0} />
-          </div>
-        )}
-
-        {tab === 'members' && (
-          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e5e5', overflow: 'hidden' }}>
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e5e5e5', background: '#fdf4e7', fontWeight: 600, color: '#8b5e3c' }}>
-              Pending Member Registrations
-            </div>
-            {pendingMembers.length === 0 ? (
-              <div style={{ padding: 40, textAlign: 'center', color: '#8b6a4a' }}>No pending member registrations.</div>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
-                <thead>
-                  <tr style={{ background: '#faf6f0', color: '#8b6a4a' }}>
-                    <th style={{ padding: 16 }}>Name</th>
-                    <th style={{ padding: 16 }}>Email</th>
-                    <th style={{ padding: 16 }}>University ID</th>
-                    <th style={{ padding: 16, textAlign: 'right' }}>Actions</th>
+      {tab === 'metadata' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+          {metaMsg && <div style={{ padding: 12, background: metaMsg.startsWith('Error') ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)', color: metaMsg.startsWith('Error') ? '#ef4444' : '#10b981', borderRadius: 10, border: `1px solid ${metaMsg.startsWith('Error') ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)'}` }}>{metaMsg}</div>}
+          
+          {/* Categories */}
+          <div style={{ background: 'rgba(255,255,255,0.05)', backdropFilter:'blur(12px)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)', padding: 24 }}>
+            <h3 style={{ color: '#f1f5f9', marginBottom: 16 }}>Manage Categories</h3>
+            <form onSubmit={(e) => handleAddMeta(e, 'categories', categoryForm, setCategoryForm, {CategoryName:'', Description:''})} style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+              <input required type="text" placeholder="Category Name" value={categoryForm.CategoryName} onChange={e => setCategoryForm({...categoryForm, CategoryName: e.target.value})} style={inputStyle} />
+              <input type="text" placeholder="Description" value={categoryForm.Description} onChange={e => setCategoryForm({...categoryForm, Description: e.target.value})} style={inputStyle} />
+              <button type="submit" style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}>Add Category</button>
+            </form>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
+              <thead><tr style={{ color: '#64748b' }}><th style={{ padding: 12 }}>Name</th><th style={{ padding: 12 }}>Description</th></tr></thead>
+              <tbody>
+                {categories.map(c => (
+                  <tr key={c.CategoryID} style={{ borderTop: '1px solid rgba(255,255,255,0.05)', color: '#f1f5f9' }}>
+                    <td style={{ padding: 12 }}>{c.CategoryName}</td>
+                    <td style={{ padding: 12, color: '#94a3b8' }}>{c.Description || '—'}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {pendingMembers.map(m => (
-                    <tr key={m.UserID} style={{ borderTop: '1px solid #e5e5e5' }}>
-                      <td style={{ padding: 16, fontWeight: 500 }}>{m.FullName}</td>
-                      <td style={{ padding: 16 }}>{m.Email}</td>
-                      <td style={{ padding: 16 }}>{m.StudentID}</td>
-                      <td style={{ padding: 16, textAlign: 'right' }}>
-                        <button onClick={() => handleReject(m.UserID)} style={{ background: '#fef2f2', color: '#b91c1c', border: '1px solid #fca5a5', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', marginRight: 8 }}>Reject</button>
-                        <button onClick={() => handleApprove(m.UserID)} style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #6ee7b7', padding: '6px 12px', borderRadius: 6, cursor: 'pointer' }}>Approve</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+                ))}
+              </tbody>
+            </table>
           </div>
-        )}
 
-        {tab === 'catalog' && (
-          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e5e5', padding: 30, maxWidth: 800 }}>
-            <p style={{ color: '#8b6a4a', marginBottom: 20 }}>Upload a new book to the library catalog, linking categories and assigning shelf locations.</p>
-            {bookMsg && <div style={{ padding: 12, marginBottom: 20, background: bookMsg.startsWith('Error') ? '#fef2f2' : '#ecfdf5', color: bookMsg.startsWith('Error') ? '#b91c1c' : '#047857', borderRadius: 8 }}>{bookMsg}</div>}
-            
-            <form onSubmit={submitBook} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={lblStyle}>Book Title *</label>
-                <input required type="text" name="title" value={bookForm.title} onChange={handleBookChange} style={inputStyle} />
+          {/* Authors */}
+          <div style={{ background: 'rgba(255,255,255,0.05)', backdropFilter:'blur(12px)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)', padding: 24 }}>
+            <h3 style={{ color: '#f1f5f9', marginBottom: 16 }}>Manage Authors</h3>
+            <form onSubmit={(e) => handleAddMeta(e, 'authors', authorForm, setAuthorForm, {FirstName:'', LastName:'', Bio:'', Nationality:''})} style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+              <input required type="text" placeholder="First Name" value={authorForm.FirstName} onChange={e => setAuthorForm({...authorForm, FirstName: e.target.value})} style={{...inputStyle, flex:1, minWidth:120}} />
+              <input required type="text" placeholder="Last Name" value={authorForm.LastName} onChange={e => setAuthorForm({...authorForm, LastName: e.target.value})} style={{...inputStyle, flex:1, minWidth:120}} />
+              <input type="text" placeholder="Nationality" value={authorForm.Nationality} onChange={e => setAuthorForm({...authorForm, Nationality: e.target.value})} style={{...inputStyle, flex:1, minWidth:120}} />
+              <input type="text" placeholder="Bio" value={authorForm.Bio} onChange={e => setAuthorForm({...authorForm, Bio: e.target.value})} style={{...inputStyle, flex:2, minWidth:200}} />
+              <button type="submit" style={{ background: '#10b981', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Add Author</button>
+            </form>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
+              <thead><tr style={{ color: '#64748b' }}><th style={{ padding: 12 }}>Name</th><th style={{ padding: 12 }}>Nationality</th><th style={{ padding: 12, textAlign: 'right' }}>Actions</th></tr></thead>
+              <tbody>
+                {authors.map(a => (
+                  <tr key={a.AuthorID} style={{ borderTop: '1px solid rgba(255,255,255,0.05)', color: '#f1f5f9' }}>
+                    <td style={{ padding: 12 }}>{a.Name}</td>
+                    <td style={{ padding: 12, color: '#94a3b8' }}>{a.Nationality || '—'}</td>
+                    <td style={{ padding: 12, textAlign: 'right' }}>
+                      <button onClick={() => handleDeleteMeta('authors', a.AuthorID)} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', padding: '4px 10px', borderRadius: 6, cursor: 'pointer' }}>Delete</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Publishers */}
+          <div style={{ background: 'rgba(255,255,255,0.05)', backdropFilter:'blur(12px)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)', padding: 24 }}>
+            <h3 style={{ color: '#f1f5f9', marginBottom: 16 }}>Manage Publishers</h3>
+            <form onSubmit={(e) => handleAddMeta(e, 'publishers', publisherForm, setPublisherForm, {PublisherName:'', Email:'', Phone:'', Address:''})} style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+              <input required type="text" placeholder="Publisher Name" value={publisherForm.PublisherName} onChange={e => setPublisherForm({...publisherForm, PublisherName: e.target.value})} style={{...inputStyle, flex:2, minWidth:200}} />
+              <input type="email" placeholder="Email" value={publisherForm.Email} onChange={e => setPublisherForm({...publisherForm, Email: e.target.value})} style={{...inputStyle, flex:1, minWidth:150}} />
+              <input type="text" placeholder="Phone" value={publisherForm.Phone} onChange={e => setPublisherForm({...publisherForm, Phone: e.target.value})} style={{...inputStyle, flex:1, minWidth:120}} />
+              <button type="submit" style={{ background: '#8b5cf6', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Add Publisher</button>
+            </form>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
+              <thead><tr style={{ color: '#64748b' }}><th style={{ padding: 12 }}>Name</th><th style={{ padding: 12 }}>Email</th><th style={{ padding: 12 }}>Phone</th></tr></thead>
+              <tbody>
+                {publishers.map(p => (
+                  <tr key={p.PublisherID} style={{ borderTop: '1px solid rgba(255,255,255,0.05)', color: '#f1f5f9' }}>
+                    <td style={{ padding: 12 }}>{p.PublisherName}</td>
+                    <td style={{ padding: 12, color: '#94a3b8' }}>{p.ContactEmail || '—'}</td>
+                    <td style={{ padding: 12, color: '#94a3b8' }}>{p.Phone || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {tab === 'circulation' && (
+        <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap:'wrap' }}>
+          <div style={{ flex: 1, minWidth:280, background: 'rgba(255,255,255,0.05)', backdropFilter:'blur(12px)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)', padding: 28 }}>
+            <h3 style={{ fontSize: 18, marginBottom: 4, color:'#f1f5f9', fontWeight:700 }}>📤 Issue Book</h3>
+            <p style={{ color:'#64748b', fontSize:13, marginBottom:20 }}>Issue a book copy to a member</p>
+            <form onSubmit={handleIssue} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={lblStyle}>Member ID</label>
+                <input required type="number" value={issueForm.memberId} onChange={e => setIssueForm({...issueForm, memberId: e.target.value})} style={inputStyle} placeholder="Numeric Member ID" />
               </div>
               <div>
-                <label style={lblStyle}>ISBN</label>
-                <input type="text" name="isbn" value={bookForm.isbn} onChange={handleBookChange} style={inputStyle} />
+                <label style={lblStyle}>Copy ID</label>
+                <input required type="number" value={issueForm.copyId} onChange={e => setIssueForm({...issueForm, copyId: e.target.value})} style={inputStyle} placeholder="Specific Copy ID" />
               </div>
-              <div>
-                <label style={lblStyle}>Publication Year</label>
-                <input type="number" name="year" value={bookForm.year} onChange={handleBookChange} style={inputStyle} />
-              </div>
-              <div>
-                <label style={lblStyle}>Publisher</label>
-                <select name="publisherId" value={bookForm.publisherId} onChange={handleBookChange} style={inputStyle}>
-                  <option value="">-- Select Publisher --</option>
-                  {publishers.map(p => <option key={p.PublisherID} value={p.PublisherID}>{p.PublisherName}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={lblStyle}>Category</label>
-                <select name="categoryId" value={bookForm.categoryId} onChange={handleBookChange} style={inputStyle}>
-                  <option value="">-- Select Category --</option>
-                  {categories.map(c => <option key={c.CategoryID} value={c.CategoryID}>{c.CategoryName}</option>)}
-                </select>
-              </div>
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={lblStyle}>Authors (Hold Ctrl to select multiple)</label>
-                <select multiple name="authorIds" value={bookForm.authorIds} onChange={handleBookChange} style={{ ...inputStyle, minHeight: 80 }}>
-                  {authors.map(a => <option key={a.AuthorID} value={a.AuthorID}>{a.Name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={lblStyle}>Number of Copies *</label>
-                <input required type="number" min="1" name="numberOfCopies" value={bookForm.numberOfCopies} onChange={handleBookChange} style={inputStyle} />
-              </div>
-              <div>
-                <label style={lblStyle}>Shelf Location</label>
-                <input type="text" name="shelfLocation" value={bookForm.shelfLocation} onChange={handleBookChange} placeholder="e.g. A1-05" style={inputStyle} />
-              </div>
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={lblStyle}>Cover Image</label>
-                <input type="file" accept="image/*" ref={fileInputRef} onChange={e => setCoverFile(e.target.files[0])} style={{ ...inputStyle, padding: '8px 12px' }} />
-              </div>
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={lblStyle}>Description</label>
-                <textarea name="description" value={bookForm.description} onChange={handleBookChange} style={{ ...inputStyle, minHeight: 80, fontFamily: 'inherit' }}></textarea>
-              </div>
-              <div style={{ gridColumn: 'span 2' }}>
-                <button type="submit" disabled={bookLoading} style={{ background: '#c4813a', color: '#fff', border: 'none', padding: '14px', borderRadius: 8, fontWeight: 700, cursor: bookLoading ? 'not-allowed' : 'pointer', width: '100%', fontSize: 16 }}>
-                  {bookLoading ? 'Registering...' : 'Register Book & Copies'}
-                </button>
-              </div>
+              <button type="submit" style={{ background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff', border: 'none', padding: '12px', borderRadius: 10, fontWeight: 700, cursor: 'pointer', boxShadow:'0 4px 16px rgba(16,185,129,0.25)' }}>Issue Book →</button>
             </form>
           </div>
-        )}
 
-        {tab === 'circulation' && (
-          <div style={{ display: 'flex', gap: 30, alignItems: 'flex-start' }}>
-            <div style={{ flex: 1, background: '#fff', borderRadius: 12, border: '1px solid #e5e5e5', padding: 24 }}>
-              <h3 style={{ fontSize: 18, marginBottom: 16, borderBottom: '1px solid #e5e5e5', paddingBottom: 12 }}>Issue Book to Member</h3>
-              <form onSubmit={handleIssue} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div>
-                  <label style={lblStyle}>Member ID</label>
-                  <input required type="number" name="memberId" value={issueForm.memberId} onChange={e => setIssueForm({...issueForm, memberId: e.target.value})} style={inputStyle} placeholder="Numeric Member ID" />
-                </div>
-                <div>
-                  <label style={lblStyle}>Copy ID</label>
-                  <input required type="number" name="copyId" value={issueForm.copyId} onChange={e => setIssueForm({...issueForm, copyId: e.target.value})} style={inputStyle} placeholder="Specific Copy ID" />
-                </div>
-                <button type="submit" style={{ background: '#10b981', color: '#fff', border: 'none', padding: '12px', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}>Issue Book</button>
-              </form>
-            </div>
-
-            <div style={{ flex: 1, background: '#fff', borderRadius: 12, border: '1px solid #e5e5e5', padding: 24 }}>
-              <h3 style={{ fontSize: 18, marginBottom: 16, borderBottom: '1px solid #e5e5e5', paddingBottom: 12 }}>Process Return</h3>
-              <form onSubmit={handleReturn} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div>
-                  <label style={lblStyle}>Borrow ID</label>
-                  <input required type="number" name="borrowId" value={returnForm.borrowId} onChange={e => setReturnForm({...returnForm, borrowId: e.target.value})} style={inputStyle} placeholder="Borrow Record ID" />
-                </div>
-                <div>
-                  <label style={lblStyle}>Condition on Return</label>
-                  <select name="condition" value={returnForm.condition} onChange={e => setReturnForm({...returnForm, condition: e.target.value})} style={inputStyle}>
-                    <option value="Good">Good</option>
-                    <option value="Damaged">Damaged</option>
-                    <option value="Lost">Lost</option>
-                  </select>
-                </div>
-                <button type="submit" style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '12px', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}>Process Return</button>
-              </form>
-              {actionMsg && <div style={{ marginTop: 16, padding: 12, background: '#eff6ff', color: '#1d4ed8', borderRadius: 8, fontSize: 14 }}>{actionMsg}</div>}
-            </div>
+          <div style={{ flex: 1, minWidth:280, background: 'rgba(255,255,255,0.05)', backdropFilter:'blur(12px)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)', padding: 28 }}>
+            <h3 style={{ fontSize: 18, marginBottom: 4, color:'#f1f5f9', fontWeight:700 }}>📥 Process Return</h3>
+            <p style={{ color:'#64748b', fontSize:13, marginBottom:20 }}>Record a book return and log its condition</p>
+            <form onSubmit={handleReturn} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={lblStyle}>Borrow ID</label>
+                <input required type="number" value={returnForm.borrowId} onChange={e => setReturnForm({...returnForm, borrowId: e.target.value})} style={inputStyle} placeholder="Borrow Record ID" />
+              </div>
+              <div>
+                <label style={lblStyle}>Condition on Return</label>
+                <select value={returnForm.condition} onChange={e => setReturnForm({...returnForm, condition: e.target.value})} style={inputStyle}>
+                  <option value="Good">Good</option>
+                  <option value="Damaged">Damaged — fine will be applied</option>
+                  <option value="Lost">Lost — fine will be applied</option>
+                </select>
+              </div>
+              <button type="submit" style={{ background: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', color: '#fff', border: 'none', padding: '12px', borderRadius: 10, fontWeight: 700, cursor: 'pointer', boxShadow:'0 4px 16px rgba(59,130,246,0.25)' }}>Process Return →</button>
+            </form>
+            {actionMsg && <div style={{ marginTop: 16, padding: 12, background: actionMsg.startsWith('Error') ? 'rgba(239,68,68,0.1)' : 'rgba(59,130,246,0.1)', color: actionMsg.startsWith('Error') ? '#ef4444' : '#60a5fa', borderRadius: 10, fontSize: 14 }}>{actionMsg}</div>}
           </div>
-        )}
+        </div>
+      )}
 
-        </div>{/* end scrollable */}
-      </div>{/* end main column */}
-    </div>
+    </DashboardShell>
   )
 }
 
-const lblStyle = { display: 'block', fontSize: 13, fontWeight: 600, color: '#3d2010', marginBottom: 6 }
-const inputStyle = { width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid #e5e5e5', fontSize: 14, outline: 'none', boxSizing: 'border-box', background: '#fff', color: '#1a0f0a' }
+const lblStyle = { display: 'block', fontSize: 13, fontWeight: 600, color: '#94a3b8', marginBottom: 6 }
+const inputStyle = { width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', fontSize: 14, outline: 'none', boxSizing: 'border-box', background: 'rgba(255,255,255,0.08)', color: '#f1f5f9' }
 
-const navBtnStyle = (active, isDark) => ({
-  background: active ? 'rgba(16,185,129,0.15)' : 'transparent',
-  color: active ? '#10b981' : '#94a3b8',
-  border: active ? '1px solid rgba(16,185,129,0.3)' : '1px solid transparent',
-  padding: '11px 14px', borderRadius: 10, cursor: 'pointer', textAlign: 'left', fontSize: 14, transition: 'all 0.2s',
-  display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%'
-})
-
-const StatCard = ({ title, value, highlight }) => (
-  <div style={{ background: '#fff', border: highlight ? '2px solid #10b981' : '1px solid #e5e5e5', borderRadius: 16, padding: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-    <div style={{ fontSize: 12, color: highlight ? '#10b981' : '#8b6a4a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>{title}</div>
-    <div style={{ fontSize: 36, fontWeight: 700, color: '#1a0f0a' }}>{value}</div>
+const StatCard = ({ title, value, color = '#10b981', highlight }) => (
+  <div className="stat-card" style={{ background: 'rgba(255,255,255,0.04)', backdropFilter:'blur(12px)', border: highlight ? `2px solid ${color}` : '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 24, boxShadow: highlight ? `0 0 24px ${color}22` : 'none' }}>
+    <div style={{ fontSize: 12, color: highlight ? color : '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>{title}</div>
+    <div style={{ fontSize: 38, fontWeight: 800, color: highlight ? color : '#f1f5f9' }}>{value ?? '—'}</div>
   </div>
 )

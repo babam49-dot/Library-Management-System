@@ -1,6 +1,6 @@
 const express = require('express');
-const cors = require('cors');
-const path = require('path');
+const cors    = require('cors');
+const path    = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const app = express();
@@ -8,38 +8,50 @@ app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Routes
-app.use('/api/auth', require('./src/routes/auth'));
-app.use('/api/admin', require('./src/routes/admin'));
-app.use('/api/staff', require('./src/routes/staff'));
+// ─── Existing routes (unchanged) ─────────────────────────────────────────────
+app.use('/api/auth',   require('./src/routes/auth'));
+app.use('/api/admin',  require('./src/routes/admin'));
+app.use('/api/staff',  require('./src/routes/staff'));
 app.use('/api/member', require('./src/routes/members'));
-app.use('/api/books', require('./src/routes/books'));
+app.use('/api/books',  require('./src/routes/books'));
 
+// ─── Module 1: Catalog ───────────────────────────────────────────────────────
+app.use('/api/catalog', require('./src/catalog/catalog.routes'));
+
+// ─── Public endpoints (no auth required) ─────────────────────────────────────
+const catalogSvc = require('./src/catalog/catalog.service');
+
+/**
+ * GET /api/public/books
+ * Returns the 6 most-borrowed active books for the Home page.
+ * No authentication required.
+ */
 app.get('/api/public/books', async (req, res) => {
   try {
-    const pool = require('./src/db');
-    const [rows] = await pool.execute(`
-      SELECT b.BookID, b.Title, b.CoverImage, c.CategoryName,
-             GROUP_CONCAT(DISTINCT a.Name SEPARATOR ', ') as Authors,
-             COUNT(DISTINCT CASE WHEN bc.Status='available' THEN bc.CopyID END) as AvailableCopies
-      FROM Books b
-      LEFT JOIN Categories c ON c.CategoryID = b.CategoryID
-      LEFT JOIN BookAuthors ba ON ba.BookID = b.BookID
-      LEFT JOIN Authors a ON a.AuthorID = ba.AuthorID
-      LEFT JOIN BookCopies bc ON bc.BookID = b.BookID
-      GROUP BY b.BookID
-      ORDER BY b.BookID DESC
-      LIMIT 8
-    `);
-    res.json({ success: true, data: rows });
+    const books = await catalogSvc.getMostBorrowedBooks();
+    res.json({ success: true, data: books });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
+/**
+ * GET /api/public/announcements
+ * Returns the latest staff-uploaded book announcements (new arrivals + notes).
+ * No authentication required — shown on the Home page hero widget.
+ */
+app.get('/api/public/announcements', async (req, res) => {
+  try {
+    const items = await catalogSvc.getLatestAnnouncements(5);
+    res.json({ success: true, data: items });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─── Health / root ───────────────────────────────────────────────────────────
 app.get('/', (req, res) => res.json({ message: 'Library Management API running' }));
 
-// DB connectivity check
 app.get('/db-check', async (req, res) => {
   try {
     const pool = require('./src/db');

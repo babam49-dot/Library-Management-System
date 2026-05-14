@@ -1,56 +1,19 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import DarkModeToggle from '../components/DarkModeToggle'
 
 const ROLES = [
-  { 
-    id: 3, 
-    label: 'Member', 
-    sub: 'Browse & borrow books', 
-    icon: '📚', 
-    themeColor: '#8b5e3c', // Brown
-    bgColor: '#f0e6d4',
-    bgLight: '#fdf4e7',
-    infoText: 'Sign in to access your borrowing dashboard and catalog.',
-    accessText: 'Standard access — Borrow up to 5 books',
-    demoEmail: 'jane@uni.edu',
-    showStaffId: false
-  },
-  { 
-    id: 2, 
-    label: 'Librarian / Staff', 
-    sub: 'Manage catalog & circulation', 
-    icon: '🗂️', 
-    themeColor: '#a67c00', // Gold/Yellow
-    bgColor: '#f4ecd8',
-    bgLight: '#fdfbf2',
-    infoText: 'Access the circulation desk, inventory, and member management tools.',
-    accessText: 'Staff access — Catalog & circulation management',
-    demoEmail: 'staff@library.com',
-    showStaffId: true
-  },
-  { 
-    id: 1, 
-    label: 'Administrator', 
-    sub: 'Full system access', 
-    icon: '🔑', 
-    themeColor: '#4f6d4d', // Green
-    bgColor: '#e3ebd8',
-    bgLight: '#f2f7ed',
-    infoText: 'Full system access. Manage users, roles, fine types, and system settings.',
-    accessText: 'Administrator access — Full system control',
-    demoEmail: 'admin@library.com',
-    showStaffId: true
-  },
+  { id: 3, label: 'Student Member', sub: 'Browse & borrow books', icon: '🎓', color: '#3b82f6' },
+  { id: 2, label: 'Librarian / Staff', sub: 'Manage catalog & circulation', icon: '🗂️', color: '#10b981' },
+  { id: 1, label: 'Administrator', sub: 'Full system access', icon: '🔑', color: '#f59e0b' },
 ]
 
 export default function SignIn() {
   const [selectedRole, setSelectedRole] = useState(3)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [staffId, setStaffId] = useState('')
   const [showPw, setShowPw] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -58,10 +21,11 @@ export default function SignIn() {
   const { isDark } = useTheme()
   const navigate = useNavigate()
 
+  const role = ROLES.find(r => r.id === selectedRole)
+
   const submit = async (e) => {
     e.preventDefault()
-    setError('')
-    setLoading(true)
+    setError(''); setLoading(true)
     try {
       const u = await login({ email, password })
       if (u.RoleID === 1) navigate('/admin')
@@ -69,164 +33,104 @@ export default function SignIn() {
       else navigate('/member')
     } catch (err) {
       setError(err.response?.data?.message || err.message || 'Login failed')
-    } finally {
-      setLoading(false)
-    }
+    } finally { setLoading(false) }
   }
 
-  const roleInfo = ROLES.find(r => r.id === selectedRole)
-  const bg = isDark ? '#0d0906' : '#faf6f0'
-  const leftBg = isDark ? 'linear-gradient(160deg, #1a0f0a 0%, #0d0906 100%)' : 'linear-gradient(160deg, #f0e6d4 0%, #faf6f0 100%)'
-  const leftBorder = isDark ? '#3d2010' : '#e5d5c5'
-  const textPrimary = isDark ? '#e8d5b0' : '#3d2010'
-  const textMuted = isDark ? '#a08060' : '#8b6a4a'
-  const rightBg = isDark ? '#1a1008' : '#fcfaf7'
-  const inputBg = isDark ? '#2a1a0c' : '#fff'
-  const inputBorder = isDark ? '#5a3a20' : '#e5d5c5'
-  const inputText = isDark ? '#e8d5b0' : '#1a0f0a'
-
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', fontFamily: "'Georgia', serif", background: bg, position: 'relative' }}>
-      {/* Global dark mode toggle */}
-      <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 1000 }}>
-        <DarkModeToggle />
-      </div>
-      {/* Left panel */}
-      <div style={{
-        width: '42%', background: leftBg,
-        padding: '48px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-        borderRight: `1px solid ${leftBorder}`
-      }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 48 }}>
-            <div style={{ width: 36, height: 36, background: '#c4813a', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#fff', fontSize: 16 }}>L</div>
-            <span style={{ color: textPrimary, fontWeight: 700, fontSize: 18, letterSpacing: 0.5 }}>Lenket Library</span>
-          </div>
-          <h1 style={{ color: isDark ? '#fff' : '#1a0f0a', fontSize: 42, fontWeight: 700, lineHeight: 1.1, marginBottom: 12 }}>
-            Sign in to your<br />
-            <span style={{ color: '#c4813a', fontStyle: 'italic' }}>library account.</span>
-          </h1>
-          <p style={{ color: textMuted, fontSize: 15, lineHeight: 1.6, marginTop: 16, maxWidth: '85%' }}>
-            Select your role below to access the right portal. Each role has tailored tools and permissions within the system.
-          </p>
-        </div>
+    <div style={{ minHeight: '100vh', background: isDark ? '#0a0e1a' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Inter', sans-serif", position: 'relative', overflow: 'hidden' }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,700;1,700&display=swap');
+        @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-20px)} }
+        @keyframes floatR { 0%,100%{transform:translateY(0)} 50%{transform:translateY(20px)} }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+        .signin-card { animation: fadeIn 0.5s ease forwards; }
+        .role-btn:hover { transform: translateY(-2px); }
+        .signin-input:focus { border-color: ${role.color} !important; box-shadow: 0 0 0 3px ${role.color}22; }
+      `}</style>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 40 }}>
-          {ROLES.map(r => {
-            const isSelected = selectedRole === r.id;
-            return (
-              <button key={r.id} onClick={() => setSelectedRole(r.id)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 14,
-                  background: isSelected ? 'rgba(196,129,58,0.15)' : 'rgba(255,255,255,0.03)',
-                  border: isSelected ? '1px solid rgba(196,129,58,0.5)' : '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: 12, padding: '16px', cursor: 'pointer', textAlign: 'left',
-                  transition: 'all 0.2s'
-                }}>
-                <div style={{ width: 42, height: 42, background: isSelected ? 'rgba(196,129,58,0.2)' : '#3d2010', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>{r.icon}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ color: '#e8d5b0', fontWeight: 600, fontSize: 16 }}>{r.label}</div>
-                  <div style={{ color: '#a08060', fontSize: 13, marginTop: 2 }}>{r.sub}</div>
+      {/* Floating blobs */}
+      <div style={{ position:'fixed', top:'-15%', left:'-10%', width:500, height:500, background: isDark ? 'rgba(245,158,11,0.08)' : 'rgba(245,158,11,0.12)', borderRadius:'50%', filter:'blur(80px)', animation:'float 8s ease-in-out infinite', pointerEvents:'none' }} />
+      <div style={{ position:'fixed', bottom:'-10%', right:'-5%', width:450, height:450, background: isDark ? `rgba(${role.id===3?'59,130,246':role.id===2?'16,185,129':'245,158,11'},0.08)` : `rgba(${role.id===3?'59,130,246':role.id===2?'16,185,129':'245,158,11'},0.12)`, borderRadius:'50%', filter:'blur(80px)', animation:'floatR 10s ease-in-out infinite', pointerEvents:'none' }} />
+      <div style={{ position:'fixed', top:'40%', right:'15%', width:250, height:250, background: isDark ? 'rgba(139,92,246,0.06)' : 'rgba(139,92,246,0.1)', borderRadius:'50%', filter:'blur(60px)', animation:'float 12s ease-in-out infinite reverse', pointerEvents:'none' }} />
+
+      {/* Dark mode toggle */}
+      <div style={{ position:'fixed', top:20, right:20, zIndex:1000 }}><DarkModeToggle /></div>
+
+      {/* Back to home */}
+      <Link to="/" style={{ position:'fixed', top:24, left:24, display:'flex', alignItems:'center', gap:8, color: isDark ? '#94a3b8' : '#64748b', textDecoration:'none', fontSize:14, fontWeight:500, zIndex:1000 }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        Back to home
+      </Link>
+
+      <div className="signin-card" style={{ width:'100%', maxWidth:900, margin:'0 auto', padding:'24px 16px', display:'flex', gap:24, alignItems:'stretch', zIndex:10, position:'relative' }}>
+        {/* Left — Role selector */}
+        <div style={{ width:300, flexShrink:0, background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.8)', backdropFilter:'blur(20px)', borderRadius:24, border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.08)', padding:32, display:'flex', flexDirection:'column' }}>
+          <Link to="/" style={{ display:'flex', alignItems:'center', gap:10, textDecoration:'none', marginBottom:36 }}>
+            <div style={{ width:36, height:36, background:'linear-gradient(135deg,#f59e0b,#d97706)', borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>📚</div>
+            <span style={{ fontWeight:800, fontSize:18, fontFamily:"'Playfair Display',serif", color: isDark?'#fff':'#0f172a' }}>UniLibrary</span>
+          </Link>
+
+          <h2 style={{ fontFamily:"'Playfair Display',serif", fontSize:28, fontWeight:700, color: isDark?'#fff':'#0f172a', margin:'0 0 8px', lineHeight:1.2 }}>Welcome<br/><span style={{ color:'#f59e0b', fontStyle:'italic' }}>back.</span></h2>
+          <p style={{ color: isDark?'#64748b':'#475569', fontSize:14, marginBottom:32, lineHeight:1.6 }}>Select your role to access the right portal.</p>
+
+          <div style={{ display:'flex', flexDirection:'column', gap:10, flex:1 }}>
+            {ROLES.map(r => (
+              <button key={r.id} className="role-btn" onClick={() => setSelectedRole(r.id)} style={{ display:'flex', alignItems:'center', gap:12, padding:'14px 16px', borderRadius:14, border: selectedRole===r.id ? `2px solid ${r.color}` : `1px solid ${isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'}`, background: selectedRole===r.id ? `${r.color}18` : 'transparent', cursor:'pointer', textAlign:'left', transition:'all 0.2s' }}>
+                <div style={{ width:38, height:38, borderRadius:10, background: selectedRole===r.id ? `${r.color}22` : isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.04)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>{r.icon}</div>
+                <div>
+                  <div style={{ fontWeight:600, fontSize:14, color: isDark?'#f1f5f9':'#0f172a' }}>{r.label}</div>
+                  <div style={{ fontSize:12, color: isDark?'#64748b':'#94a3b8', marginTop:2 }}>{r.sub}</div>
                 </div>
-                <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${isSelected ? '#c4813a' : '#5a3a20'}`, background: isSelected ? '#c4813a' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
-                  {isSelected && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3"><path d="M5 12l5 5L20 7"/></svg>}
-                </div>
+                {selectedRole===r.id && <div style={{ marginLeft:'auto', width:8, height:8, borderRadius:'50%', background:r.color, flexShrink:0 }} />}
               </button>
-            )
-          })}
-        </div>
-
-        <div style={{ marginTop: 40, color: '#6b4a2a', fontSize: 13, fontStyle: 'italic' }}>
-          "A library is not a luxury but one of the necessities of life."
-        </div>
-      </div>
-
-      {/* Right panel */}
-      <div style={{ flex: 1, background: rightBg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 48px' }}>
-        <div style={{ width: '100%', maxWidth: 440 }}>
-          
-          <p style={{ color: textMuted, fontSize: 15, marginBottom: 28 }}>{roleInfo.infoText}</p>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: roleInfo.bgColor, borderRadius: 8, padding: '12px 16px', marginBottom: 24, color: roleInfo.themeColor, fontSize: 13, fontWeight: 600 }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: roleInfo.themeColor }}></div>
-            {roleInfo.accessText}
+            ))}
           </div>
 
-          <div style={{ background: roleInfo.bgLight, border: `1px solid ${roleInfo.bgColor}`, borderRadius: 10, padding: '16px', marginBottom: 32 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: roleInfo.themeColor, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Demo Credentials</div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#5a3a20', marginBottom: 8 }}>
-              <span>Email</span><span style={{ fontFamily: 'monospace', background: '#f0e6d4', padding: '2px 8px', borderRadius: 4 }}>{roleInfo.demoEmail}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#5a3a20' }}>
-              <span>Password</span><span style={{ fontFamily: 'monospace', background: '#f0e6d4', padding: '2px 8px', borderRadius: 4 }}>pass123</span>
-            </div>
+          <p style={{ fontSize:12, color: isDark?'#334155':'#94a3b8', fontStyle:'italic', marginTop:24 }}>"A library is the delivery room for the imagination."</p>
+        </div>
+
+        {/* Right — Form */}
+        <div style={{ flex:1, background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.9)', backdropFilter:'blur(20px)', borderRadius:24, border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.08)', padding:40, display:'flex', flexDirection:'column', justifyContent:'center' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:32 }}>
+            <div style={{ width:10, height:10, borderRadius:'50%', background:role.color }} />
+            <span style={{ fontSize:13, fontWeight:600, color:role.color, textTransform:'uppercase', letterSpacing:1 }}>Signing in as {role.label}</span>
           </div>
 
-          <form onSubmit={submit}>
-            <label style={{ display: 'block', marginBottom: 16 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#3d2010', display: 'block', marginBottom: 8 }}>Email address</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, border: '1.5px solid #e5d5c5', borderRadius: 8, padding: '12px 16px', background: '#fff' }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a08060" strokeWidth="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></svg>
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-                  placeholder="name@example.com"
-                  style={{ border: 'none', outline: 'none', flex: 1, fontSize: 14, color: '#1a0f0a', background: 'transparent' }} />
-              </div>
-            </label>
+          <h3 style={{ fontFamily:"'Playfair Display',serif", fontSize:26, fontWeight:700, color: isDark?'#fff':'#0f172a', margin:'0 0 28px' }}>Sign In</h3>
 
-            <label style={{ display: 'block', marginBottom: roleInfo.showStaffId ? 16 : 24 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#3d2010', display: 'block', marginBottom: 8 }}>Password</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, border: '1.5px solid #e5d5c5', borderRadius: 8, padding: '12px 16px', background: '#fff' }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a08060" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                <input type={showPw ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required
-                  placeholder="Enter your password"
-                  style={{ border: 'none', outline: 'none', flex: 1, fontSize: 14, color: '#1a0f0a', background: 'transparent' }} />
-                <button type="button" onClick={() => setShowPw(v => !v)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#a08060', padding: 0 }}>
+          {error && <div style={{ padding:'12px 16px', background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:10, color:'#ef4444', fontSize:14, marginBottom:20 }}>⚠️ {error}</div>}
+
+          <form onSubmit={submit} style={{ display:'flex', flexDirection:'column', gap:18 }}>
+            <div>
+              <label style={{ display:'block', fontSize:13, fontWeight:600, color: isDark?'#94a3b8':'#475569', marginBottom:8 }}>Email address</label>
+              <input className="signin-input" type="email" value={email} onChange={e=>setEmail(e.target.value)} required placeholder="name@example.com"
+                style={{ width:'100%', padding:'12px 16px', borderRadius:12, border:`1.5px solid ${isDark?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.1)'}`, background: isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.03)', color: isDark?'#f1f5f9':'#0f172a', fontSize:15, outline:'none', boxSizing:'border-box', transition:'border-color 0.2s, box-shadow 0.2s' }} />
+            </div>
+            <div>
+              <label style={{ display:'block', fontSize:13, fontWeight:600, color: isDark?'#94a3b8':'#475569', marginBottom:8 }}>Password</label>
+              <div style={{ position:'relative' }}>
+                <input className="signin-input" type={showPw?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} required placeholder="Enter your password"
+                  style={{ width:'100%', padding:'12px 48px 12px 16px', borderRadius:12, border:`1.5px solid ${isDark?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.1)'}`, background: isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.03)', color: isDark?'#f1f5f9':'#0f172a', fontSize:15, outline:'none', boxSizing:'border-box', transition:'border-color 0.2s, box-shadow 0.2s' }} />
+                <button type="button" onClick={()=>setShowPw(v=>!v)} style={{ position:'absolute', right:14, top:'50%', transform:'translateY(-50%)', border:'none', background:'none', cursor:'pointer', color: isDark?'#64748b':'#94a3b8', padding:0 }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
                 </button>
               </div>
-            </label>
-
-            {roleInfo.showStaffId && (
-              <label style={{ display: 'block', marginBottom: 24 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#3d2010', display: 'block', marginBottom: 8 }}>Staff ID</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, border: '1.5px solid #e5d5c5', borderRadius: 8, padding: '12px 16px', background: '#fff' }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a08060" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/></svg>
-                  <input type="text" value={staffId} onChange={e => setStaffId(e.target.value)}
-                    placeholder="e.g. STAFF-001"
-                    style={{ border: 'none', outline: 'none', flex: 1, fontSize: 14, color: '#1a0f0a', background: 'transparent' }} />
-                </div>
-              </label>
-            )}
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, fontSize: 13 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#8b6a4a', cursor: 'pointer' }}>
-                <input type="checkbox" style={{ accentColor: roleInfo.themeColor }} />
-                Remember me
-              </label>
-              <a href="#" style={{ color: roleInfo.themeColor, fontWeight: 600, textDecoration: 'none' }}>Forgot password?</a>
             </div>
 
-            {error && (
-              <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#b91c1c', marginBottom: 16 }}>
-                ⚠️ {error}
-              </div>
-            )}
-
-            <button type="submit" disabled={loading}
-              style={{ width: '100%', background: loading ? '#ccc' : roleInfo.themeColor, color: '#fff', border: 'none', borderRadius: 8, padding: '14px', fontSize: 15, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', transition: 'background 0.2s' }}>
-              {loading ? 'Signing in…' : `Sign in as ${roleInfo.label}`}
+            <button type="submit" disabled={loading} style={{ padding:'14px', borderRadius:12, border:'none', background:`linear-gradient(135deg,${role.color},${role.color}cc)`, color:'#fff', fontWeight:700, fontSize:16, cursor: loading?'not-allowed':'pointer', transition:'all 0.2s', boxShadow:`0 4px 20px ${role.color}44`, marginTop:4 }}>
+              {loading ? 'Signing in…' : `Sign in →`}
             </button>
           </form>
 
-          <div style={{ display: 'flex', alignItems: 'center', margin: '32px 0', color: '#d4b896' }}>
-            <div style={{ flex: 1, height: 1, background: '#e5d5c5' }}></div>
-            <span style={{ padding: '0 12px', fontSize: 13, fontStyle: 'italic' }}>or</span>
-            <div style={{ flex: 1, height: 1, background: '#e5d5c5' }}></div>
+          <div style={{ display:'flex', alignItems:'center', margin:'28px 0', gap:12 }}>
+            <div style={{ flex:1, height:1, background: isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)' }} />
+            <span style={{ fontSize:13, color: isDark?'#334155':'#94a3b8' }}>or</span>
+            <div style={{ flex:1, height:1, background: isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)' }} />
           </div>
 
-          <p style={{ textAlign: 'center', fontSize: 14, color: '#8b6a4a' }}>
+          <p style={{ textAlign:'center', fontSize:14, color: isDark?'#64748b':'#475569' }}>
             Don't have an account?{' '}
-            <Link to="/register" style={{ color: roleInfo.themeColor, fontWeight: 700, textDecoration: 'none' }}>Register now</Link>
+            <Link to="/register" style={{ color:role.color, fontWeight:700, textDecoration:'none' }}>Create one →</Link>
           </p>
         </div>
       </div>

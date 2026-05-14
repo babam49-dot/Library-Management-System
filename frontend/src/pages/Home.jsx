@@ -9,6 +9,8 @@ export default function Home() {
   const [scrollY, setScrollY] = useState(0)
   const { isDark } = useTheme()
   const [books, setBooks] = useState([])
+  const [announcements, setAnnouncements] = useState([])
+  const [announcementIdx, setAnnouncementIdx] = useState(0)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -17,20 +19,33 @@ export default function Home() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
+  // Fetch top-6 most-borrowed books (public – no auth)
   useEffect(() => {
-    // Fetch books to display in the catalog
-    axios.get('http://localhost:4000/api/public/books').then(res => {
-      setBooks(res.data.data.slice(0, 4))
-    }).catch(err => {
-      console.log('Error fetching public books, using demo data', err)
-      setBooks([
-        { BookID: 1, Title: 'Calculus: Early Transcendentals', Authors: 'James Stewart', CategoryName: 'Mathematics', AvailableCopies: 2, CoverImage: 'https://images.unsplash.com/photo-1596495578065-6e0763fa1178?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80' },
-        { BookID: 2, Title: 'University Physics', Authors: 'Hugh D. Young', CategoryName: 'Physics', AvailableCopies: 0, CoverImage: 'https://images.unsplash.com/photo-1636466497217-26a8cbeaf0aa?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80' },
-        { BookID: 3, Title: 'Introduction to Algorithms', Authors: 'Thomas H. Cormen', CategoryName: 'Computer Science', AvailableCopies: 5, CoverImage: 'https://images.unsplash.com/photo-1516116216624-53e697fedbea?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80' },
-        { BookID: 4, Title: 'Clean Code', Authors: 'Robert C. Martin', CategoryName: 'Programming', AvailableCopies: 1, CoverImage: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80' }
-      ])
-    })
+    axios.get('http://localhost:4000/api/public/books')
+      .then(res => setBooks(res.data.data || []))
+      .catch(() => setBooks([
+        { BookID: 1, Title: 'Calculus: Early Transcendentals', Authors: 'James Stewart', CategoryName: 'Mathematics', AvailableCopies: 2 },
+        { BookID: 2, Title: 'University Physics',              Authors: 'Hugh D. Young',     CategoryName: 'Physics',       AvailableCopies: 0 },
+        { BookID: 3, Title: 'Introduction to Algorithms',      Authors: 'Thomas H. Cormen',  CategoryName: 'Computer Sci',  AvailableCopies: 5 },
+        { BookID: 4, Title: 'Clean Code',                      Authors: 'Robert C. Martin',  CategoryName: 'Programming',   AvailableCopies: 1 },
+        { BookID: 5, Title: 'The Design of Everyday Things',   Authors: 'Don Norman',        CategoryName: 'Design',        AvailableCopies: 3 },
+        { BookID: 6, Title: 'Atomic Habits',                   Authors: 'James Clear',       CategoryName: 'Self-Help',     AvailableCopies: 4 },
+      ]))
   }, [])
+
+  // Fetch latest staff announcements (new arrivals)
+  useEffect(() => {
+    axios.get('http://localhost:4000/api/public/announcements')
+      .then(res => setAnnouncements(res.data.data || []))
+      .catch(() => setAnnouncements([]))
+  }, [])
+
+  // Cycle through announcements every 4 s
+  useEffect(() => {
+    if (!announcements.length) return
+    const t = setInterval(() => setAnnouncementIdx(i => (i + 1) % announcements.length), 4000)
+    return () => clearInterval(t)
+  }, [announcements])
 
   const themeVars = isDark ? `
     :root {
@@ -218,10 +233,33 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="glass-card floating-delay" style={{ position: 'absolute', top: 40, right: -20, width: 200, padding: 20, borderRadius: 16, zIndex: 3 }}>
-               <div style={{ fontSize: 24, marginBottom: 8 }}>✨</div>
-               <div style={{ fontWeight: 600, fontSize: 14 }}>New Arrival</div>
-               <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Physics 101 Added</div>
+            <div className="glass-card floating-delay" style={{ position: 'absolute', top: 40, right: -20, width: 220, padding: 20, borderRadius: 16, zIndex: 3, minHeight: 80 }}>
+               <div style={{ fontSize: 22, marginBottom: 6 }}>✨</div>
+               <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--accent-gold)', textTransform: 'uppercase', letterSpacing: 1 }}>New Arrival</div>
+               {announcements.length > 0 ? (
+                 <>
+                   <div style={{ fontWeight: 600, fontSize: 13, marginTop: 4, lineHeight: 1.4 }}>
+                     {announcements[announcementIdx]?.Title}
+                   </div>
+                   {announcements[announcementIdx]?.Note && (
+                     <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.4 }}>
+                       {announcements[announcementIdx].Note}
+                     </div>
+                   )}
+                   {announcements.length > 1 && (
+                     <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
+                       {announcements.map((_, i) => (
+                         <div key={i} onClick={() => setAnnouncementIdx(i)}
+                           style={{ width: i === announcementIdx ? 16 : 6, height: 6, borderRadius: 3,
+                             background: i === announcementIdx ? 'var(--accent-gold)' : 'var(--border-color)',
+                             cursor: 'pointer', transition: 'all 0.3s' }} />
+                       ))}
+                     </div>
+                   )}
+                 </>
+               ) : (
+                 <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>Physics 101 Added</div>
+               )}
             </div>
           </div>
         </div>
@@ -350,30 +388,91 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Featured Books */}
+      {/* Featured Books – Top 6 Most Borrowed */}
       <section id="books" style={{ padding: '120px 48px', background: 'var(--bg-secondary)' }}>
-        <div style={{ textAlign: 'center', marginBottom: 80 }}>
-          <h2 style={{ fontSize: 48, fontFamily: "'Playfair Display', serif", fontWeight: 700 }}>Recently Added to Our Collection</h2>
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <h2 style={{ fontSize: 48, fontFamily: "'Playfair Display', serif", fontWeight: 700 }}>Most Borrowed Books</h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 16, marginTop: 12 }}>
+            The titles our community loves most — sign in to borrow any of them.
+          </p>
         </div>
 
-        <div style={{ maxWidth: 1300, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 30 }}>
+        {/* Badge row */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 56 }}>
+          <span style={{ background: 'linear-gradient(135deg,var(--accent-gold),var(--accent-amber))', color: '#fff', padding: '6px 20px', borderRadius: 20, fontSize: 13, fontWeight: 600, letterSpacing: 0.5 }}>
+            🔥 Live from our catalog • sign in to access full details
+          </span>
+        </div>
+
+        <div style={{ maxWidth: 1400, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 28 }}>
           {books.map((b, i) => (
-            <div key={i} className="glass-card" style={{ borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ height: 280, position: 'relative', background: '#e2e8f0' }}>
+            <div key={b.BookID || i} className="glass-card"
+              style={{ borderRadius: 20, overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+
+              {/* Rank badge */}
+              <div style={{ position: 'absolute', top: 14, left: 14, zIndex: 5,
+                width: 32, height: 32, borderRadius: '50%',
+                background: i < 3 ? 'linear-gradient(135deg,#f59e0b,#d97706)' : 'rgba(0,0,0,0.45)',
+                color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontWeight: 800, fontSize: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
+                #{i + 1}
+              </div>
+
+              {/* Cover */}
+              <div style={{ height: 260, position: 'relative',
+                background: `hsl(${(i * 47) % 360},20%,${isDark ? '18%' : '88%'})` }}>
                 {b.CoverImage ? (
-                  <img src={b.CoverImage.startsWith('http') ? b.CoverImage : `http://localhost:4000${b.CoverImage}`} alt={b.Title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img
+                    src={b.CoverImage.startsWith('http') ? b.CoverImage : `http://localhost:4000${b.CoverImage}`}
+                    alt={b.Title}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
-                   <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 60 }}>📚</div>
+                  <div style={{ width: '100%', height: '100%', display: 'flex',
+                    alignItems: 'center', justifyContent: 'center', fontSize: 64 }}>📚</div>
                 )}
-                <div style={{ position: 'absolute', top: 16, right: 16, background: b.AvailableCopies > 0 ? '#047857' : '#b91c1c', color: '#fff', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
-                  {b.AvailableCopies > 0 ? 'Available' : 'Borrowed'}
+
+                {/* Availability pill */}
+                <div style={{
+                  position: 'absolute', bottom: 14, right: 14,
+                  background: b.AvailableCopies > 0 ? 'rgba(4,120,87,0.92)' : 'rgba(185,28,28,0.92)',
+                  color: '#fff', padding: '4px 12px', borderRadius: 20,
+                  fontSize: 11, fontWeight: 700, backdropFilter: 'blur(4px)'
+                }}>
+                  {b.AvailableCopies > 0 ? `✅ ${b.AvailableCopies} Available` : '⛔ All Borrowed'}
                 </div>
               </div>
-              <div style={{ padding: 24, flex: 1, display: 'flex', flexDirection: 'column' }}>
-                <div style={{ fontSize: 12, color: 'var(--accent-gold)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>{b.CategoryName}</div>
-                <h4 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>{b.Title}</h4>
-                <div style={{ color: 'var(--text-secondary)', fontSize: 14, marginBottom: 20 }}>By {b.Authors}</div>
-                <button onClick={() => navigate('/login')} style={{ marginTop: 'auto', background: 'var(--bg-primary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', padding: '10px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, transition: 'all 0.2s' }}>View Details</button>
+
+              {/* Info */}
+              <div style={{ padding: '20px 22px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ fontSize: 11, color: 'var(--accent-gold)', fontWeight: 700,
+                  textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 8 }}>
+                  {b.CategoryName || 'General'}
+                </div>
+                <h4 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, lineHeight: 1.3,
+                  display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                  {b.Title}
+                </h4>
+                <div style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 18, flex: 1 }}>
+                  By {b.Authors || 'Unknown Author'}
+                </div>
+                {b.BorrowCount > 0 && (
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
+                    🔖 Borrowed {b.BorrowCount} time{b.BorrowCount !== 1 ? 's' : ''}
+                  </div>
+                )}
+                <button
+                  onClick={() => navigate('/login')}
+                  style={{
+                    background: 'linear-gradient(135deg,var(--accent-gold),var(--accent-amber))',
+                    color: '#fff', border: 'none', padding: '10px 0', borderRadius: 10,
+                    cursor: 'pointer', fontWeight: 700, fontSize: 14, transition: 'all 0.25s',
+                    boxShadow: '0 4px 12px rgba(245,158,11,0.25)'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                  onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                >
+                  Sign In to Borrow
+                </button>
               </div>
             </div>
           ))}

@@ -1,181 +1,293 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import DarkModeToggle from '../components/DarkModeToggle'
+import DashboardShell from '../components/DashboardShell'
 import axios from 'axios'
 
 const API = 'http://localhost:4000/api'
+const fmt = (d) => d ? new Date(d).toLocaleDateString() : '—'
+const statusColor = (s) => ({ active:'#10b981', pending:'#f59e0b', rejected:'#ef4444', suspended:'#6b7280' }[s] || '#94a3b8')
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth()
   const { isDark } = useTheme()
-  const [stats, setStats] = useState(null)
-  const [pendingStaff, setPendingStaff] = useState([])
   const [tab, setTab] = useState('overview')
+  const [stats, setStats] = useState(null)
+  const [data, setData] = useState([])
+  const [search, setSearch] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [toast, setToast] = useState('')
+  const [modal, setModal] = useState(null) // { type, item }
 
-  const bg = isDark ? '#0a0e1a' : '#f8f9fa'
-  const sidebar = isDark ? '#111827' : '#1a0f0a'
-  const cardBg = isDark ? '#1e2334' : '#fff'
-  const textPrimary = isDark ? '#f1f5f9' : '#1a0f0a'
-  const textMuted = isDark ? '#94a3b8' : '#8b6a4a'
-  const border = isDark ? '#2d3748' : '#e5e5e5'
-  const tableHead = isDark ? '#1a2236' : '#faf6f0'
+  const c = {
+    bg: isDark ? '#0a0e1a' : '#f1f5f9',
+    sidebar: isDark ? '#0d1117' : '#1e293b',
+    card: isDark ? '#161b27' : '#fff',
+    border: isDark ? '#1e2d40' : '#e2e8f0',
+    text: isDark ? '#f1f5f9' : '#0f172a',
+    muted: isDark ? '#64748b' : '#64748b',
+    head: isDark ? '#1a2236' : '#f8fafc',
+    input: isDark ? '#1e2d40' : '#f8fafc',
+  }
 
-  const getHeaders = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('lms_token')}` } })
+  const h = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('lms_token')}` } })
+  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
 
-  const fetchData = async () => {
+  const TABS = [
+    { key: 'overview', label: 'Overview', icon: '📊' },
+    { key: 'pending-staff', label: 'Pending Staff', icon: '⏳' },
+    { key: 'all-staff', label: 'All Staff', icon: '🗂️' },
+    { key: 'members', label: 'Members', icon: '🎓' },
+    { key: 'books', label: 'Books', icon: '📚' },
+    { key: 'borrowings', label: 'Borrowings', icon: '📖' },
+    { key: 'fines', label: 'Fines', icon: '💰' },
+    { key: 'fine-types', label: 'Fine Types', icon: '⚙️' },
+    { key: 'damage', label: 'Damage Reports', icon: '🔍' },
+  ]
+
+  const fetchStats = useCallback(async () => {
+    try { const r = await axios.get(`${API}/admin/dashboard`, h()); setStats(r.data.data) } catch {}
+  }, [])
+
+  const fetchTab = useCallback(async (t) => {
+    setLoading(true); setSearch('')
+    const map = {
+      'pending-staff': '/users',
+      'all-staff': '/users',
+      'members': '/users',
+      'books': '/admin/all-books',
+      'borrowings': '/admin/borrowing-records',
+      'fines': '/admin/fines',
+      'fine-types': '/admin/fine-types',
+      'damage': '/admin/damage-reports',
+    }
+    if (map[t]) {
+      try {
+        const r = await axios.get(`${API}${map[t]}`, h());
+        let results = r.data.data || [];
+        // Apply filtering based on tab
+        if (t === 'pending-staff') results = results.filter(u => u.RoleName === 'Staff' && u.Status === 'Pending');
+        else if (t === 'all-staff') results = results.filter(u => u.RoleName === 'Staff' || u.RoleName === 'Admin');
+        else if (t === 'members') results = results.filter(u => u.RoleName === 'Member');
+        
+        setData(results)
+      } catch { setData([]) }
+    }
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { fetchStats() }, [])
+  useEffect(() => { if (tab !== 'overview') fetchTab(tab) }, [tab])
+
+  const act = async (method, url, body, msg) => {
     try {
-      const s = await axios.get(`${API}/admin/dashboard`, getHeaders())
-      setStats(s.data.data)
-      const p = await axios.get(`${API}/admin/pending-staff`, getHeaders())
-      setPendingStaff(p.data.data)
-    } catch (err) { console.error(err) }
+      await axios({ method, url: `${API}${url}`, data: body, ...h() })
+      showToast(msg); fetchStats()
+      if (tab !== 'overview') fetchTab(tab)
+    } catch (e) { showToast('Error: ' + (e.response?.data?.message || e.message)) }
   }
 
-  useEffect(() => { fetchData() }, [])
+  const filtered = data.filter(row => {
+    const s = search.toLowerCase()
+    return !s || Object.values(row).some(v => String(v||'').toLowerCase().includes(s))
+  })
 
-  const handleApprove = async (id) => {
-    if (!window.confirm('Approve this staff account?')) return
-    await axios.patch(`${API}/admin/approve-staff/${id}`, {}, getHeaders())
-    fetchData()
+  const Badge = ({ v }) => (
+    <span style={{ background: statusColor(v)+'22', color: statusColor(v), padding:'2px 10px', borderRadius:20, fontSize:12, fontWeight:700 }}>{v}</span>
+  )
+
+  const Th = ({ children }) => <th style={{ padding:'12px 16px', textAlign:'left', fontSize:12, fontWeight:700, color:c.muted, textTransform:'uppercase', letterSpacing:1, background:c.head, whiteSpace:'nowrap' }}>{children}</th>
+  const Td = ({ children, style={} }) => <td style={{ padding:'12px 16px', fontSize:13, color:c.text, borderTop:`1px solid ${c.border}`, ...style }}>{children}</td>
+  const Btn = ({ onClick, color='#3b82f6', children, size='sm' }) => (
+    <button onClick={onClick} style={{ background:color+'22', color, border:`1px solid ${color}44`, padding: size==='sm' ? '4px 10px' : '8px 18px', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600, marginLeft:4 }}>{children}</button>
+  )
+
+  const renderContent = () => {
+    if (tab === 'overview') return (
+      <div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:16, marginBottom:32 }}>
+          {[
+            { label:'Books', val:stats?.totalBooks, icon:'📚', color:'#3b82f6' },
+            { label:'Members', val:stats?.totalMembers, icon:'🎓', color:'#8b5cf6' },
+            { label:'Staff', val:stats?.totalStaff, icon:'🗂️', color:'#10b981' },
+            { label:'Borrowings', val:stats?.activeBorrowings, icon:'📖', color:'#f59e0b' },
+            { label:'Unpaid Fines', val:stats?.unpaidFines, icon:'💰', color:'#ef4444' },
+            { label:'Pending Staff', val:stats?.pendingStaff, icon:'⏳', color:'#f97316' },
+            { label:'Pending Members', val:stats?.pendingMembers, icon:'👤', color:'#ec4899' },
+          ].map(s => (
+            <div key={s.label} style={{ background:c.card, border:`1px solid ${c.border}`, borderRadius:12, padding:20, cursor:'pointer' }} onClick={() => s.label.includes('Pending') ? setTab(s.label.includes('Staff') ? 'pending-staff' : 'members') : null}>
+              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8 }}>
+                <span style={{ fontSize:12, fontWeight:700, color:c.muted, textTransform:'uppercase', letterSpacing:1 }}>{s.label}</span>
+                <span style={{ fontSize:20 }}>{s.icon}</span>
+              </div>
+              <div style={{ fontSize:36, fontWeight:800, color:s.color }}>{s.val ?? '—'}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+
+    const cols = {
+      'pending-staff': ['Name','Email','Job Title','Phone','Actions'],
+      'all-staff': ['Name','Email','Job Title','Status','Joined','Actions'],
+      'members': ['Name','Email','Dept','Max Books','Status','Actions'],
+      'books': ['Title','Category','Authors','Available','Total','Actions'],
+      'borrowings': ['Member','Book','Borrowed','Due','Status'],
+      'fines': ['Member','Book','Type','Amount','Status','Issued','Actions'],
+      'fine-types': ['Name','Base Amount','Description','Actions'],
+      'damage': ['Member','Book','Description','Severity','Date'],
+    }
+
+    const renderRow = (row, i) => {
+      if (tab === 'pending-staff') return (
+        <tr key={i}>
+          <Td><strong style={{color:c.text}}>{row.FullName}</strong></Td>
+          <Td>{row.Email}</Td>
+          <Td>{row.JobTitle || '—'}</Td>
+          <Td>{row.Phone || '—'}</Td>
+          <Td>
+            <Btn color='#10b981' onClick={() => act('patch',`/users/${row.UserID}/status`,{status:'Active'},'Staff approved!')}>Approve</Btn>
+            <Btn color='#ef4444' onClick={() => { if(window.confirm('Reject?')) act('patch',`/users/${row.UserID}/status`,{status:'Inactive'},'Staff rejected.') }}>Reject</Btn>
+          </Td>
+        </tr>
+      )
+      if (tab === 'all-staff') return (
+        <tr key={i}>
+          <Td><strong style={{color:c.text}}>{row.FullName}</strong></Td>
+          <Td>{row.Email}</Td>
+          <Td>{row.JobTitle || '—'}</Td>
+          <Td><Badge v={row.Status} /></Td>
+          <Td>{fmt(row.EmploymentDate)}</Td>
+          <Td>
+            {row.Status === 'Active' && <Btn color='#f59e0b' onClick={() => act('patch',`/users/${row.UserID}/status`,{status:'Suspended'},'Suspended.')}>Suspend</Btn>}
+            {row.Status === 'Suspended' && <Btn color='#10b981' onClick={() => act('patch',`/users/${row.UserID}/status`,{status:'Active'},'Activated.')}>Activate</Btn>}
+            <Btn color='#ef4444' onClick={() => { if(window.confirm('Deactivate staff?')) act('patch',`/users/${row.UserID}/status`,{status:'Inactive'},'Deactivated.') }}>Deactivate</Btn>
+          </Td>
+        </tr>
+      )
+      if (tab === 'members') return (
+        <tr key={i}>
+          <Td><strong style={{color:c.text}}>{row.FullName}</strong></Td>
+          <Td>{row.Email}</Td>
+          <Td>{row.Department || '—'}</Td>
+          <Td>
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <span>{row.MaxBooksAllowed}</span>
+              <Btn color='#3b82f6' onClick={() => setModal({type:'max-books', item:row})}>Edit</Btn>
+            </div>
+          </Td>
+          <Td><Badge v={row.Status} /></Td>
+          <Td>
+            {row.Status === 'Pending' && <Btn color='#10b981' onClick={() => act('patch',`/users/${row.UserID}/status`,{status:'Active'},'Activated.')}>Approve</Btn>}
+            {row.Status === 'Active' && <Btn color='#f59e0b' onClick={() => act('patch',`/users/${row.UserID}/status`,{status:'Suspended'},'Suspended.')}>Suspend</Btn>}
+            {row.Status === 'Suspended' && <Btn color='#10b981' onClick={() => act('patch',`/users/${row.UserID}/status`,{status:'Active'},'Activated.')}>Activate</Btn>}
+            <Btn color='#ef4444' onClick={() => { if(window.confirm('Deactivate member?')) act('patch',`/users/${row.UserID}/status`,{status:'Inactive'},'Deactivated.') }}>Deactivate</Btn>
+          </Td>
+        </tr>
+      )
+      if (tab === 'books') return (
+        <tr key={i}>
+          <Td><strong style={{color:c.text}}>{row.Title}</strong></Td>
+          <Td>{row.CategoryName || '—'}</Td>
+          <Td style={{maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{row.Authors || '—'}</Td>
+          <Td><span style={{color:'#10b981',fontWeight:700}}>{row.AvailableCopies}</span></Td>
+          <Td>{row.TotalCopies}</Td>
+          <Td><Btn color='#ef4444' onClick={() => { if(window.confirm('Delete book and all copies?')) act('delete',`/catalog/books/${row.BookID}`,{},'Book deleted.') }}>Delete</Btn></Td>
+        </tr>
+      )
+      if (tab === 'borrowings') return (
+        <tr key={i}>
+          <Td><strong style={{color:c.text}}>{row.MemberName}</strong></Td>
+          <Td style={{maxWidth:180,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{row.BookTitle}</Td>
+          <Td>{fmt(row.BorrowDate)}</Td>
+          <Td>{fmt(row.DueDate)}</Td>
+          <Td><Badge v={row.Status} /></Td>
+        </tr>
+      )
+      if (tab === 'fines') return (
+        <tr key={i}>
+          <Td>{row.FullName}</Td>
+          <Td style={{maxWidth:150,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{row.BookTitle || '—'}</Td>
+          <Td>{row.TypeName || '—'}</Td>
+          <Td><strong style={{color:'#ef4444'}}>${row.Amount}</strong></Td>
+          <Td><Badge v={row.FineStatus} /></Td>
+          <Td>{fmt(row.IssuedDate)}</Td>
+          <Td>
+            {row.FineStatus === 'Unpaid' && <Btn color='#f59e0b' onClick={() => act('patch',`/admin/fines/${row.FineID}/waive`,{},'Fine waived.')}>Waive</Btn>}
+          </Td>
+        </tr>
+      )
+      if (tab === 'fine-types') return (
+        <tr key={i}>
+          <Td><strong style={{color:c.text}}>{row.TypeName}</strong></Td>
+          <Td>${row.BaseAmount}/day</Td>
+          <Td>{row.Description || '—'}</Td>
+          <Td><Btn color='#ef4444' onClick={() => { if(window.confirm('Delete fine type?')) act('delete',`/admin/fine-types/${row.TypeID}`,{},'Deleted.') }}>Delete</Btn></Td>
+        </tr>
+      )
+      if (tab === 'damage') return (
+        <tr key={i}>
+          <Td>{row.MemberName || '—'}</Td>
+          <Td>{row.BookTitle || '—'}</Td>
+          <Td style={{maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{row.Description}</Td>
+          <Td><Badge v={row.Severity} /></Td>
+          <Td>{fmt(row.AssessmentDate)}</Td>
+        </tr>
+      )
+      return null
+    }
+
+    return (
+      <div style={{ background:c.card, borderRadius:16, border:`1px solid ${c.border}`, overflow:'hidden' }}>
+        <div style={{ padding:'16px 20px', borderBottom:`1px solid ${c.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Filter by name, email, title..." style={{ flex:1, padding:'9px 14px', borderRadius:8, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, outline:'none' }} />
+          <span style={{ fontSize:13, color:c.muted, whiteSpace:'nowrap' }}>{filtered.length} results</span>
+        </div>
+        {loading ? (
+          <div style={{ padding:60, textAlign:'center', color:c.muted }}>Loading...</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ padding:60, textAlign:'center', color:c.muted }}>
+            <div style={{ fontSize:40, marginBottom:12 }}>📭</div>
+            No records found.
+          </div>
+        ) : (
+          <div style={{ overflowX:'auto' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse' }}>
+              <thead><tr>{(cols[tab]||[]).map(h=><Th key={h}>{h}</Th>)}</tr></thead>
+              <tbody>{filtered.map((row, i) => renderRow(row, i))}</tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    )
   }
 
-  const handleReject = async (id) => {
-    if (!window.confirm('Reject this staff account?')) return
-    await axios.patch(`${API}/admin/reject-staff/${id}`, {}, getHeaders())
-    fetchData()
-  }
+  const tabLabel = TABS.find(t => t.key === tab)?.label || 'Dashboard'
+  const navItems = TABS.map(t => ({ ...t, badge: t.key === 'pending-staff' ? (stats?.pendingStaff || 0) : 0 }))
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', fontFamily: "'Inter', 'Georgia', sans-serif", background: bg }}>
-      {/* Sidebar */}
-      <div style={{ width: 260, background: sidebar, color: '#e8d5b0', padding: 24, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 40 }}>
-          <div style={{ width: 36, height: 36, background: 'linear-gradient(135deg,#f59e0b,#d97706)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#fff', fontSize: 18 }}>A</div>
-          <span style={{ fontWeight: 700, fontSize: 17, color: '#fff' }}>Admin Portal</span>
-        </div>
+    <DashboardShell role="admin" navItems={navItems} activeTab={tab} setTab={setTab} user={user} logout={logout} tabLabel={tabLabel}>
+      {/* Toast */}
+      {toast && <div style={{ position:'fixed', bottom:24, right:24, background:'#1e293b', color:'#fff', padding:'12px 20px', borderRadius:10, zIndex:9999, fontSize:14, boxShadow:'0 4px 24px rgba(0,0,0,0.3)', borderLeft:'3px solid #f59e0b' }}>{toast}</div>}
 
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
-          {[
-            { key: 'overview', label: 'Dashboard Overview', icon: '📊' },
-            { key: 'staff', label: 'Staff Approvals', icon: '👥', badge: pendingStaff.length },
-          ].map(item => (
-            <button key={item.key} onClick={() => setTab(item.key)} style={navBtnStyle(tab === item.key)}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span>{item.icon}</span>
-                <span>{item.label}</span>
-              </span>
-              {item.badge > 0 && <span style={{ background: '#ef4444', color: '#fff', padding: '2px 8px', borderRadius: 12, fontSize: 11 }}>{item.badge}</span>}
-            </button>
-          ))}
-        </nav>
-
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 20, marginTop: 'auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg,#f59e0b,#d97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 14 }}>
-              {user?.FullName?.charAt(0) || 'A'}
-            </div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{user?.FullName}</div>
-              <div style={{ fontSize: 11, color: '#94a3b8' }}>Administrator</div>
+      {/* Max Books Modal */}
+      {modal?.type === 'max-books' && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(4px)' }}>
+          <div style={{ background: c.card, backdropFilter:'blur(20px)', borderRadius:20, padding:32, width:380, border:`1px solid ${c.border}`, boxShadow:'0 30px 80px rgba(0,0,0,0.5)' }}>
+            <h3 style={{ color:c.text, margin:'0 0 6px', fontSize:20, fontWeight:700 }}>Edit Max Books</h3>
+            <p style={{ color:c.muted, fontSize:14, marginBottom:20 }}>{modal.item.FullName}</p>
+            <input id="mbooks" type="number" defaultValue={modal.item.MaxBooksAllowed} min={1} style={{ width:'100%', padding:'12px 14px', borderRadius:10, border:`1.5px solid ${c.border}`, background: c.input, color:c.text, fontSize:16, outline:'none', boxSizing:'border-box', marginBottom:20 }} />
+            <div style={{ display:'flex', gap:10 }}>
+              <button onClick={() => setModal(null)} style={{ flex:1, padding:11, borderRadius:10, border:`1px solid ${c.border}`, background:'transparent', color:c.muted, cursor:'pointer', fontWeight:600 }}>Cancel</button>
+              <button onClick={() => { const v = document.getElementById('mbooks').value; act('patch',`/members/${modal.item.MemberID}/maxbooks`,{maxBooks:parseInt(v)},'Max books updated.'); setModal(null) }} style={{ flex:1, padding:11, borderRadius:10, border:'none', background:'linear-gradient(135deg,#3b82f6,#1d4ed8)', color:'#fff', fontWeight:700, cursor:'pointer' }}>Save Changes</button>
             </div>
           </div>
-          <button onClick={logout} style={{ width: '100%', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', color: '#94a3b8', padding: '10px', borderRadius: 8, cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-            Sign Out
-          </button>
         </div>
-      </div>
+      )}
 
-      {/* Main content */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* Top bar */}
-        <div style={{ background: cardBg, borderBottom: `1px solid ${border}`, padding: '16px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h2 style={{ fontSize: 22, color: textPrimary, fontWeight: 700, margin: 0 }}>
-              {tab === 'overview' ? 'System Overview' : 'Staff Approvals'}
-            </h2>
-            <div style={{ fontSize: 13, color: textMuted, marginTop: 4 }}>
-              {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ background: '#fef3c7', color: '#92400e', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>Admin</span>
-            <DarkModeToggle />
-          </div>
-        </div>
-
-        <div style={{ flex: 1, overflowY: 'auto', padding: 32 }}>
-          {tab === 'overview' && stats && (
-            <div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 20, marginBottom: 32 }}>
-                <StatCard title="Total Books" value={stats.totalBooks} icon="📚" bg={cardBg} textPrimary={textPrimary} textMuted={textMuted} border={border} />
-                <StatCard title="Active Members" value={stats.totalMembers} icon="👥" bg={cardBg} textPrimary={textPrimary} textMuted={textMuted} border={border} />
-                <StatCard title="Active Staff" value={stats.totalStaff} icon="🗂️" bg={cardBg} textPrimary={textPrimary} textMuted={textMuted} border={border} />
-                <StatCard title="Active Borrowings" value={stats.activeBorrowings} icon="📖" bg={cardBg} textPrimary={textPrimary} textMuted={textMuted} border={border} highlight />
-                <StatCard title="Pending Staff" value={stats.pendingStaff} icon="⏳" bg={cardBg} textPrimary={textPrimary} textMuted={textMuted} border={border} highlight={stats.pendingStaff > 0} />
-              </div>
-            </div>
-          )}
-
-          {tab === 'staff' && (
-            <div style={{ background: cardBg, borderRadius: 16, border: `1px solid ${border}`, overflow: 'hidden' }}>
-              <div style={{ padding: '16px 24px', borderBottom: `1px solid ${border}`, fontWeight: 600, color: textPrimary, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Pending Staff Registrations</span>
-                <span style={{ fontSize: 13, color: textMuted }}>{pendingStaff.length} pending</span>
-              </div>
-              {pendingStaff.length === 0 ? (
-                <div style={{ padding: 48, textAlign: 'center', color: textMuted }}>
-                  <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
-                  No pending staff registrations.
-                </div>
-              ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
-                  <thead>
-                    <tr style={{ background: tableHead, color: textMuted }}>
-                      <th style={{ padding: 16 }}>Name</th>
-                      <th style={{ padding: 16 }}>Email</th>
-                      <th style={{ padding: 16 }}>Job Title</th>
-                      <th style={{ padding: 16, textAlign: 'right' }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pendingStaff.map(s => (
-                      <tr key={s.UserID} style={{ borderTop: `1px solid ${border}` }}>
-                        <td style={{ padding: 16, fontWeight: 500, color: textPrimary }}>{s.FullName}</td>
-                        <td style={{ padding: 16, color: textMuted }}>{s.Email}</td>
-                        <td style={{ padding: 16, color: textMuted }}>{s.JobTitle || 'Staff'}</td>
-                        <td style={{ padding: 16, textAlign: 'right' }}>
-                          <button onClick={() => handleReject(s.UserID)} style={{ background: '#fef2f2', color: '#b91c1c', border: '1px solid #fca5a5', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', marginRight: 8, fontSize: 13 }}>Reject</button>
-                          <button onClick={() => handleApprove(s.UserID)} style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #6ee7b7', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>Approve</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+      {renderContent()}
+    </DashboardShell>
   )
 }
-
-const navBtnStyle = (active) => ({
-  background: active ? 'rgba(245,158,11,0.15)' : 'transparent',
-  color: active ? '#fbbf24' : '#94a3b8',
-  border: active ? '1px solid rgba(245,158,11,0.3)' : '1px solid transparent',
-  padding: '11px 14px', borderRadius: 10, cursor: 'pointer', textAlign: 'left', fontSize: 14, transition: 'all 0.2s',
-  display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%'
-})
-
-const StatCard = ({ title, value, icon, bg, textPrimary, textMuted, border, highlight }) => (
-  <div style={{ background: bg, border: highlight ? '2px solid #f59e0b' : `1px solid ${border}`, borderRadius: 16, padding: 24, boxShadow: highlight ? '0 0 20px rgba(245,158,11,0.1)' : '0 2px 8px rgba(0,0,0,0.05)' }}>
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-      <div style={{ fontSize: 12, color: highlight ? '#f59e0b' : textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>{title}</div>
-      <span style={{ fontSize: 22 }}>{icon}</span>
-    </div>
-    <div style={{ fontSize: 38, fontWeight: 800, color: textPrimary }}>{value ?? '—'}</div>
-  </div>
-)

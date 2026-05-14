@@ -1,178 +1,166 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
+import DarkModeToggle from '../components/DarkModeToggle'
 
 const ROLES = [
-  { id: 3, label: 'Member', sub: 'I want to borrow books', icon: '📚', color: '#e07b39', bg: '#fdf4e7' },
-  { id: 2, label: 'Staff', sub: 'I work at the library', icon: '🗂️', color: '#c4a35a', bg: '#fcf8e3' },
+  { id: 3, label: 'Student Member', sub: 'Borrow & reserve books', icon: '🎓', color: '#3b82f6' },
+  { id: 2, label: 'Library Staff', sub: 'Manage the catalog', icon: '🗂️', color: '#10b981' },
 ]
 
 export default function SignUp() {
   const [selectedRole, setSelectedRole] = useState(3)
-  const [formData, setFormData] = useState({
-    firstName: '', lastName: '', email: '', password: '', phone: '',
-    universityId: '', department: '', // Member specific
-    jobTitle: '' // Staff specific
-  })
+  const [formData, setFormData] = useState({ firstName:'', lastName:'', email:'', password:'', phone:'', universityId:'', department:'', jobTitle:'' })
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
   const { registerStaff, registerMember } = useAuth()
+  const { isDark } = useTheme()
   const navigate = useNavigate()
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
-  }
+  const role = ROLES.find(r => r.id === selectedRole)
+  const handle = (e) => setFormData({ ...formData, [e.target.name]: e.target.value })
 
   const submit = async (e) => {
-    e.preventDefault()
-    setError('')
-    setSuccess('')
-    setLoading(true)
+    e.preventDefault(); setError(''); setSuccess(''); setLoading(true)
     try {
-      if (selectedRole === 2) {
-        const msg = await registerStaff(formData)
-        setSuccess(msg)
-      } else {
-        const msg = await registerMember(formData)
-        setSuccess(msg)
-      }
+      const msg = selectedRole === 2 ? await registerStaff(formData) : await registerMember(formData)
+      setSuccess(msg)
       setTimeout(() => navigate('/login'), 3000)
-    } catch (err) {
-      setError(err.message || 'Registration failed')
-    } finally {
-      setLoading(false)
-    }
+    } catch (err) { setError(err.message || 'Registration failed') }
+    finally { setLoading(false) }
   }
 
+  const inputStyle = {
+    width:'100%', padding:'11px 16px', borderRadius:12,
+    border:`1.5px solid ${isDark?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.1)'}`,
+    background: isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.03)',
+    color: isDark?'#f1f5f9':'#0f172a', fontSize:14, outline:'none', boxSizing:'border-box',
+    transition:'border-color 0.2s'
+  }
+  const labelStyle = { display:'block', fontSize:12, fontWeight:600, color: isDark?'#94a3b8':'#475569', marginBottom:6 }
+
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', fontFamily: "'Georgia', serif", background: '#1a0f0a' }}>
-      {/* Left panel */}
-      <div style={{
-        width: '42%', background: 'linear-gradient(160deg, #2d1a0e 0%, #1a0f0a 100%)',
-        padding: '48px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-        borderRight: '1px solid #3d2010'
-      }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 48 }}>
-            <div style={{ width: 36, height: 36, background: '#c4813a', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#fff', fontSize: 16 }}>L</div>
-            <span style={{ color: '#e8d5b0', fontWeight: 700, fontSize: 18, letterSpacing: 0.5 }}>Lenket Library</span>
-          </div>
-          <h1 style={{ color: '#fff', fontSize: 42, fontWeight: 700, lineHeight: 1.1, marginBottom: 12 }}>
-            Join the<br />
-            <span style={{ color: '#c4813a', fontStyle: 'italic' }}>community.</span>
+    <div style={{ minHeight:'100vh', background: isDark?'#0a0e1a':'#f1f5f9', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:"'Inter',sans-serif", position:'relative', overflow:'hidden', padding:'40px 16px' }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,700;1,700&display=swap');
+        @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-20px)}}
+        @keyframes floatR{0%,100%{transform:translateY(0)}50%{transform:translateY(20px)}}
+        @keyframes fadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+        .signup-anim{animation:fadeIn 0.5s ease forwards}
+        .su-input:focus{border-color:${role.color}!important;box-shadow:0 0 0 3px ${role.color}22}
+      `}</style>
+
+      {/* Blobs */}
+      <div style={{ position:'fixed', top:'-15%', left:'-10%', width:500, height:500, background: isDark?'rgba(245,158,11,0.07)':'rgba(245,158,11,0.1)', borderRadius:'50%', filter:'blur(80px)', animation:'float 8s ease-in-out infinite', pointerEvents:'none' }} />
+      <div style={{ position:'fixed', bottom:'-10%', right:'-5%', width:450, height:450, background: isDark?`${role.color}12`:`${role.color}18`, borderRadius:'50%', filter:'blur(80px)', animation:'floatR 10s ease-in-out infinite', pointerEvents:'none' }} />
+      <div style={{ position:'fixed', top:'50%', left:'30%', width:300, height:300, background: isDark?'rgba(139,92,246,0.05)':'rgba(139,92,246,0.08)', borderRadius:'50%', filter:'blur(70px)', animation:'float 14s ease-in-out infinite reverse', pointerEvents:'none' }} />
+
+      <div style={{ position:'fixed', top:20, right:20, zIndex:1000 }}><DarkModeToggle /></div>
+
+      <Link to="/" style={{ position:'fixed', top:24, left:24, display:'flex', alignItems:'center', gap:8, color: isDark?'#94a3b8':'#64748b', textDecoration:'none', fontSize:14, fontWeight:500, zIndex:1000 }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        Back to home
+      </Link>
+
+      <div className="signup-anim" style={{ width:'100%', maxWidth:640, position:'relative', zIndex:10 }}>
+        {/* Header */}
+        <div style={{ textAlign:'center', marginBottom:32 }}>
+          <Link to="/" style={{ display:'inline-flex', alignItems:'center', gap:10, textDecoration:'none', marginBottom:20 }}>
+            <div style={{ width:40, height:40, background:'linear-gradient(135deg,#f59e0b,#d97706)', borderRadius:12, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>📚</div>
+            <span style={{ fontWeight:800, fontSize:20, fontFamily:"'Playfair Display',serif", color: isDark?'#fff':'#0f172a' }}>UniLibrary</span>
+          </Link>
+          <h1 style={{ fontFamily:"'Playfair Display',serif", fontSize:32, fontWeight:700, color: isDark?'#fff':'#0f172a', margin:'0 0 8px' }}>
+            Join the <span style={{ color:'#f59e0b', fontStyle:'italic' }}>community.</span>
           </h1>
-          <p style={{ color: '#a08060', fontSize: 15, lineHeight: 1.6, marginTop: 16, maxWidth: '85%' }}>
-            Create an account to borrow books, reserve digital media, or manage the library catalog.
-          </p>
+          <p style={{ color: isDark?'#64748b':'#475569', fontSize:15 }}>Create your account to get started.</p>
         </div>
 
-        <div style={{ marginTop: 40, color: '#6b4a2a', fontSize: 13, fontStyle: 'italic' }}>
-          "The only thing that you absolutely have to know, is the location of the library."
+        {/* Role toggle */}
+        <div style={{ display:'flex', gap:12, marginBottom:24 }}>
+          {ROLES.map(r => (
+            <button key={r.id} onClick={() => setSelectedRole(r.id)} style={{ flex:1, padding:'14px 12px', borderRadius:14, border: selectedRole===r.id ? `2px solid ${r.color}` : `1px solid ${isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.08)'}`, background: selectedRole===r.id ? `${r.color}18` : isDark?'rgba(255,255,255,0.04)':'rgba(255,255,255,0.8)', backdropFilter:'blur(10px)', cursor:'pointer', textAlign:'center', transition:'all 0.2s' }}>
+              <div style={{ fontSize:22, marginBottom:4 }}>{r.icon}</div>
+              <div style={{ fontWeight:700, fontSize:14, color: isDark?'#f1f5f9':'#0f172a' }}>{r.label}</div>
+              <div style={{ fontSize:12, color: isDark?'#64748b':'#94a3b8', marginTop:2 }}>{r.sub}</div>
+            </button>
+          ))}
         </div>
-      </div>
 
-      {/* Right panel */}
-      <div style={{ flex: 1, background: '#fcfaf7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 48px', overflowY: 'auto' }}>
-        <div style={{ width: '100%', maxWidth: 500 }}>
-          <h2 style={{ fontSize: 30, fontWeight: 700, color: '#1a0f0a', marginBottom: 6 }}>Create an Account</h2>
-          <p style={{ color: '#8b6a4a', fontSize: 15, marginBottom: 28 }}>Choose your role and fill in your details below.</p>
-
-          <div style={{ display: 'flex', gap: 12, marginBottom: 32 }}>
-            {ROLES.map(r => (
-              <button key={r.id} type="button" onClick={() => setSelectedRole(r.id)}
-                style={{
-                  flex: 1, padding: '16px', borderRadius: 12, 
-                  border: selectedRole === r.id ? `2px solid ${r.color}` : '1px solid #e5d5c5',
-                  background: selectedRole === r.id ? r.bg : '#fff', cursor: 'pointer', textAlign: 'center',
-                  transition: 'all 0.2s'
-                }}>
-                <div style={{ fontSize: 24, marginBottom: 8 }}>{r.icon}</div>
-                <div style={{ fontWeight: 700, color: '#1a0f0a' }}>{r.label}</div>
-                <div style={{ fontSize: 12, color: '#8b6a4a', marginTop: 4 }}>{r.sub}</div>
-              </button>
-            ))}
-          </div>
+        {/* Card */}
+        <div style={{ background: isDark?'rgba(255,255,255,0.04)':'rgba(255,255,255,0.9)', backdropFilter:'blur(20px)', borderRadius:24, border: isDark?'1px solid rgba(255,255,255,0.08)':'1px solid rgba(0,0,0,0.08)', padding:'32px 36px', boxShadow:'0 20px 60px rgba(0,0,0,0.15)' }}>
 
           {success ? (
-            <div style={{ background: '#ecfdf5', border: '1px solid #6ee7b7', color: '#047857', padding: 24, borderRadius: 12, textAlign: 'center' }}>
-              <div style={{ fontSize: 32, marginBottom: 12 }}>✨</div>
-              <p style={{ fontWeight: 700, marginBottom: 8, fontSize: 18 }}>Registration Successful!</p>
-              <p style={{ fontSize: 15 }}>{success}</p>
-              <p style={{ fontSize: 13, marginTop: 16, color: '#059669', fontStyle: 'italic' }}>Redirecting to login...</p>
+            <div style={{ textAlign:'center', padding:'32px 0' }}>
+              <div style={{ fontSize:56, marginBottom:16 }}>🎉</div>
+              <h3 style={{ color: isDark?'#fff':'#0f172a', fontSize:22, fontWeight:700, marginBottom:8 }}>You're registered!</h3>
+              <p style={{ color: isDark?'#64748b':'#475569', fontSize:15 }}>{success}</p>
+              <p style={{ color:'#10b981', fontSize:13, marginTop:12 }}>Redirecting to login...</p>
             </div>
           ) : (
-            <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ display: 'flex', gap: 16 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 13, fontWeight: 700, color: '#3d2010', display: 'block', marginBottom: 8 }}>First Name</label>
-                  <input type="text" name="firstName" value={formData.firstName} onChange={handleChange} required style={inputStyle} placeholder="Jane" />
+            <form onSubmit={submit}>
+              {error && <div style={{ padding:'12px 16px', background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:10, color:'#ef4444', fontSize:14, marginBottom:20 }}>⚠️ {error}</div>}
+
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
+                <div>
+                  <label style={labelStyle}>First Name *</label>
+                  <input className="su-input" style={inputStyle} type="text" name="firstName" value={formData.firstName} onChange={handle} required placeholder="Jane" />
                 </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 13, fontWeight: 700, color: '#3d2010', display: 'block', marginBottom: 8 }}>Last Name</label>
-                  <input type="text" name="lastName" value={formData.lastName} onChange={handleChange} required style={inputStyle} placeholder="Doe" />
+                <div>
+                  <label style={labelStyle}>Last Name *</label>
+                  <input className="su-input" style={inputStyle} type="text" name="lastName" value={formData.lastName} onChange={handle} required placeholder="Doe" />
                 </div>
               </div>
 
-              <div>
-                <label style={{ fontSize: 13, fontWeight: 700, color: '#3d2010', display: 'block', marginBottom: 8 }}>Email Address</label>
-                <input type="email" name="email" value={formData.email} onChange={handleChange} required style={inputStyle} placeholder="jane@uni.edu" />
+              <div style={{ marginBottom:16 }}>
+                <label style={labelStyle}>Email Address *</label>
+                <input className="su-input" style={inputStyle} type="email" name="email" value={formData.email} onChange={handle} required placeholder="jane@university.edu" />
               </div>
 
-              <div>
-                <label style={{ fontSize: 13, fontWeight: 700, color: '#3d2010', display: 'block', marginBottom: 8 }}>Password</label>
-                <input type="password" name="password" value={formData.password} onChange={handleChange} required minLength={6} style={inputStyle} placeholder="Min. 6 characters" />
-              </div>
-
-              <div>
-                <label style={{ fontSize: 13, fontWeight: 700, color: '#3d2010', display: 'block', marginBottom: 8 }}>Phone Number <span style={{ color: '#a08060', fontWeight: 400 }}>(Optional)</span></label>
-                <input type="text" name="phone" value={formData.phone} onChange={handleChange} style={inputStyle} placeholder="+1 234 567 890" />
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
+                <div>
+                  <label style={labelStyle}>Password *</label>
+                  <input className="su-input" style={inputStyle} type="password" name="password" value={formData.password} onChange={handle} required minLength={6} placeholder="Min. 6 characters" />
+                </div>
+                <div>
+                  <label style={labelStyle}>Phone (optional)</label>
+                  <input className="su-input" style={inputStyle} type="text" name="phone" value={formData.phone} onChange={handle} placeholder="+1 234 567 890" />
+                </div>
               </div>
 
               {selectedRole === 3 && (
-                <div style={{ display: 'flex', gap: 16, background: '#fdf4e7', padding: 16, borderRadius: 12, border: '1px dashed #d4b896', marginTop: 8 }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: 13, fontWeight: 700, color: '#3d2010', display: 'block', marginBottom: 8 }}>University ID</label>
-                    <input type="text" name="universityId" value={formData.universityId} onChange={handleChange} required style={inputStyle} placeholder="e.g. 1029384" />
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16, padding:16, borderRadius:14, background: isDark?'rgba(59,130,246,0.08)':'rgba(59,130,246,0.06)', border:'1px dashed rgba(59,130,246,0.3)' }}>
+                  <div>
+                    <label style={labelStyle}>University ID *</label>
+                    <input className="su-input" style={inputStyle} type="text" name="universityId" value={formData.universityId} onChange={handle} required placeholder="e.g. 1029384" />
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: 13, fontWeight: 700, color: '#3d2010', display: 'block', marginBottom: 8 }}>Department</label>
-                    <input type="text" name="department" value={formData.department} onChange={handleChange} style={inputStyle} placeholder="e.g. Computer Science" />
+                  <div>
+                    <label style={labelStyle}>Department</label>
+                    <input className="su-input" style={inputStyle} type="text" name="department" value={formData.department} onChange={handle} placeholder="e.g. Computer Science" />
                   </div>
                 </div>
               )}
 
               {selectedRole === 2 && (
-                <div style={{ background: '#fcf8e3', padding: 16, borderRadius: 12, border: '1px dashed #d4b896', marginTop: 8 }}>
-                  <label style={{ fontSize: 13, fontWeight: 700, color: '#3d2010', display: 'block', marginBottom: 8 }}>Job Title</label>
-                  <input type="text" name="jobTitle" value={formData.jobTitle} onChange={handleChange} required style={inputStyle} placeholder="e.g. Circulation Assistant" />
+                <div style={{ marginBottom:16, padding:16, borderRadius:14, background: isDark?'rgba(16,185,129,0.08)':'rgba(16,185,129,0.06)', border:'1px dashed rgba(16,185,129,0.3)' }}>
+                  <label style={labelStyle}>Job Title *</label>
+                  <input className="su-input" style={inputStyle} type="text" name="jobTitle" value={formData.jobTitle} onChange={handle} required placeholder="e.g. Circulation Assistant" />
                 </div>
               )}
 
-              {error && <div style={{ color: '#b91c1c', fontSize: 13, background: '#fef2f2', padding: 10, borderRadius: 8, border: '1px solid #fca5a5' }}>⚠️ {error}</div>}
-
-              <button type="submit" disabled={loading} style={{ background: selectedRole === 2 ? '#a67c00' : '#8b5e3c', color: '#fff', padding: 16, borderRadius: 8, border: 'none', fontWeight: 700, fontSize: 15, cursor: loading ? 'not-allowed' : 'pointer', marginTop: 16, transition: 'background 0.2s' }}>
-                {loading ? 'Creating Account...' : 'Create Account'}
+              <button type="submit" disabled={loading} style={{ width:'100%', padding:'14px', borderRadius:12, border:'none', background:`linear-gradient(135deg,${role.color},${role.color}cc)`, color:'#fff', fontWeight:700, fontSize:16, cursor: loading?'not-allowed':'pointer', boxShadow:`0 4px 20px ${role.color}44`, transition:'all 0.2s', marginTop:8 }}>
+                {loading ? 'Creating Account...' : 'Create Account →'}
               </button>
             </form>
           )}
-
-          <div style={{ display: 'flex', alignItems: 'center', margin: '32px 0', color: '#d4b896' }}>
-            <div style={{ flex: 1, height: 1, background: '#e5d5c5' }}></div>
-            <span style={{ padding: '0 12px', fontSize: 13, fontStyle: 'italic' }}>or</span>
-            <div style={{ flex: 1, height: 1, background: '#e5d5c5' }}></div>
-          </div>
-
-          <p style={{ textAlign: 'center', fontSize: 14, color: '#8b6a4a' }}>
-            Already have an account? <Link to="/login" style={{ color: selectedRole === 2 ? '#a67c00' : '#8b5e3c', fontWeight: 700, textDecoration: 'none' }}>Sign In</Link>
-          </p>
         </div>
+
+        <p style={{ textAlign:'center', fontSize:14, color: isDark?'#64748b':'#475569', marginTop:20 }}>
+          Already have an account?{' '}
+          <Link to="/login" style={{ color:role.color, fontWeight:700, textDecoration:'none' }}>Sign in →</Link>
+        </p>
       </div>
     </div>
   )
-}
-
-const inputStyle = {
-  width: '100%', padding: '12px 16px', borderRadius: 8, border: '1.5px solid #e5d5c5', fontSize: 14, outline: 'none',
-  boxSizing: 'border-box', background: '#fff', color: '#1a0f0a'
 }

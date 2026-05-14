@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
-import DarkModeToggle from '../components/DarkModeToggle'
+import DashboardShell from '../components/DashboardShell'
 import axios from 'axios'
 import jsPDF from 'jspdf'
 
@@ -35,8 +35,15 @@ export default function MemberDashboard() {
 
   const fetchDashboard = async () => {
     try {
-      const s = await axios.get(`${API}/member/dashboard`, getHeaders())
-      setStats(s.data.data)
+      if (!user?.MemberID) return;
+      const s = await axios.get(`${API}/members/${user.MemberID}`, getHeaders())
+      const data = s.data.data;
+      setStats({
+        activeBorrowsCount: data.CurrentlyBorrowed,
+        reservationsCount: data.reservationsCount || 0, // Fallback for now
+        unpaidFinesTotal: data.UnpaidFineTotal,
+        activeBorrows: [] // This will be fetched by fetchBorrows
+      })
     } catch (err) { console.error(err) }
   }
 
@@ -91,228 +98,159 @@ export default function MemberDashboard() {
     doc.save(`Receipt_${borrowRecord.BorrowID}.pdf`)
   }
 
+  const TABS = [
+    { key: 'overview', label: 'My Dashboard', icon: '🏠' },
+    { key: 'catalog', label: 'Library Catalog', icon: '📚' },
+    { key: 'borrows', label: 'My Borrowings', icon: '📖' },
+    { key: 'fines', label: 'My Fines', icon: '💳' },
+  ]
+  const tabLabel = TABS.find(t => t.key === tab)?.label || 'Member Dashboard'
+
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', fontFamily: "'Inter', 'Georgia', sans-serif", background: bg }}>
-      {/* Sidebar */}
-      <div style={{ width: 260, background: sidebar, color: '#e8d5b0', padding: 24, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 40 }}>
-          <div style={{ width: 36, height: 36, background: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#fff', fontSize: 18 }}>M</div>
-          <span style={{ fontWeight: 700, fontSize: 17, color: '#fff' }}>Member Portal</span>
-        </div>
+    <DashboardShell role="member" navItems={TABS} activeTab={tab} setTab={setTab} user={user} logout={logout} tabLabel={tabLabel}>
 
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
-          {[
-            { key: 'overview', label: 'Dashboard', icon: '🏠' },
-            { key: 'catalog', label: 'Library Catalog', icon: '📚' },
-            { key: 'borrows', label: 'My Borrowings', icon: '📖' },
-            { key: 'fines', label: 'My Fines', icon: '💳' },
-          ].map(item => (
-            <button key={item.key} onClick={() => setTab(item.key)} style={navBtnStyle(tab === item.key)}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span>{item.icon}</span>
-                <span>{item.label}</span>
-              </span>
-            </button>
-          ))}
-        </nav>
-
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 20, marginTop: 'auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 14 }}>
-              {user?.FullName?.charAt(0) || 'M'}
-            </div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{user?.FullName}</div>
-              <div style={{ fontSize: 11, color: '#94a3b8' }}>Student Member</div>
-            </div>
+      {tab === 'overview' && stats && (
+        <div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20, marginBottom: 32 }}>
+            <StatCard title="Active Borrows" value={stats.activeBorrowsCount} color="#3b82f6" />
+            <StatCard title="Pending Reservations" value={stats.reservationsCount} color="#8b5cf6" />
+            <StatCard title="Unpaid Fines" value={`$${stats.unpaidFinesTotal}`} color="#ef4444" highlight={stats.unpaidFinesTotal > 0} />
           </div>
-          <button onClick={logout} style={{ width: '100%', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', color: '#94a3b8', padding: '10px', borderRadius: 8, cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-            Sign Out
-          </button>
-        </div>
-      </div>
-
-      {/* Main content */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* Top bar */}
-        <div style={{ background: cardBg, borderBottom: `1px solid ${border}`, padding: '16px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h2 style={{ fontSize: 22, color: textPrimary, fontWeight: 700, margin: 0 }}>
-              {tab === 'overview' ? 'My Dashboard' : tab === 'catalog' ? 'Library Catalog' : tab === 'fines' ? 'My Fines' : 'My Borrowing History'}
-            </h2>
-            <div style={{ fontSize: 13, color: textMuted, marginTop: 4 }}>
-              {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: '#94a3b8', marginBottom: 16, textTransform:'uppercase', letterSpacing:1 }}>Currently Borrowed</h3>
+          {stats.activeBorrows?.length === 0 ? (
+            <div style={{ background: 'rgba(255,255,255,0.04)', backdropFilter:'blur(12px)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: 30, textAlign: 'center', color: '#64748b' }}>
+              No active borrowings. Check the catalog to find a book!
             </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ background: '#dbeafe', color: '#1e40af', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>Student</span>
-            <DarkModeToggle />
-          </div>
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: 32 }}>
-
-        {tab === 'overview' && stats && (
-          <div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20, marginBottom: 40 }}>
-              <StatCard title="Active Borrows" value={stats.activeBorrowsCount} />
-              <StatCard title="Pending Reservations" value={stats.reservationsCount} />
-              <StatCard title="Unpaid Fines" value={`$${stats.unpaidFinesTotal}`} highlight={stats.unpaidFinesTotal > 0} />
-            </div>
-
-            <h3 style={{ fontSize: 18, fontWeight: 600, color: '#3d2010', marginBottom: 16 }}>Currently Borrowed Books</h3>
-            {stats.activeBorrows.length === 0 ? (
-              <div style={{ background: '#fff', border: '1px solid #e5e5e5', borderRadius: 12, padding: 30, textAlign: 'center', color: '#8b6a4a' }}>
-                You have no active borrowings. Check the catalog to find a book!
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {stats.activeBorrows.map(b => (
-                  <div key={b.BorrowID} style={{ background: '#fff', border: '1px solid #e5e5e5', borderRadius: 12, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <div style={{ fontWeight: 600, color: '#1a0f0a', fontSize: 16 }}>{b.Title}</div>
-                      <div style={{ color: '#8b6a4a', fontSize: 13, marginTop: 4 }}>Due: {new Date(b.DueDate).toLocaleDateString()}</div>
-                    </div>
-                    <div style={{ background: '#fdf4e7', color: '#8b5e3c', padding: '6px 12px', borderRadius: 6, fontSize: 13, fontWeight: 600 }}>
-                      Borrowed
-                    </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {stats.activeBorrows?.map(b => (
+                <div key={b.BorrowID} className="stat-card" style={{ background: 'rgba(255,255,255,0.04)', backdropFilter:'blur(12px)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontWeight: 600, color: '#f1f5f9', fontSize: 15 }}>{b.Title}</div>
+                    <div style={{ color: '#64748b', fontSize: 13, marginTop: 4 }}>Due: {new Date(b.DueDate).toLocaleDateString()}</div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {tab === 'catalog' && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 20 }}>
-            {books.map(b => (
-              <div key={b.BookID} style={{ background: '#fff', border: '1px solid #e5e5e5', borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column' }}>
-                <div style={{ position: 'relative', height: 200, marginBottom: 16, borderRadius: 8, overflow: 'hidden', background: '#fdf4e7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {b.CoverImage ? (
-                    <img src={b.CoverImage.startsWith('http') ? b.CoverImage : `http://localhost:4000${b.CoverImage}`} alt={b.Title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    <span style={{ fontSize: 40 }}>📚</span>
-                  )}
+                  <span style={{ background: 'rgba(59,130,246,0.15)', color: '#60a5fa', padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, border: '1px solid rgba(59,130,246,0.3)' }}>BORROWED</span>
                 </div>
-                <div style={{ fontSize: 12, color: '#e07b39', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>{b.CategoryName || 'General'}</div>
-                <div style={{ fontWeight: 700, color: '#1a0f0a', fontSize: 18, marginBottom: 4 }}>{b.Title}</div>
-                <div style={{ color: '#8b6a4a', fontSize: 14, marginBottom: 16, flex: 1 }}>By {b.Authors || 'Unknown Author'}</div>
-                
-                <div style={{ borderTop: '1px solid #e5e5e5', paddingTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontSize: 13, color: b.AvailableCopies > 0 ? '#047857' : '#b91c1c', fontWeight: 600 }}>
-                    {b.AvailableCopies} / {b.TotalCopies} Available
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'catalog' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 20 }}>
+          {books.map(b => (
+            <div key={b.BookID} className="stat-card" style={{ background: 'rgba(255,255,255,0.04)', backdropFilter:'blur(12px)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, overflow:'hidden', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ height: 180, background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow:'hidden' }}>
+                {b.CoverImage ? (
+                  <img src={b.CoverImage.startsWith('http') ? b.CoverImage : `http://localhost:4000${b.CoverImage}`} alt={b.Title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <span style={{ fontSize: 48 }}>📚</span>
+                )}
+              </div>
+              <div style={{ padding: 20, flex:1, display:'flex', flexDirection:'column' }}>
+                <div style={{ fontSize: 11, color: '#3b82f6', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>{b.CategoryName || 'General'}</div>
+                <div style={{ fontWeight: 700, color: '#f1f5f9', fontSize: 16, marginBottom: 4 }}>{b.Title}</div>
+                <div style={{ color: '#64748b', fontSize: 13, marginBottom: 16, flex: 1 }}>By {b.Authors || 'Unknown Author'}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 14 }}>
+                  <div style={{ fontSize: 13, color: b.AvailableCopies > 0 ? '#10b981' : '#ef4444', fontWeight: 600 }}>
+                    {b.AvailableCopies}/{b.TotalCopies} Available
                   </div>
-                  <button onClick={() => handleReserve(b.BookID)} disabled={b.AvailableCopies > 0} 
-                    style={{ background: b.AvailableCopies > 0 ? '#e5e5e5' : '#1a0f0a', color: b.AvailableCopies > 0 ? '#a08060' : '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, cursor: b.AvailableCopies > 0 ? 'not-allowed' : 'pointer', fontSize: 13 }}>
+                  <button onClick={() => handleReserve(b.BookID)} disabled={b.AvailableCopies > 0}
+                    style={{ background: b.AvailableCopies > 0 ? 'rgba(255,255,255,0.06)' : 'linear-gradient(135deg,#3b82f6,#1d4ed8)', color: b.AvailableCopies > 0 ? '#475569' : '#fff', border: 'none', padding: '6px 14px', borderRadius: 8, cursor: b.AvailableCopies > 0 ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight:600 }}>
                     Reserve
                   </button>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          ))}
+        </div>
+      )}
 
-        {tab === 'borrows' && (
-          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e5e5', overflow: 'hidden' }}>
-            {borrows.length === 0 ? <div style={{ padding: 30, textAlign: 'center', color: '#8b6a4a' }}>No borrowing history found.</div> : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
-                <thead>
-                  <tr style={{ background: '#faf6f0', color: '#8b6a4a' }}>
-                    <th style={{ padding: 16 }}>Book Title</th>
-                    <th style={{ padding: 16 }}>Borrowed On</th>
-                    <th style={{ padding: 16 }}>Due Date</th>
-                    <th style={{ padding: 16 }}>Status</th>
-                    <th style={{ padding: 16 }}>Actions</th>
+      {tab === 'borrows' && (
+        <div style={{ background: 'rgba(255,255,255,0.04)', backdropFilter:'blur(12px)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+          {borrows.length === 0 ? <div style={{ padding: 48, textAlign: 'center', color: '#64748b' }}><div style={{fontSize:40,marginBottom:12}}>📭</div>No borrowing history found.</div> : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
+              <thead>
+                <tr style={{ background: 'rgba(255,255,255,0.04)', color: '#64748b' }}>
+                  <th style={{ padding: 16 }}>Book Title</th>
+                  <th style={{ padding: 16 }}>Borrowed On</th>
+                  <th style={{ padding: 16 }}>Due Date</th>
+                  <th style={{ padding: 16 }}>Status</th>
+                  <th style={{ padding: 16 }}>Receipt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {borrows.map(b => (
+                  <tr key={b.BorrowID} className="table-row" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                    <td style={{ padding: 16, fontWeight: 600, color: '#f1f5f9' }}>{b.Title}</td>
+                    <td style={{ padding: 16, color: '#64748b' }}>{new Date(b.BorrowDate).toLocaleDateString()}</td>
+                    <td style={{ padding: 16, color: '#64748b' }}>{new Date(b.DueDate).toLocaleDateString()}</td>
+                    <td style={{ padding: 16 }}>
+                      <span style={{ background: b.Status === 'returned' ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)', color: b.Status === 'returned' ? '#10b981' : '#f59e0b', padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>
+                        {b.Status.toUpperCase()}
+                      </span>
+                    </td>
+                    <td style={{ padding: 16 }}>
+                      <button onClick={() => generatePDF(b)} className="action-btn" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', padding: '6px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>PDF ↓</button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {borrows.map(b => (
-                    <tr key={b.BorrowID} style={{ borderTop: '1px solid #e5e5e5' }}>
-                      <td style={{ padding: 16, fontWeight: 500 }}>{b.Title}</td>
-                      <td style={{ padding: 16 }}>{new Date(b.BorrowDate).toLocaleDateString()}</td>
-                      <td style={{ padding: 16 }}>{new Date(b.DueDate).toLocaleDateString()}</td>
-                      <td style={{ padding: 16 }}>
-                        <span style={{ 
-                          background: b.Status === 'returned' ? '#ecfdf5' : '#fdf4e7',
-                          color: b.Status === 'returned' ? '#047857' : '#8b5e3c',
-                          padding: '4px 8px', borderRadius: 4, fontSize: 12, fontWeight: 600
-                        }}>
-                          {b.Status.toUpperCase()}
-                        </span>
-                      </td>
-                      <td style={{ padding: 16 }}>
-                        <button onClick={() => generatePDF(b)} style={{ background: '#f8fafc', border: '1px solid #cbd5e1', color: '#475569', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Download PDF</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
 
-        {tab === 'fines' && (
-          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e5e5', overflow: 'hidden' }}>
-            {fines.length === 0 ? <div style={{ padding: 30, textAlign: 'center', color: '#8b6a4a' }}>You have no fines!</div> : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
-                <thead>
-                  <tr style={{ background: '#faf6f0', color: '#8b6a4a' }}>
-                    <th style={{ padding: 16 }}>Description</th>
-                    <th style={{ padding: 16 }}>Amount</th>
-                    <th style={{ padding: 16 }}>Issued On</th>
-                    <th style={{ padding: 16 }}>Status</th>
-                    <th style={{ padding: 16 }}>Actions</th>
+      {tab === 'fines' && (
+        <div style={{ background: 'rgba(255,255,255,0.04)', backdropFilter:'blur(12px)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+          {fines.length === 0 ? <div style={{ padding: 48, textAlign: 'center', color: '#64748b' }}><div style={{fontSize:40,marginBottom:12}}>✅</div>You have no fines!</div> : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
+              <thead>
+                <tr style={{ background: 'rgba(255,255,255,0.04)', color: '#64748b' }}>
+                  <th style={{ padding: 16 }}>Fine Type</th>
+                  <th style={{ padding: 16 }}>Amount</th>
+                  <th style={{ padding: 16 }}>Issued On</th>
+                  <th style={{ padding: 16 }}>Status</th>
+                  <th style={{ padding: 16 }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fines.map(f => (
+                  <tr key={f.FineID} className="table-row" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                    <td style={{ padding: 16 }}>
+                      <div style={{ fontWeight: 600, color: '#f1f5f9' }}>{f.TypeName || 'Library Fine'}</div>
+                      <div style={{ fontSize: 12, color: '#64748b' }}>{f.BookTitle}</div>
+                    </td>
+                    <td style={{ padding: 16, fontWeight: 700, color: '#ef4444', fontSize: 16 }}>${f.Amount}</td>
+                    <td style={{ padding: 16, color: '#64748b' }}>{new Date(f.IssuedDate).toLocaleDateString()}</td>
+                    <td style={{ padding: 16 }}>
+                      <span style={{ background: f.FineStatus === 'Paid' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: f.FineStatus === 'Paid' ? '#10b981' : '#ef4444', padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>
+                        {f.FineStatus?.toUpperCase()}
+                      </span>
+                    </td>
+                    <td style={{ padding: 16 }}>
+                      {f.FineStatus === 'Unpaid' ? (
+                        <button className="action-btn" onClick={() => alert('Chapa payment integration coming soon!')} style={{ background: 'linear-gradient(135deg,#10b981,#059669)', border: 'none', color: '#fff', padding: '7px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700, boxShadow:'0 2px 12px rgba(16,185,129,0.3)' }}>Pay Now</button>
+                      ) : (
+                        <span style={{ color: '#10b981', fontSize: 13, fontWeight: 600 }}>✓ Resolved</span>
+                      )}
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {fines.map(f => (
-                    <tr key={f.FineID} style={{ borderTop: '1px solid #e5e5e5' }}>
-                      <td style={{ padding: 16 }}>
-                        <div style={{ fontWeight: 500 }}>{f.TypeName || 'Library Fine'}</div>
-                        <div style={{ fontSize: 12, color: '#8b6a4a' }}>{f.BookTitle}</div>
-                      </td>
-                      <td style={{ padding: 16, fontWeight: 600, color: '#b91c1c' }}>${f.Amount}</td>
-                      <td style={{ padding: 16 }}>{new Date(f.IssuedDate).toLocaleDateString()}</td>
-                      <td style={{ padding: 16 }}>
-                        <span style={{ 
-                          background: f.FineStatus === 'Paid' ? '#ecfdf5' : '#fef2f2',
-                          color: f.FineStatus === 'Paid' ? '#047857' : '#b91c1c',
-                          padding: '4px 8px', borderRadius: 4, fontSize: 12, fontWeight: 600
-                        }}>
-                          {f.FineStatus.toUpperCase()}
-                        </span>
-                      </td>
-                      <td style={{ padding: 16 }}>
-                        {f.FineStatus === 'Unpaid' ? (
-                          <button onClick={() => alert('Payment simulation integration pending')} style={{ background: '#10b981', border: 'none', color: '#fff', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Pay Now</button>
-                        ) : (
-                          <span style={{ color: '#047857', fontSize: 13, fontWeight: 600 }}>Resolved</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
-        </div>{/* end scrollable */}
-      </div>{/* end main column */}
-    </div>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+    </DashboardShell>
   )
 }
 
-const navBtnStyle = (active) => ({
-  background: active ? 'rgba(59,130,246,0.15)' : 'transparent',
-  color: active ? '#60a5fa' : '#94a3b8',
-  border: active ? '1px solid rgba(59,130,246,0.3)' : '1px solid transparent',
-  padding: '11px 14px', borderRadius: 10, cursor: 'pointer', textAlign: 'left', fontSize: 14, transition: 'all 0.2s',
-  display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%'
-})
-
-const StatCard = ({ title, value, highlight }) => (
-  <div style={{ background: '#fff', border: highlight ? '2px solid #ef4444' : '1px solid #e5e5e5', borderRadius: 16, padding: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-    <div style={{ fontSize: 12, color: highlight ? '#ef4444' : '#8b6a4a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>{title}</div>
-    <div style={{ fontSize: 36, fontWeight: 700, color: '#1a0f0a' }}>{value}</div>
+const StatCard = ({ title, value, color = '#3b82f6', highlight }) => (
+  <div className="stat-card" style={{ background: 'rgba(255,255,255,0.04)', backdropFilter:'blur(12px)', border: highlight ? `2px solid ${color}` : '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 24, boxShadow: highlight ? `0 0 24px ${color}22` : 'none' }}>
+    <div style={{ fontSize: 12, color: highlight ? color : '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>{title}</div>
+    <div style={{ fontSize: 36, fontWeight: 800, color: highlight ? color : '#f1f5f9' }}>{value ?? '—'}</div>
   </div>
 )

@@ -34,13 +34,13 @@ export function AuthProvider({ children }) {
   }
 
   const registerStaff = async (data) => {
-    const res = await axios.post(`${API}/auth/register/staff`, data)
+    const res = await axios.post(`${API}/users`, { ...data, RoleID: 2 })
     if (!res.data.success) throw new Error(res.data.message)
     return res.data.message
   }
 
   const registerMember = async (data) => {
-    const res = await axios.post(`${API}/auth/register/member`, data)
+    const res = await axios.post(`${API}/users`, { ...data, RoleID: 3 })
     if (!res.data.success) throw new Error(res.data.message)
     return res.data.message
   }
