@@ -116,12 +116,13 @@ export default function MemberDashboard() {
   }
 
   const TABS = [
-    { key: 'overview', label: 'My Dashboard', icon: '🏠' },
-    { key: 'catalog', label: 'All Books', icon: '📚' },
-    { key: 'categories', label: 'By Category', icon: '🗂️' },
-    { key: 'borrows', label: 'My Borrowings', icon: '📖' },
-    { key: 'fines', label: 'My Fines', icon: '💳' },
-    { key: 'profile', label: 'My Profile', icon: '👤' },
+    { key: 'overview', label: 'My Dashboard', icon: '🏠', path: '/member' },
+    { key: 'catalog', label: 'All Books', icon: '📚', path: '/member' },
+    { key: 'categories', label: 'By Category', icon: '🗂️', path: '/member' },
+    { key: 'borrow', label: 'Borrow Books', icon: '📖', path: '/borrow' },
+    { key: 'my-borrows', label: 'My Borrows', icon: '📋', path: '/my-borrows' },
+    { key: 'fines', label: 'My Fines', icon: '💳', path: '/member' },
+    { key: 'profile', label: 'My Profile', icon: '👤', path: '/member' },
   ]
   const tabLabel = TABS.find(t => t.key === tab)?.label || 'Member Dashboard'
 

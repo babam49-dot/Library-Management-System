@@ -59,20 +59,31 @@ export default function DashboardShell({ role, navItems, activeTab, setTab, user
              <div style={{ height: 30, width: 1, background: c.border, margin: '0 10px' }} />
 
              <div className="dash-nav-scroll" style={{ display: 'flex', gap: 10 }}>
-               {navItems.map(item => {
+               {navItems ? navItems.map(item => {
                  const active = activeTab === item.key
+                 const btnStyle = {
+                    display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 12, border: 'none',
+                    background: active ? `${meta.color}22` : 'transparent',
+                    color: active ? meta.color : c.muted, textDecoration: 'none',
+                    cursor: 'pointer', fontSize: 14, fontWeight: active ? 700 : 500, transition: 'all 0.2s'
+                 };
+                 
+                 if (item.path) {
+                   return (
+                     <Link key={item.key} to={item.path} style={btnStyle} className="nav-item">
+                       <span>{item.icon}</span>
+                       <span>{item.label}</span>
+                     </Link>
+                   )
+                 }
+
                  return (
-                   <button key={item.key} onClick={() => setTab(item.key)} style={{
-                      display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 12, border: 'none',
-                      background: active ? `${meta.color}22` : 'transparent',
-                      color: active ? meta.color : c.muted,
-                      cursor: 'pointer', fontSize: 14, fontWeight: active ? 700 : 500, transition: 'all 0.2s'
-                   }}>
+                   <button key={item.key} onClick={() => setTab && setTab(item.key)} style={btnStyle} className="nav-item">
                      <span>{item.icon}</span>
                      <span>{item.label}</span>
                    </button>
                  )
-               })}
+               }) : null}
              </div>
           </div>
 
