@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import DashboardShell from '../components/DashboardShell'
@@ -14,7 +15,8 @@ export default function MemberDashboard() {
   const [books, setBooks] = useState([])
   const [borrows, setBorrows] = useState([])
   const [fines, setFines] = useState([])
-  const [tab, setTab] = useState('catalog')
+  const location = useLocation()
+  const [tab, setTab] = useState(location.state?.tab || 'overview')
 
   const getHeaders = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('lms_token')}` } })
 
@@ -140,8 +142,8 @@ export default function MemberDashboard() {
 
       {tab === 'catalog' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 20 }}>
-          {books.map(b => (
-            <div key={b.BookID} className="stat-card" style={{ background: cardBg, backdropFilter:'blur(12px)', border: `1px solid ${border}`, borderRadius: 16, overflow:'hidden', display: 'flex', flexDirection: 'column' }}>
+          {[...books].sort((a,b) => (a.BookID === location.state?.bookId ? -1 : b.BookID === location.state?.bookId ? 1 : 0)).map(b => (
+            <div id={`book-${b.BookID}`} key={b.BookID} className="stat-card" style={{ background: cardBg, backdropFilter:'blur(12px)', border: location.state?.bookId === b.BookID ? '2px solid #3b82f6' : `1px solid ${border}`, borderRadius: 16, overflow:'hidden', display: 'flex', flexDirection: 'column', boxShadow: location.state?.bookId === b.BookID ? '0 0 30px rgba(59,130,246,0.3)' : 'none' }}>
               <div style={{ height: 180, background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow:'hidden' }}>
                 {b.CoverImage ? (
                   <img src={b.CoverImage.startsWith('http') ? b.CoverImage : `http://localhost:4000${b.CoverImage}`} alt={b.Title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />

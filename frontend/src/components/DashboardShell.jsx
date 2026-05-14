@@ -45,36 +45,16 @@ export default function DashboardShell({ role, navItems, activeTab, setTab, user
       <div style={{ position:'fixed', top:'-15%', right:'-10%', width:500, height:500, background:`${meta.color}09`, borderRadius:'50%', filter:'blur(90px)', animation:'float 10s ease-in-out infinite', pointerEvents:'none', zIndex:0 }} />
       <div style={{ position:'fixed', bottom:'-10%', left:'10%', width:400, height:400, background:`${meta.color}06`, borderRadius:'50%', filter:'blur(80px)', animation:'floatR 12s ease-in-out infinite', pointerEvents:'none', zIndex:0 }} />
 
-      {/* Double Header Section */}
-      <div style={{ background: '#111827', zIndex: 100, position: 'sticky', top: 0 }}>
-        {/* Top Row: Primary Navigation & Status */}
-        <div style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', padding: '0 24px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-             <div style={{ width: 32, height: 32, background: meta.gradient, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{meta.icon}</div>
-             <span style={{ color: '#fff', fontSize: 22, fontWeight: 800, fontFamily: "'Playfair Display', serif" }}>UniLibrary</span>
-          </div>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
-            <Link to="/" style={{ color: 'rgba(255,255,255,0.7)', textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>← Back to Home</Link>
-            <a href="mailto:support@unilibrary.edu" style={{ color: meta.color, textDecoration: 'none', fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase' }}>📧 Contact Support</a>
-          </div>
-
+      {/* Single Floating Header */}
+      <div style={{ background: '#0a0e14', zIndex: 100, position: 'sticky', top: 0, padding: '0 24px', height: 70, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-            <DarkModeToggle />
-            <button onClick={logout} style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: 'none', padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Log Out</button>
-          </div>
-        </div>
-
-        {/* Bottom Row: Tabs & Search */}
-        <div style={{ background: '#0a0e14', padding: '0 24px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 28, height: 28, background: 'linear-gradient(135deg,#f59e0b,#d97706)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>📚</div>
+             <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+                <div style={{ width: 32, height: 32, background: meta.gradient, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{meta.icon}</div>
                 <div>
-                  <div style={{ color: '#fff', fontSize: 13, fontWeight: 800, lineHeight: 1 }}>UniLibrary</div>
-                  <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 9, textTransform: 'uppercase', marginTop: 2 }}>{role} portal</div>
+                  <div style={{ color: '#fff', fontSize: 16, fontWeight: 800, lineHeight: 1, fontFamily: "'Playfair Display', serif" }}>UniLibrary</div>
+                  <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, textTransform: 'uppercase', marginTop: 2, letterSpacing: 1 }}>{role}</div>
                 </div>
-             </div>
+             </Link>
              
              <div style={{ height: 30, width: 1, background: 'rgba(255,255,255,0.1)', margin: '0 10px' }} />
 
@@ -105,22 +85,21 @@ export default function DashboardShell({ role, navItems, activeTab, setTab, user
             />
           </div>
 
-          <div style={{ display: 'flex', gap: 12 }}>
-            <button style={{ width: 40, height: 40, borderRadius: '50%', background: '#3b82f6', color: '#fff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>?</button>
-            <button onClick={logout} style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <a href="mailto:support@unilibrary.edu" style={{ color: 'rgba(255,255,255,0.6)', textDecoration: 'none', fontSize: 13, fontWeight: 600, marginRight: 12 }}>Support</a>
+            <button onClick={logout} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 10, background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+              Log Out
             </button>
           </div>
-        </div>
       </div>
 
       {/* Main Content area */}
       <div style={{ flex:1, maxWidth:1400, width:'100%', margin:'0 auto', padding: '24px', display:'flex', flexDirection:'column', zIndex:5 }}>
-        {/* Breadcrumb / Tab Label */}
+        {/* Breadcrumb / Status Row */}
         <div style={{ marginBottom:24, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <div>
-            <h1 style={{ margin:0, fontSize:28, fontWeight:800, color:c.text, fontFamily:"'Playfair Display',serif" }}>{tabLabel}</h1>
-            <div style={{ fontSize:13, color:c.muted, marginTop:4 }}>{new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div>
+            <div style={{ fontSize:13, color:c.muted }}>{new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div>
           </div>
           <div style={{ display:'flex', gap:10 }}>
             <span style={{ background:`${meta.color}15`, color:meta.color, padding:'6px 14px', borderRadius:20, fontSize:12, fontWeight:700, border:`1px solid ${meta.color}30` }}>{meta.label} Access</span>
@@ -137,6 +116,11 @@ export default function DashboardShell({ role, navItems, activeTab, setTab, user
       <footer style={{ padding:'24px', textAlign:'center', borderTop:`1px solid ${c.border}`, color:c.muted, fontSize:13 }}>
         © {new Date().getFullYear()} UniLibrary Management System • <Link to="/" style={{ color:meta.color, textDecoration:'none', fontWeight:600 }}>Home</Link>
       </footer>
+      
+      {/* Floating Dark Mode Toggle */}
+      <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 9999, background: c.card, borderRadius: '50%', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', padding: 4 }}>
+        <DarkModeToggle />
+      </div>
     </div>
   )
 }

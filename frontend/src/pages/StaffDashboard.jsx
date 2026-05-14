@@ -52,6 +52,8 @@ export default function StaffDashboard() {
   const inputBg = isDark ? '#2a3550' : '#fff'
   const inputBorder = isDark ? '#374151' : '#e5e5e5'
 
+  const dynInputStyle = { width: '100%', padding: '10px 14px', borderRadius: 10, border: `1px solid ${inputBorder}`, fontSize: 14, outline: 'none', boxSizing: 'border-box', background: inputBg, color: textPrimary }
+
   const fetchData = async () => {
     try {
       const s = await axios.get(`${API}/staff/dashboard`, getHeaders())
@@ -305,8 +307,8 @@ export default function StaffDashboard() {
           <div style={{ background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, padding: 24 }}>
             <h3 style={{ color: textPrimary, marginBottom: 16 }}>Manage Categories</h3>
             <form onSubmit={(e) => handleAddMeta(e, 'categories', categoryForm, setCategoryForm, {CategoryName:'', Description:''})} style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-              <input required type="text" placeholder="Category Name" value={categoryForm.CategoryName} onChange={e => setCategoryForm({...categoryForm, CategoryName: e.target.value})} style={inputStyle} />
-              <input type="text" placeholder="Description" value={categoryForm.Description} onChange={e => setCategoryForm({...categoryForm, Description: e.target.value})} style={inputStyle} />
+              <input required type="text" placeholder="Category Name" value={categoryForm.CategoryName} onChange={e => setCategoryForm({...categoryForm, CategoryName: e.target.value})} style={dynInputStyle} />
+              <input type="text" placeholder="Description" value={categoryForm.Description} onChange={e => setCategoryForm({...categoryForm, Description: e.target.value})} style={dynInputStyle} />
               <button type="submit" style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}>Add Category</button>
             </form>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
@@ -326,10 +328,10 @@ export default function StaffDashboard() {
           <div style={{ background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, padding: 24 }}>
             <h3 style={{ color: textPrimary, marginBottom: 16 }}>Manage Authors</h3>
             <form onSubmit={(e) => handleAddMeta(e, 'authors', authorForm, setAuthorForm, {FirstName:'', LastName:'', Bio:'', Nationality:''})} style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-              <input required type="text" placeholder="First Name" value={authorForm.FirstName} onChange={e => setAuthorForm({...authorForm, FirstName: e.target.value})} style={{...inputStyle, flex:1, minWidth:120}} />
-              <input required type="text" placeholder="Last Name" value={authorForm.LastName} onChange={e => setAuthorForm({...authorForm, LastName: e.target.value})} style={{...inputStyle, flex:1, minWidth:120}} />
-              <input type="text" placeholder="Nationality" value={authorForm.Nationality} onChange={e => setAuthorForm({...authorForm, Nationality: e.target.value})} style={{...inputStyle, flex:1, minWidth:120}} />
-              <input type="text" placeholder="Bio" value={authorForm.Bio} onChange={e => setAuthorForm({...authorForm, Bio: e.target.value})} style={{...inputStyle, flex:2, minWidth:200}} />
+              <input required type="text" placeholder="First Name" value={authorForm.FirstName} onChange={e => setAuthorForm({...authorForm, FirstName: e.target.value})} style={{...dynInputStyle, flex:1, minWidth:120}} />
+              <input required type="text" placeholder="Last Name" value={authorForm.LastName} onChange={e => setAuthorForm({...authorForm, LastName: e.target.value})} style={{...dynInputStyle, flex:1, minWidth:120}} />
+              <input type="text" placeholder="Nationality" value={authorForm.Nationality} onChange={e => setAuthorForm({...authorForm, Nationality: e.target.value})} style={{...dynInputStyle, flex:1, minWidth:120}} />
+              <input type="text" placeholder="Bio" value={authorForm.Bio} onChange={e => setAuthorForm({...authorForm, Bio: e.target.value})} style={{...dynInputStyle, flex:2, minWidth:200}} />
               <button type="submit" style={{ background: '#10b981', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Add Author</button>
             </form>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
@@ -352,9 +354,9 @@ export default function StaffDashboard() {
           <div style={{ background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, padding: 24 }}>
             <h3 style={{ color: textPrimary, marginBottom: 16 }}>Manage Publishers</h3>
             <form onSubmit={(e) => handleAddMeta(e, 'publishers', publisherForm, setPublisherForm, {PublisherName:'', Email:'', Phone:'', Address:''})} style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-              <input required type="text" placeholder="Publisher Name" value={publisherForm.PublisherName} onChange={e => setPublisherForm({...publisherForm, PublisherName: e.target.value})} style={{...inputStyle, flex:2, minWidth:200}} />
-              <input type="email" placeholder="Email" value={publisherForm.Email} onChange={e => setPublisherForm({...publisherForm, Email: e.target.value})} style={{...inputStyle, flex:1, minWidth:150}} />
-              <input type="text" placeholder="Phone" value={publisherForm.Phone} onChange={e => setPublisherForm({...publisherForm, Phone: e.target.value})} style={{...inputStyle, flex:1, minWidth:120}} />
+              <input required type="text" placeholder="Publisher Name" value={publisherForm.PublisherName} onChange={e => setPublisherForm({...publisherForm, PublisherName: e.target.value})} style={{...dynInputStyle, flex:2, minWidth:200}} />
+              <input type="email" placeholder="Email" value={publisherForm.Email} onChange={e => setPublisherForm({...publisherForm, Email: e.target.value})} style={{...dynInputStyle, flex:1, minWidth:150}} />
+              <input type="text" placeholder="Phone" value={publisherForm.Phone} onChange={e => setPublisherForm({...publisherForm, Phone: e.target.value})} style={{...dynInputStyle, flex:1, minWidth:120}} />
               <button type="submit" style={{ background: '#8b5cf6', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Add Publisher</button>
             </form>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
@@ -381,11 +383,11 @@ export default function StaffDashboard() {
             <form onSubmit={handleIssue} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
                 <label style={lblStyle}>Member ID</label>
-                <input required type="number" value={issueForm.memberId} onChange={e => setIssueForm({...issueForm, memberId: e.target.value})} style={inputStyle} placeholder="Numeric Member ID" />
+                <input required type="number" value={issueForm.memberId} onChange={e => setIssueForm({...issueForm, memberId: e.target.value})} style={dynInputStyle} placeholder="Numeric Member ID" />
               </div>
               <div>
                 <label style={lblStyle}>Copy ID</label>
-                <input required type="number" value={issueForm.copyId} onChange={e => setIssueForm({...issueForm, copyId: e.target.value})} style={inputStyle} placeholder="Specific Copy ID" />
+                <input required type="number" value={issueForm.copyId} onChange={e => setIssueForm({...issueForm, copyId: e.target.value})} style={dynInputStyle} placeholder="Specific Copy ID" />
               </div>
               <button type="submit" style={{ background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff', border: 'none', padding: '12px', borderRadius: 10, fontWeight: 700, cursor: 'pointer', boxShadow:'0 4px 16px rgba(16,185,129,0.25)' }}>Issue Book →</button>
             </form>
@@ -397,11 +399,11 @@ export default function StaffDashboard() {
             <form onSubmit={handleReturn} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
                 <label style={lblStyle}>Borrow ID</label>
-                <input required type="number" value={returnForm.borrowId} onChange={e => setReturnForm({...returnForm, borrowId: e.target.value})} style={inputStyle} placeholder="Borrow Record ID" />
+                <input required type="number" value={returnForm.borrowId} onChange={e => setReturnForm({...returnForm, borrowId: e.target.value})} style={dynInputStyle} placeholder="Borrow Record ID" />
               </div>
               <div>
                 <label style={lblStyle}>Condition on Return</label>
-                <select value={returnForm.condition} onChange={e => setReturnForm({...returnForm, condition: e.target.value})} style={inputStyle}>
+                <select value={returnForm.condition} onChange={e => setReturnForm({...returnForm, condition: e.target.value})} style={dynInputStyle}>
                   <option value="Good">Good</option>
                   <option value="Damaged">Damaged — fine will be applied</option>
                   <option value="Lost">Lost — fine will be applied</option>

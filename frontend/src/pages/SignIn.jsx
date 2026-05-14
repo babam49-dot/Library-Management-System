@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import DarkModeToggle from '../components/DarkModeToggle'
@@ -20,6 +20,7 @@ export default function SignIn() {
   const { login } = useAuth()
   const { isDark } = useTheme()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const role = ROLES.find(r => r.id === selectedRole)
 
@@ -30,7 +31,7 @@ export default function SignIn() {
       const u = await login({ email, password })
       if (u.RoleID === 1) navigate('/admin')
       else if (u.RoleID === 2) navigate('/staff')
-      else navigate('/member')
+      else navigate('/member', { state: location.state })
     } catch (err) {
       setError(err.response?.data?.message || err.message || 'Login failed')
     } finally { setLoading(false) }

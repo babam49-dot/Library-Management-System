@@ -290,7 +290,7 @@ export default function Home() {
       </section>
 
       {/* Books Section: Month, Real Images */}
-      <section id="books" className="reveal" style={{ padding: '100px 48px', background: isDark ? '#0a0e1a' : '#fff' }}>
+      <section id="books" className="reveal" style={{ padding: '80px 48px 40px', background: isDark ? '#0a0e1a' : '#fff' }}>
         <div style={{ textAlign: 'center', marginBottom: 60 }}>
           <h2 style={{ fontSize: 48, fontWeight: 800 }}>Best borrowed books of the month</h2>
           <p style={{ color: '#64748b', marginTop: 12 }}>Check out our most popular titles currently in demand.</p>
@@ -305,7 +305,7 @@ export default function Home() {
                 <div style={{ fontSize: 12, fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', marginBottom: 8 }}>{b.CategoryName}</div>
                 <h4 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{b.Title}</h4>
                 <div style={{ color: '#64748b', fontSize: 14, marginBottom: 20 }}>{b.Authors}</div>
-                <Link to="/login" className="btn-gold" style={{ width: '100%', textAlign: 'center', padding: '10px 0' }}>Borrow Now</Link>
+                <Link to="/login" state={{ tab: 'catalog', bookId: b.BookID }} className="btn-gold" style={{ width: '100%', textAlign: 'center', padding: '10px 0' }}>Borrow Now</Link>
               </div>
             </div>
           ))}
@@ -315,7 +315,7 @@ export default function Home() {
 
 
       {/* About Us Section */}
-      <section id="about" className="reveal" style={{ padding: '120px 48px', background: isDark ? '#0d1117' : '#fff' }}>
+      <section id="about" className="reveal" style={{ padding: '40px 48px 100px', background: isDark ? '#0a0e1a' : '#fff' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', gap: 80, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 400 }}>
              <h2 style={{ fontSize: 48, fontWeight: 900, color: isDark ? '#fff' : '#0f172a', marginBottom: 24 }}>About UniLibrary</h2>
@@ -334,8 +334,8 @@ export default function Home() {
              </div>
           </div>
           <div style={{ flex: 1, minWidth: 400 }}>
-             <div style={{ width: '100%', height: 450, borderRadius: 32, background: 'linear-gradient(135deg, #3b82f610, #3b82f630)', border: '1px solid rgba(59,130,246,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontSize: 120 }}>🏛️</span>
+             <div style={{ width: '100%', height: 450, borderRadius: 32, overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }}>
+                <img src="https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&q=80&w=800" alt="AAIT 5-Kilo Library" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
              </div>
           </div>
         </div>
