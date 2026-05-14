@@ -179,20 +179,37 @@ export default function Home() {
           .btn-gold:hover { transform: translateY(-4px) scale(1.05); box-shadow: 0 12px 24px rgba(245, 158, 11, 0.4); }
           
           .interactive-card {
+            position: relative;
             transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             cursor: pointer;
+            overflow: hidden;
+            z-index: 1;
+          }
+          .interactive-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(135deg, rgba(59,130,246,0.1), rgba(139,92,246,0.1));
+            opacity: 0;
+            transition: opacity 0.5s;
+            z-index: -1;
           }
           .interactive-card:hover { 
             transform: translateY(-15px) scale(1.02); 
-            box-shadow: 0 30px 60px rgba(0,0,0,0.12) !important;
+            box-shadow: 0 30px 60px rgba(59,130,246,0.2) !important;
             border-color: #3b82f6 !important;
           }
-          .interactive-card:hover .rotate-icon {
-            transform: rotateY(360deg) scale(1.2);
+          .interactive-card:hover::before {
+            opacity: 1;
           }
-          .rotate-icon {
-            transition: all 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          .interactive-card:hover .service-icon {
+            transform: rotateY(180deg) scale(1.1);
+            color: #3b82f6;
+          }
+          .service-icon {
+            transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             display: inline-block;
+            color: #f59e0b;
           }
 
           .book-card {
@@ -237,9 +254,9 @@ export default function Home() {
       <section id="location" className="reveal" style={{ display: 'flex', minHeight: '600px', flexWrap: 'wrap', background: '#0f172a' }}>
         <div style={{ flex: 1, minWidth: 400, color: '#fff', padding: '100px 60px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <h2 style={{ fontSize: 56, fontWeight: 900, marginBottom: 24 }}>Our Campus</h2>
-          <p style={{ fontSize: 20, marginBottom: 48, opacity: 0.8, lineHeight: 1.6 }}>Our physical presence at AAIT 5-Kilo is the foundation of our student success.</p>
+          <p style={{ fontSize: 20, marginBottom: 48, opacity: 0.8, lineHeight: 1.6 }}>Our physical presence at CTBE is the foundation of our student success.</p>
           <div style={{ display: 'flex', gap: 32 }}>
-             <div style={{ color: '#3b82f6', fontWeight: 700 }}>📍 AAIT, Addis Ababa</div>
+             <div style={{ color: '#3b82f6', fontWeight: 700 }}>📍 CTBE, Addis Ababa</div>
              <div style={{ color: '#3b82f6', fontWeight: 700 }}>📞 +251 111 234 567</div>
           </div>
         </div>
@@ -298,15 +315,17 @@ export default function Home() {
         <div style={{ maxWidth: 1400, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 32 }}>
           {books.map((b, i) => (
             <div key={i} className="book-card" style={{ borderRadius: 24, overflow: 'hidden' }}>
-              <div style={{ height: 350, background: '#f1f5f9' }}>
-                <img src={b.CoverImage || 'https://via.placeholder.com/400x600'} alt={b.Title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              </div>
-              <div style={{ padding: 24 }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', marginBottom: 8 }}>{b.CategoryName}</div>
-                <h4 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{b.Title}</h4>
-                <div style={{ color: '#64748b', fontSize: 14, marginBottom: 20 }}>{b.Authors}</div>
-                <Link to="/login" state={{ tab: 'catalog', bookId: b.BookID }} className="btn-gold" style={{ width: '100%', textAlign: 'center', padding: '10px 0' }}>Borrow Now</Link>
-              </div>
+              <Link to="/login" state={{ tab: 'catalog', bookId: b.BookID }} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+                <div style={{ height: 350, background: '#f1f5f9' }}>
+                  <img src={b.CoverImage || 'https://via.placeholder.com/400x600'} alt={b.Title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </div>
+                <div style={{ padding: 24 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', marginBottom: 8 }}>{b.CategoryName}</div>
+                  <h4 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{b.Title}</h4>
+                  <div style={{ color: '#64748b', fontSize: 14, marginBottom: 20 }}>{b.Authors}</div>
+                  <div className="btn-gold" style={{ width: '100%', textAlign: 'center', padding: '10px 0' }}>Borrow Now</div>
+                </div>
+              </Link>
             </div>
           ))}
         </div>
@@ -335,7 +354,7 @@ export default function Home() {
           </div>
           <div style={{ flex: 1, minWidth: 400 }}>
              <div style={{ width: '100%', height: 450, borderRadius: 32, overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }}>
-                <img src="https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&q=80&w=800" alt="AAIT 5-Kilo Library" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img src="https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&q=80&w=800" alt="CTBE Library" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
              </div>
           </div>
         </div>
@@ -350,15 +369,34 @@ export default function Home() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 32 }}>
             {[
-              { title: 'Digital Catalog', desc: 'Search and browse over 10,000 academic titles from any device.', icon: '🔍' },
-              { title: 'Easy Borrowing', desc: 'Hassle-free borrowing and return process with automated tracking.', icon: '📖' },
-              { title: 'Research Support', desc: 'Expert assistance in finding the right resources for your projects.', icon: '🎓' },
-              { title: 'Study Spaces', desc: 'Secure and quiet zones for focused individual or group study.', icon: '🏢' }
+              { 
+                title: 'Digital Catalog', 
+                desc: 'Search and browse over 10,000 academic titles from any device seamlessly.', 
+                icon: <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><circle cx="12" cy="8" r="2"/><line x1="14" y1="10" x2="16" y2="12"/></svg> 
+              },
+              { 
+                title: 'Easy Borrowing', 
+                desc: 'Hassle-free borrowing and return process with automated tracking.', 
+                icon: <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              },
+              { 
+                title: 'Research Support', 
+                desc: 'Expert assistance in finding the right resources for your projects.', 
+                icon: <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              },
+              { 
+                title: 'Study Spaces', 
+                desc: 'Secure and quiet zones for focused individual or group study.', 
+                icon: <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 21h18"/><path d="M9 8h1"/><path d="M9 12h1"/><path d="M9 16h1"/><path d="M14 8h1"/><path d="M14 12h1"/><path d="M14 16h1"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/></svg>
+              }
             ].map((s, i) => (
               <div key={i} className="interactive-card" style={{ background: isDark ? 'rgba(255,255,255,0.03)' : '#fff', padding: 40, borderRadius: 24, border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 10px 30px rgba(0,0,0,0.02)' }}>
-                <div className="rotate-icon" style={{ fontSize: 40, marginBottom: 20 }}>{s.icon}</div>
-                <h3 style={{ fontSize: 20, fontWeight: 800, color: isDark ? '#fff' : '#0f172a', marginBottom: 12 }}>{s.title}</h3>
-                <p style={{ color: '#64748b', lineHeight: 1.6 }}>{s.desc}</p>
+                <div className="service-icon" style={{ marginBottom: 24 }}>{s.icon}</div>
+                <h3 style={{ fontSize: 22, fontWeight: 800, color: isDark ? '#fff' : '#0f172a', marginBottom: 12 }}>{s.title}</h3>
+                <p style={{ color: '#64748b', lineHeight: 1.6, fontSize: 15 }}>{s.desc}</p>
+                <div style={{ marginTop: 24, display: 'inline-flex', alignItems: 'center', color: '#3b82f6', fontWeight: 600, fontSize: 14 }}>
+                  Explore <span style={{ marginLeft: 8 }}>→</span>
+                </div>
               </div>
             ))}
           </div>

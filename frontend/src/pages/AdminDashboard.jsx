@@ -40,6 +40,7 @@ export default function AdminDashboard() {
     { key: 'pending-staff', label: 'Pending Staff', icon: '⏳' },
     { key: 'all-staff', label: 'All Staff', icon: '🗂️' },
     { key: 'members', label: 'Members', icon: '🎓' },
+    { key: 'all-users', label: 'All Users', icon: '👥' },
     { key: 'books', label: 'Books', icon: '📚' },
     { key: 'borrowings', label: 'Borrowings', icon: '📖' },
     { key: 'fines', label: 'Fines', icon: '💰' },
@@ -58,6 +59,7 @@ export default function AdminDashboard() {
       'pending-staff': '/users',
       'all-staff': '/users',
       'members': '/users',
+      'all-users': '/admin/all-users',
       'books': '/admin/all-books',
       'borrowings': '/admin/borrowing-records',
       'fines': '/admin/fines',
@@ -70,7 +72,7 @@ export default function AdminDashboard() {
         let results = r.data.data || [];
         // Apply filtering based on tab
         if (t === 'pending-staff') results = results.filter(u => u.RoleName === 'Staff' && u.Status === 'Pending');
-        else if (t === 'all-staff') results = results.filter(u => u.RoleName === 'Staff' || u.RoleName === 'Admin');
+        else if (t === 'all-staff') results = results.filter(u => (u.RoleName === 'Staff' || u.RoleName === 'Admin') && u.Status !== 'Pending');
         else if (t === 'members') results = results.filter(u => u.RoleName === 'Member');
         
         setData(results)
@@ -134,6 +136,7 @@ export default function AdminDashboard() {
       'pending-staff': ['Name','Email','Job Title','Phone','Actions'],
       'all-staff': ['Name','Email','Job Title','Status','Joined','Actions'],
       'members': ['Name','Email','Dept','Max Books','Status','Actions'],
+      'all-users': ['Name','Email','Role','Status','Actions'],
       'books': ['Title','Category','Authors','Available','Total','Actions'],
       'borrowings': ['Member','Book','Borrowed','Due','Status'],
       'fines': ['Member','Book','Type','Amount','Status','Issued','Actions'],
@@ -188,6 +191,22 @@ export default function AdminDashboard() {
           </Td>
         </tr>
       )
+      if (tab === 'all-users') {
+        const roleColor = { Admin: '#f59e0b', Staff: '#8b5cf6', Member: '#3b82f6' }
+        return (
+          <tr key={i}>
+            <Td><strong style={{color:c.text}}>{row.FullName}</strong></Td>
+            <Td>{row.Email}</Td>
+            <Td><span style={{background:(roleColor[row.RoleName]||'#64748b')+'22',color:roleColor[row.RoleName]||'#64748b',padding:'2px 10px',borderRadius:20,fontSize:12,fontWeight:700}}>{row.RoleName}</span></Td>
+            <Td><Badge v={row.Status} /></Td>
+            <Td>
+              {row.Status !== 'active' && row.Status !== 'Active' && <Btn color='#10b981' onClick={() => act('patch',`/users/${row.UserID}/status`,{status:'Active'},'User activated.')}>Activate</Btn>}
+              {(row.Status === 'active' || row.Status === 'Active') && <Btn color='#f59e0b' onClick={() => act('patch',`/users/${row.UserID}/status`,{status:'Suspended'},'Suspended.')}>Suspend</Btn>}
+              <Btn color='#ef4444' onClick={() => { if(window.confirm(`Permanently delete ${row.FullName}? This cannot be undone.`)) act('delete',`/admin/users/${row.UserID}`,{},'User deleted.') }}>Delete</Btn>
+            </Td>
+          </tr>
+        )
+      }
       if (tab === 'books') return (
         <tr key={i}>
           <Td><strong style={{color:c.text}}>{row.Title}</strong></Td>
@@ -304,7 +323,7 @@ function ProfileTab({ user, act, c }) {
     if (pw.new !== pw.confirm) return alert("Passwords don't match")
     setLoading(true)
     try {
-      const res = await axios.patch(`http://localhost:4000/api/users/${user.UserID}/password`, {
+      const res = await axios.post(`http://localhost:4000/api/auth/change-password`, {
         currentPassword: pw.current,
         newPassword: pw.new
       }, { headers: { Authorization: `Bearer ${localStorage.getItem('lms_token')}` } })

@@ -17,6 +17,7 @@ export default function MemberDashboard() {
   const [fines, setFines] = useState([])
   const location = useLocation()
   const [tab, setTab] = useState(location.state?.tab || 'overview')
+  const [searchQuery, setSearchQuery] = useState('')
 
   const getHeaders = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('lms_token')}` } })
 
@@ -110,7 +111,7 @@ export default function MemberDashboard() {
   const tabLabel = TABS.find(t => t.key === tab)?.label || 'Member Dashboard'
 
   return (
-    <DashboardShell role="member" navItems={TABS} activeTab={tab} setTab={setTab} user={user} logout={logout} tabLabel={tabLabel}>
+    <DashboardShell role="member" navItems={TABS} activeTab={tab} setTab={setTab} user={user} logout={logout} tabLabel={tabLabel} searchQuery={searchQuery} setSearchQuery={setSearchQuery}>
 
       {tab === 'overview' && stats && (
         <div>
@@ -140,35 +141,87 @@ export default function MemberDashboard() {
         </div>
       )}
 
-      {tab === 'catalog' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 20 }}>
-          {[...books].sort((a,b) => (a.BookID === location.state?.bookId ? -1 : b.BookID === location.state?.bookId ? 1 : 0)).map(b => (
-            <div id={`book-${b.BookID}`} key={b.BookID} className="stat-card" style={{ background: cardBg, backdropFilter:'blur(12px)', border: location.state?.bookId === b.BookID ? '2px solid #3b82f6' : `1px solid ${border}`, borderRadius: 16, overflow:'hidden', display: 'flex', flexDirection: 'column', boxShadow: location.state?.bookId === b.BookID ? '0 0 30px rgba(59,130,246,0.3)' : 'none' }}>
-              <div style={{ height: 180, background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow:'hidden' }}>
-                {b.CoverImage ? (
-                  <img src={b.CoverImage.startsWith('http') ? b.CoverImage : `http://localhost:4000${b.CoverImage}`} alt={b.Title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  <span style={{ fontSize: 48 }}>📚</span>
-                )}
-              </div>
-              <div style={{ padding: 20, flex:1, display:'flex', flexDirection:'column' }}>
-                <div style={{ fontSize: 11, color: '#3b82f6', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>{b.CategoryName || 'General'}</div>
-                <div style={{ fontWeight: 700, color: textPrimary, fontSize: 16, marginBottom: 4 }}>{b.Title}</div>
-                <div style={{ color: textMuted, fontSize: 13, marginBottom: 16, flex: 1 }}>By {b.Authors || 'Unknown Author'}</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${border}`, paddingTop: 14 }}>
-                  <div style={{ fontSize: 13, color: b.AvailableCopies > 0 ? '#10b981' : '#ef4444', fontWeight: 600 }}>
-                    {b.AvailableCopies}/{b.TotalCopies} Available
-                  </div>
-                  <button onClick={() => handleReserve(b.BookID)} disabled={b.AvailableCopies > 0}
-                    style={{ background: b.AvailableCopies > 0 ? 'rgba(255,255,255,0.06)' : 'linear-gradient(135deg,#3b82f6,#1d4ed8)', color: b.AvailableCopies > 0 ? '#475569' : '#fff', border: 'none', padding: '6px 14px', borderRadius: 8, cursor: b.AvailableCopies > 0 ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight:600 }}>
-                    Reserve
-                  </button>
+      {tab === 'catalog' && (() => {
+        // Group books by category, filtered by searchQuery
+        const filtered = books.filter(b => {
+          if (!searchQuery) return true;
+          const q = searchQuery.toLowerCase();
+          return b.Title?.toLowerCase().includes(q) || b.Authors?.toLowerCase().includes(q) || b.CategoryName?.toLowerCase().includes(q);
+        });
+        const groups = filtered.reduce((acc, b) => {
+          const cat = b.CategoryName || 'General';
+          if (!acc[cat]) acc[cat] = [];
+          acc[cat].push(b);
+          return acc;
+        }, {});
+        const categoryNames = Object.keys(groups);
+
+        if (categoryNames.length === 0) return (
+          <div style={{ padding: 60, textAlign: 'center', color: textMuted }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>🔍</div>
+            <div style={{ fontSize: 18, fontWeight: 600 }}>No books found</div>
+            <div style={{ fontSize: 14, marginTop: 8 }}>Try a different search term</div>
+          </div>
+        );
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 48 }}>
+            {categoryNames.map(cat => (
+              <div key={cat}>
+                {/* Category Section Header */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+                  <div style={{ width: 5, height: 32, borderRadius: 4, background: 'linear-gradient(180deg, #3b82f6, #8b5cf6)' }} />
+                  <h2 style={{ fontSize: 22, fontWeight: 800, color: textPrimary, margin: 0 }}>{cat}</h2>
+                  <div style={{ flex: 1, height: 1, background: isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0' }} />
+                  <span style={{ fontSize: 13, color: textMuted, fontWeight: 600 }}>{groups[cat].length} book{groups[cat].length !== 1 ? 's' : ''}</span>
+                </div>
+
+                {/* Books Grid for this category */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 20 }}>
+                  {groups[cat].sort((a, b) => (a.BookID === location.state?.bookId ? -1 : b.BookID === location.state?.bookId ? 1 : 0)).map(b => (
+                    <div
+                      id={`book-${b.BookID}`}
+                      key={b.BookID}
+                      className="stat-card"
+                      style={{
+                        background: cardBg, backdropFilter: 'blur(12px)',
+                        border: location.state?.bookId === b.BookID ? '2px solid #3b82f6' : `1px solid ${border}`,
+                        borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column',
+                        boxShadow: location.state?.bookId === b.BookID ? '0 0 30px rgba(59,130,246,0.3)' : 'none',
+                        transition: 'transform 0.2s, box-shadow 0.2s'
+                      }}
+                    >
+                      <div style={{ height: 180, background: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                        {b.CoverImage ? (
+                          <img src={b.CoverImage.startsWith('http') ? b.CoverImage : `http://localhost:4000${b.CoverImage}`} alt={b.Title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          <span style={{ fontSize: 48 }}>📚</span>
+                        )}
+                      </div>
+                      <div style={{ padding: 16, flex: 1, display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ fontWeight: 700, color: textPrimary, fontSize: 15, marginBottom: 4, lineHeight: 1.3 }}>{b.Title}</div>
+                        <div style={{ color: textMuted, fontSize: 13, marginBottom: 14, flex: 1 }}>By {b.Authors || 'Unknown Author'}</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${border}`, paddingTop: 12 }}>
+                          <div style={{ fontSize: 12, color: b.AvailableCopies > 0 ? '#10b981' : '#ef4444', fontWeight: 700 }}>
+                            {b.AvailableCopies}/{b.TotalCopies} Available
+                          </div>
+                          <button
+                            onClick={() => handleReserve(b.BookID)}
+                            disabled={b.AvailableCopies > 0}
+                            style={{ background: b.AvailableCopies > 0 ? (isDark ? 'rgba(255,255,255,0.05)' : '#e2e8f0') : 'linear-gradient(135deg,#3b82f6,#1d4ed8)', color: b.AvailableCopies > 0 ? textMuted : '#fff', border: 'none', padding: '5px 12px', borderRadius: 8, cursor: b.AvailableCopies > 0 ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 700 }}
+                          >
+                            Reserve
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        );
+      })()}
 
       {tab === 'borrows' && (
         <div style={{ background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, overflow: 'hidden' }}>
@@ -262,7 +315,7 @@ function ProfileTab({ user, c }) {
     if (pw.new !== pw.confirm) return alert("Passwords don't match")
     setLoading(true)
     try {
-      const res = await axios.patch(`http://localhost:4000/api/users/${user.UserID}/password`, {
+      const res = await axios.post(`${API}/auth/change-password`, {
         currentPassword: pw.current,
         newPassword: pw.new
       }, { headers: { Authorization: `Bearer ${localStorage.getItem('lms_token')}` } })

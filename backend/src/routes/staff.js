@@ -117,7 +117,7 @@ router.post('/return', auth, async (req, res) => {
     const staffId = staffRows.length ? staffRows[0].StaffID : null;
 
     const [retResult] = await pool.execute(
-      "INSERT INTO Returns (BorrowID, ReturnDate, Condition, StaffID) VALUES (?,NOW(),?,?)",
+      "INSERT INTO Returns (BorrowID, ReturnDate, ConditionNote, StaffID) VALUES (?,NOW(),?,?)",
       [borrowId, condition || 'Good', staffId]
     );
     await pool.execute("UPDATE BorrowingRecords SET Status='returned' WHERE BorrowID=?", [borrowId]);

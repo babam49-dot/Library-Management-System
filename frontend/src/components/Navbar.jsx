@@ -64,17 +64,17 @@ export default function Navbar() {
           </>
         ) : isAuthPage ? (
           <>
-            <Link to="/" style={{ color: 'var(--nav-text)', textDecoration: 'none', fontWeight: 600 }}>Home</Link>
-            <Link to="/#books" style={{ color: 'var(--nav-text)', textDecoration: 'none', fontWeight: 500 }}>Catalog</Link>
-            <a href="mailto:support@unilibrary.edu" style={{ color: 'var(--nav-text)', textDecoration: 'none', fontWeight: 500 }}>Support</a>
+            <Link to="/" style={{ color: 'var(--nav-text)', textDecoration: 'none', fontWeight: 600 }}>Home 🏠</Link>
+            <Link to="/#books" style={{ color: 'var(--nav-text)', textDecoration: 'none', fontWeight: 500 }}>Catalog 📚</Link>
+            <a href="mailto:support@unilibrary.edu" style={{ color: 'var(--nav-text)', textDecoration: 'none', fontWeight: 500 }}>Support 💬</a>
           </>
         ) : (
           <>
-            <Link to="/" style={{ color: 'var(--nav-text)', textDecoration: 'none', fontWeight: 600 }}>Home</Link>
-            <a href="#books" style={{ color: 'var(--nav-text)', textDecoration: 'none', fontWeight: 500 }}>Catalog</a>
-            <a href="#location" style={{ color: 'var(--nav-text)', textDecoration: 'none', fontWeight: 500 }}>Location</a>
-            <a href="#about" style={{ color: 'var(--nav-text)', textDecoration: 'none', fontWeight: 500 }}>About</a>
-            <a href="#services" style={{ color: 'var(--nav-text)', textDecoration: 'none', fontWeight: 500 }}>Services</a>
+            <Link to="/" style={{ color: 'var(--nav-text)', textDecoration: 'none', fontWeight: 600 }}>Home 🏠</Link>
+            <a href="#books" style={{ color: 'var(--nav-text)', textDecoration: 'none', fontWeight: 500 }}>Catalog 📚</a>
+            <a href="#location" style={{ color: 'var(--nav-text)', textDecoration: 'none', fontWeight: 500 }}>Location 📍</a>
+            <a href="#about" style={{ color: 'var(--nav-text)', textDecoration: 'none', fontWeight: 500 }}>About ℹ️</a>
+            <a href="#services" style={{ color: 'var(--nav-text)', textDecoration: 'none', fontWeight: 500 }}>Services ✨</a>
             {user && (
               <Link to={user.RoleID === 1 ? "/admin" : user.RoleID === 2 ? "/staff" : "/member"} style={{ color: '#f59e0b', textDecoration: 'none', fontWeight: 700, marginLeft: 10 }}>Dashboard →</Link>
             )}

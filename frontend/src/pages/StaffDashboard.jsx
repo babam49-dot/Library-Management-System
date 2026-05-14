@@ -33,6 +33,8 @@ export default function StaffDashboard() {
   const [issueForm, setIssueForm] = useState({ memberId: '', copyId: '' })
   const [returnForm, setReturnForm] = useState({ borrowId: '', condition: 'Good' })
   const [actionMsg, setActionMsg] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [allBooks, setAllBooks] = useState([])
 
   // Metadata Forms
   const [authorForm, setAuthorForm] = useState({ FirstName: '', LastName: '', Bio: '', Nationality: '' })
@@ -68,6 +70,8 @@ export default function StaffDashboard() {
       setAuthors(auths.data.data)
       const borrows = await axios.get(`${API}/staff/borrowing-records`, getHeaders())
       setBorrowingRecords(borrows.data.data)
+      const bks = await axios.get(`${API}/member/books`, getHeaders())
+      setAllBooks(bks.data.data || [])
     } catch (err) { console.error(err) }
   }
 
@@ -179,7 +183,8 @@ export default function StaffDashboard() {
   const TABS = [
     { key: 'overview', label: 'Circulation Overview', icon: '📊' },
     { key: 'members', label: 'Member Approvals', icon: '👤', badge: pendingMembers.length },
-    { key: 'catalog', label: 'Register Book', icon: '📚' },
+    { key: 'browse', label: 'Browse Catalog', icon: '📚' },
+    { key: 'catalog', label: 'Register Book', icon: '➕' },
     { key: 'metadata', label: 'Manage Metadata', icon: '🏷️' },
     { key: 'circulation', label: 'Issue / Return', icon: '🔄' },
     { key: 'profile', label: 'My Profile', icon: '👤' },
@@ -187,7 +192,7 @@ export default function StaffDashboard() {
   const tabLabel = TABS.find(t => t.key === tab)?.label || 'Staff Dashboard'
 
   return (
-    <DashboardShell role="staff" navItems={TABS} activeTab={tab} setTab={setTab} user={user} logout={logout} tabLabel={tabLabel}>
+    <DashboardShell role="staff" navItems={TABS} activeTab={tab} setTab={setTab} user={user} logout={logout} tabLabel={tabLabel} searchQuery={searchQuery} setSearchQuery={setSearchQuery}>
 
       {tab === 'overview' && stats && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20 }}>
@@ -195,6 +200,39 @@ export default function StaffDashboard() {
           <StatCard title="Returns Today" value={stats.returnsToday} color="#3b82f6" cardBg={cardBg} textPrimary={textPrimary} border={border} />
           <StatCard title="Overdue Books" value={stats.overdueCount} color="#ef4444" highlight={stats.overdueCount > 0} cardBg={cardBg} textPrimary={textPrimary} border={border} />
           <StatCard title="Pending Members" value={stats.pendingMembers} color="#f59e0b" highlight={stats.pendingMembers > 0} cardBg={cardBg} textPrimary={textPrimary} border={border} />
+        </div>
+      )}
+
+      {tab === 'browse' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8, scrollbarWidth: 'none' }}>
+            <button onClick={() => setSearchQuery('')} style={{ padding: '8px 20px', borderRadius: 20, fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap', border: 'none', cursor: 'pointer', background: !searchQuery ? '#10b981' : isDark ? 'rgba(255,255,255,0.05)' : '#e2e8f0', color: !searchQuery ? '#fff' : textMuted, transition: 'all 0.2s' }}>All Categories</button>
+            {[...new Set(allBooks.map(b => b.CategoryName).filter(Boolean))].map(cat => (
+              <button key={cat} onClick={() => setSearchQuery(cat)} style={{ padding: '8px 20px', borderRadius: 20, fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap', border: 'none', cursor: 'pointer', background: searchQuery === cat ? '#10b981' : isDark ? 'rgba(255,255,255,0.05)' : '#e2e8f0', color: searchQuery === cat ? '#fff' : textMuted, transition: 'all 0.2s' }}>{cat}</button>
+            ))}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 20 }}>
+            {allBooks.filter(b => {
+              if (!searchQuery) return true;
+              const q = searchQuery.toLowerCase();
+              return b.Title?.toLowerCase().includes(q) || b.Authors?.toLowerCase().includes(q) || b.CategoryName?.toLowerCase().includes(q);
+            }).map(b => (
+              <div key={b.BookID} style={{ background: cardBg, borderRadius: 16, overflow: 'hidden', border: `1px solid ${border}`, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ height: 200, background: isDark ? '#2d3748' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                  {b.CoverImage ? <img src={b.CoverImage.startsWith('http') ? b.CoverImage : `http://localhost:4000${b.CoverImage}`} alt={b.Title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 48 }}>📚</span>}
+                </div>
+                <div style={{ padding: 16, flex: 1 }}>
+                  <div style={{ fontSize: 11, color: '#10b981', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>{b.CategoryName || 'General'}</div>
+                  <div style={{ fontWeight: 700, color: textPrimary, fontSize: 15, marginBottom: 4 }}>{b.Title}</div>
+                  <div style={{ color: textMuted, fontSize: 13, marginBottom: 12 }}>By {b.Authors || 'Unknown'}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${border}`, paddingTop: 12 }}>
+                    <span style={{ color: b.AvailableCopies > 0 ? '#10b981' : '#ef4444', fontWeight: 700, fontSize: 13 }}>{b.AvailableCopies}/{b.TotalCopies} Available</span>
+                    <span style={{ fontSize: 11, color: textMuted, padding: '4px 10px', borderRadius: 12, background: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9' }}>ID: {b.BookID}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -431,7 +469,7 @@ function ProfileTab({ user, c }) {
     if (pw.new !== pw.confirm) return alert("Passwords don't match")
     setLoading(true)
     try {
-      const res = await axios.patch(`http://localhost:4000/api/users/${user.UserID}/password`, {
+      const res = await axios.post(`http://localhost:4000/api/auth/change-password`, {
         currentPassword: pw.current,
         newPassword: pw.new
       }, { headers: { Authorization: `Bearer ${localStorage.getItem('lms_token')}` } })

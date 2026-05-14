@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useTheme } from '../context/ThemeContext'
 import DarkModeToggle from '../components/DarkModeToggle'
 
-export default function DashboardShell({ role, navItems, activeTab, setTab, user, logout, children, tabLabel }) {
+export default function DashboardShell({ role, navItems, activeTab, setTab, user, logout, children, tabLabel, searchQuery, setSearchQuery }) {
   const { isDark } = useTheme()
 
   const ROLE_META = {
@@ -46,17 +46,17 @@ export default function DashboardShell({ role, navItems, activeTab, setTab, user
       <div style={{ position:'fixed', bottom:'-10%', left:'10%', width:400, height:400, background:`${meta.color}06`, borderRadius:'50%', filter:'blur(80px)', animation:'floatR 12s ease-in-out infinite', pointerEvents:'none', zIndex:0 }} />
 
       {/* Single Floating Header */}
-      <div style={{ background: '#0a0e14', zIndex: 100, position: 'sticky', top: 0, padding: '0 24px', height: 70, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}>
+      <div style={{ background: c.navbar, zIndex: 100, position: 'sticky', top: 0, padding: '0 24px', height: 70, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${c.border}`, boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
              <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
                 <div style={{ width: 32, height: 32, background: meta.gradient, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{meta.icon}</div>
                 <div>
-                  <div style={{ color: '#fff', fontSize: 16, fontWeight: 800, lineHeight: 1, fontFamily: "'Playfair Display', serif" }}>UniLibrary</div>
-                  <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, textTransform: 'uppercase', marginTop: 2, letterSpacing: 1 }}>{role}</div>
+                  <div style={{ color: c.text, fontSize: 16, fontWeight: 800, lineHeight: 1, fontFamily: "'Playfair Display', serif" }}>UniLibrary</div>
+                  <div style={{ color: c.muted, fontSize: 10, textTransform: 'uppercase', marginTop: 2, letterSpacing: 1 }}>{role}</div>
                 </div>
              </Link>
              
-             <div style={{ height: 30, width: 1, background: 'rgba(255,255,255,0.1)', margin: '0 10px' }} />
+             <div style={{ height: 30, width: 1, background: c.border, margin: '0 10px' }} />
 
              <div className="dash-nav-scroll" style={{ display: 'flex', gap: 10 }}>
                {navItems.map(item => {
@@ -64,8 +64,8 @@ export default function DashboardShell({ role, navItems, activeTab, setTab, user
                  return (
                    <button key={item.key} onClick={() => setTab(item.key)} style={{
                       display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 12, border: 'none',
-                      background: active ? 'rgba(59,132,246,0.15)' : 'transparent',
-                      color: active ? '#3b82f6' : 'rgba(255,255,255,0.6)',
+                      background: active ? `${meta.color}22` : 'transparent',
+                      color: active ? meta.color : c.muted,
                       cursor: 'pointer', fontSize: 14, fontWeight: active ? 700 : 500, transition: 'all 0.2s'
                    }}>
                      <span>{item.icon}</span>
@@ -81,12 +81,14 @@ export default function DashboardShell({ role, navItems, activeTab, setTab, user
             <input 
               type="text" 
               placeholder={`Search in ${tabLabel}...`} 
-              style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '10px 16px 10px 48px', color: '#fff', fontSize: 14, outline: 'none' }} 
+              value={searchQuery || ''}
+              onChange={(e) => setSearchQuery && setSearchQuery(e.target.value)}
+              style={{ width: '100%', background: c.card, border: `1px solid ${c.border}`, borderRadius: 12, padding: '10px 16px 10px 48px', color: c.text, fontSize: 14, outline: 'none' }} 
             />
           </div>
 
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <a href="mailto:support@unilibrary.edu" style={{ color: 'rgba(255,255,255,0.6)', textDecoration: 'none', fontSize: 13, fontWeight: 600, marginRight: 12 }}>Support</a>
+            <a href="mailto:support@unilibrary.edu" style={{ color: c.muted, textDecoration: 'none', fontSize: 13, fontWeight: 600, marginRight: 12 }}>Support</a>
             <button onClick={logout} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 10, background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
               Log Out

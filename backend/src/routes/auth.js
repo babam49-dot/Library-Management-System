@@ -117,6 +117,16 @@ router.post('/login', async (req, res) => {
     if (user.Status !== 'active')
       return fail(res, 'Your account is not active.', 403);
 
+    let memberId = null;
+    let staffId = null;
+    if (user.RoleID === 3) {
+      const [m] = await pool.execute('SELECT MemberID FROM Members WHERE UserID = ?', [user.UserID]);
+      if (m.length) memberId = m[0].MemberID;
+    } else if (user.RoleID === 2 || user.RoleID === 1) {
+      const [s] = await pool.execute('SELECT StaffID FROM Staff WHERE UserID = ?', [user.UserID]);
+      if (s.length) staffId = s[0].StaffID;
+    }
+
     const token = jwt.sign(
       { userID: user.UserID, roleID: user.RoleID, email: user.Email, status: user.Status },
       process.env.JWT_SECRET || 'secret',
@@ -130,7 +140,9 @@ router.post('/login', async (req, res) => {
         FullName: user.FullName || `${user.FirstName || ''} ${user.LastName || ''}`.trim(),
         Email: user.Email,
         RoleID: user.RoleID,
-        Status: user.Status
+        Status: user.Status,
+        MemberID: memberId,
+        StaffID: staffId
       }
     });
   } catch (err) {
@@ -144,13 +156,37 @@ router.get('/me', require('../middleware/auth').authenticate, async (req, res) =
   try {
     const [rows] = await pool.execute(
       `SELECT u.UserID, u.Email, u.FirstName, u.LastName, u.FullName, u.Phone, u.Status, u.RoleID,
-              r.RoleName
-       FROM Users u LEFT JOIN Roles r ON u.RoleID = r.RoleID
+              r.RoleName, m.MemberID, s.StaffID
+       FROM Users u 
+       LEFT JOIN Roles r ON u.RoleID = r.RoleID
+       LEFT JOIN Members m ON u.UserID = m.UserID
+       LEFT JOIN Staff s ON u.UserID = s.UserID
        WHERE u.UserID = ?`,
       [req.user.userID]
     );
     if (rows.length === 0) return fail(res, 'User not found', 404);
     return ok(res, 'User info', rows[0]);
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// POST /api/auth/change-password
+router.post('/change-password', require('../middleware/auth').authenticate, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) return fail(res, 'Both current and new password are required');
+    if (newPassword.length < 8) return fail(res, 'New password must be at least 8 characters');
+
+    const [rows] = await pool.execute('SELECT Password FROM Users WHERE UserID = ?', [req.user.userID]);
+    if (rows.length === 0) return fail(res, 'User not found', 404);
+
+    const match = await bcrypt.compare(currentPassword, rows[0].Password);
+    if (!match) return fail(res, 'Current password is incorrect', 400);
+
+    const hashed = await bcrypt.hash(newPassword, 12);
+    await pool.execute('UPDATE Users SET Password = ? WHERE UserID = ?', [hashed, req.user.userID]);
+    return ok(res, 'Password updated successfully');
   } catch (err) {
     return fail(res, err.message, 500);
   }
