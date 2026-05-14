@@ -66,7 +66,7 @@ export default function MemberDashboard() {
 
   const fetchBooks = async () => {
     try {
-      const b = await axios.get(`${API}/member/books`, getHeaders())
+      const b = await axios.get(`${API}/catalog/books`, getHeaders())
       setBooks(b.data.data)
     } catch (err) { console.error(err) }
   }

@@ -70,7 +70,7 @@ export default function StaffDashboard() {
       setAuthors(auths.data.data)
       const borrows = await axios.get(`${API}/staff/borrowing-records`, getHeaders())
       setBorrowingRecords(borrows.data.data)
-      const bks = await axios.get(`${API}/member/books`, getHeaders())
+      const bks = await axios.get(`${API}/catalog/books`, getHeaders())
       setAllBooks(bks.data.data || [])
     } catch (err) { console.error(err) }
   }
