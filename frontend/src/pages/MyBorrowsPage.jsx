@@ -42,8 +42,18 @@ export default function MyBorrowsPage() {
 
   const readyReservations = reservations.filter(r => r.status === 'Ready');
 
+  const MEMBER_NAV_ITEMS = [
+    { key: 'overview', label: 'My Dashboard', icon: '🏠', path: '/member' },
+    { key: 'catalog', label: 'All Books', icon: '📚', path: '/member' },
+    { key: 'categories', label: 'By Category', icon: '🗂️', path: '/member' },
+    { key: 'borrow', label: 'Borrow Books', icon: '📖', path: '/borrow' },
+    { key: 'my-borrows', label: 'My Borrows', icon: '📋', path: '/my-borrows' },
+    { key: 'fines', label: 'My Fines', icon: '💳', path: '/member' },
+    { key: 'profile', label: 'My Profile', icon: '👤', path: '/member' },
+  ];
+
   return (
-    <DashboardShell title="My Borrows">
+    <DashboardShell role="member" navItems={MEMBER_NAV_ITEMS} activeTab="my-borrows" tabLabel="My Borrows">
       {readyReservations.length > 0 && (
         <div className="mb-6 p-4 bg-green-100 border border-green-300 text-green-800 rounded-xl flex items-center shadow">
           <span className="text-2xl mr-3">📗</span>

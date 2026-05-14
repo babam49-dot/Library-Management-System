@@ -81,8 +81,20 @@ export default function LibrarianDeskPage() {
     }));
   };
 
+  const STAFF_NAV_ITEMS = [
+    { key: 'overview', label: 'Circulation Overview', icon: '📊', path: '/staff' },
+    { key: 'members', label: 'Member Approvals', icon: '👤', path: '/staff' },
+    { key: 'browse', label: 'Browse Catalog', icon: '📚', path: '/staff' },
+    { key: 'catalog', label: 'Register Book', icon: '➕', path: '/staff' },
+    { key: 'metadata', label: 'Manage Metadata', icon: '🏷️', path: '/staff' },
+    { key: 'desk', label: 'Librarian Desk', icon: '🖥️', path: '/desk' },
+    { key: 'reservations', label: 'Reservations', icon: '📋', path: '/reservations' },
+    { key: 'overdue', label: 'Overdue Books', icon: '⚠️', path: '/overdue' },
+    { key: 'profile', label: 'My Profile', icon: '👤', path: '/staff' },
+  ];
+
   return (
-    <DashboardShell title="Librarian Desk">
+    <DashboardShell role="staff" navItems={STAFF_NAV_ITEMS} activeTab="desk" tabLabel="Librarian Desk">
       <div className="flex border-b mb-6 dark:border-gray-700">
         <button
           onClick={() => { setTab('pickup'); clearSession(); }}

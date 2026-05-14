@@ -101,8 +101,18 @@ export default function BorrowingPage() {
   const { maxAllowed, activeBorrows } = activeCount;
   const limitReached = activeBorrows >= maxAllowed;
 
+  const MEMBER_NAV_ITEMS = [
+    { key: 'overview', label: 'My Dashboard', icon: '🏠', path: '/member' },
+    { key: 'catalog', label: 'All Books', icon: '📚', path: '/member' },
+    { key: 'categories', label: 'By Category', icon: '🗂️', path: '/member' },
+    { key: 'borrow', label: 'Borrow Books', icon: '📖', path: '/borrow' },
+    { key: 'my-borrows', label: 'My Borrows', icon: '📋', path: '/my-borrows' },
+    { key: 'fines', label: 'My Fines', icon: '💳', path: '/member' },
+    { key: 'profile', label: 'My Profile', icon: '👤', path: '/member' },
+  ];
+
   return (
-    <DashboardShell title="Borrow Books">
+    <DashboardShell role="member" navItems={MEMBER_NAV_ITEMS} activeTab="borrow" user={user} tabLabel="Borrow Books">
       <div className="flex flex-col md:flex-row h-full">
         <div className="flex-1 flex flex-col min-w-0 pr-0 md:pr-4 overflow-y-auto pb-24 md:pb-0">
           

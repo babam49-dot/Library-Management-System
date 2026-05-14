@@ -33,8 +33,31 @@ export default function ReservationsPage() {
     }
   };
 
+  const handleCancel = async (id) => {
+    if (window.confirm("Cancel this reservation? This will release the hold if ready, or remove from queue.")) {
+      try {
+        await cancelReservation(id);
+        handleFilter(); // refresh
+      } catch (e) {
+        alert("Failed to cancel: " + e);
+      }
+    }
+  };
+
+  const STAFF_NAV_ITEMS = [
+    { key: 'overview', label: 'Circulation Overview', icon: '📊', path: '/staff' },
+    { key: 'members', label: 'Member Approvals', icon: '👤', path: '/staff' },
+    { key: 'browse', label: 'Browse Catalog', icon: '📚', path: '/staff' },
+    { key: 'catalog', label: 'Register Book', icon: '➕', path: '/staff' },
+    { key: 'metadata', label: 'Manage Metadata', icon: '🏷️', path: '/staff' },
+    { key: 'desk', label: 'Librarian Desk', icon: '🖥️', path: '/desk' },
+    { key: 'reservations', label: 'Reservations', icon: '📋', path: '/reservations' },
+    { key: 'overdue', label: 'Overdue Books', icon: '⚠️', path: '/overdue' },
+    { key: 'profile', label: 'My Profile', icon: '👤', path: '/staff' },
+  ];
+
   return (
-    <DashboardShell title="Reservation Queue">
+    <DashboardShell role="staff" navItems={STAFF_NAV_ITEMS} activeTab="reservations" tabLabel="Reservations">
       <div className={\`p-6 rounded-2xl shadow-sm mb-6 flex flex-wrap gap-4 items-end \${isDark ? 'bg-gray-800' : 'bg-white'}\`}>
         <div className="flex-1 min-w-[200px]">
           <label className="block text-sm font-bold mb-2">Copy ID</label>

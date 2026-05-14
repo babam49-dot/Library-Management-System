@@ -181,13 +181,15 @@ export default function StaffDashboard() {
   }
 
   const TABS = [
-    { key: 'overview', label: 'Circulation Overview', icon: '📊' },
-    { key: 'members', label: 'Member Approvals', icon: '👤', badge: pendingMembers.length },
-    { key: 'browse', label: 'Browse Catalog', icon: '📚' },
-    { key: 'catalog', label: 'Register Book', icon: '➕' },
-    { key: 'metadata', label: 'Manage Metadata', icon: '🏷️' },
-    { key: 'circulation', label: 'Issue / Return', icon: '🔄' },
-    { key: 'profile', label: 'My Profile', icon: '👤' },
+    { key: 'overview', label: 'Circulation Overview', icon: '📊', path: '/staff' },
+    { key: 'members', label: 'Member Approvals', icon: '👤', badge: pendingMembers.length, path: '/staff' },
+    { key: 'browse', label: 'Browse Catalog', icon: '📚', path: '/staff' },
+    { key: 'catalog', label: 'Register Book', icon: '➕', path: '/staff' },
+    { key: 'metadata', label: 'Manage Metadata', icon: '🏷️', path: '/staff' },
+    { key: 'desk', label: 'Librarian Desk', icon: '🖥️', path: '/desk' },
+    { key: 'reservations', label: 'Reservations', icon: '📋', path: '/reservations' },
+    { key: 'overdue', label: 'Overdue Books', icon: '⚠️', path: '/overdue' },
+    { key: 'profile', label: 'My Profile', icon: '👤', path: '/staff' },
   ]
   const tabLabel = TABS.find(t => t.key === tab)?.label || 'Staff Dashboard'
 
