@@ -53,13 +53,13 @@ export default function Footer({ isDark }) {
           </ul>
         </div>
 
-        {/* Contact Info Column (Beside others) */}
+        {/* Contact Info */}
         <div>
           <h4 style={{ color: '#ffffff', fontSize: 18, fontWeight: 700, marginBottom: 24, fontFamily: "'Playfair Display', serif" }}>Connect</h4>
           <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
             <li style={{ display: 'flex', gap: 12, alignItems: 'center', color: '#94a3b8', fontSize: 14 }}>
               <span style={{ fontSize: 18 }}>📍</span>
-              <span>AAIT 5-Kilo, Addis Ababa</span>
+              <span>CTBE 5-Kilo, Addis Ababa</span>
             </li>
             <li style={{ display: 'flex', gap: 12, alignItems: 'center', color: '#94a3b8', fontSize: 14 }}>
               <span style={{ fontSize: 18 }}>📞</span>
@@ -67,7 +67,7 @@ export default function Footer({ isDark }) {
             </li>
             <li style={{ display: 'flex', gap: 12, alignItems: 'center', color: '#94a3b8', fontSize: 14 }}>
               <span style={{ fontSize: 18 }}>✉️</span>
-              <span>library@university.edu</span>
+              <span>library@ctbe.edu.et</span>
             </li>
             <li style={{ display: 'flex', gap: 12, alignItems: 'center', color: '#94a3b8', fontSize: 14 }}>
               <span style={{ fontSize: 18 }}>⏰</span>

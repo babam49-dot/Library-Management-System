@@ -394,9 +394,9 @@ export default function Home() {
                 <div className="service-icon" style={{ marginBottom: 24 }}>{s.icon}</div>
                 <h3 style={{ fontSize: 22, fontWeight: 800, color: isDark ? '#fff' : '#0f172a', marginBottom: 12 }}>{s.title}</h3>
                 <p style={{ color: '#64748b', lineHeight: 1.6, fontSize: 15 }}>{s.desc}</p>
-                <div style={{ marginTop: 24, display: 'inline-flex', alignItems: 'center', color: '#3b82f6', fontWeight: 600, fontSize: 14 }}>
+                <Link to="/login" style={{ marginTop: 24, display: 'inline-flex', alignItems: 'center', color: '#3b82f6', fontWeight: 600, fontSize: 14, textDecoration: 'none' }}>
                   Explore <span style={{ marginLeft: 8 }}>→</span>
-                </div>
+                </Link>
               </div>
             ))}
           </div>

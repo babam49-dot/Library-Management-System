@@ -15,6 +15,7 @@ export default function MemberDashboard() {
   const [books, setBooks] = useState([])
   const [borrows, setBorrows] = useState([])
   const [fines, setFines] = useState([])
+  const [selectedCategory, setSelectedCategory] = useState(null)
   const location = useLocation()
   const [tab, setTab] = useState(location.state?.tab || 'overview')
   const [searchQuery, setSearchQuery] = useState('')
@@ -35,6 +36,19 @@ export default function MemberDashboard() {
     fetchBorrows()
     fetchFines()
   }, [])
+
+  useEffect(() => {
+    if (location.state?.bookId && tab === 'catalog') {
+      setTimeout(() => {
+        const el = document.getElementById(`book-${location.state.bookId}`)
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          el.classList.add('highlight-book')
+          setTimeout(() => el.classList.remove('highlight-book'), 3000)
+        }
+      }, 500)
+    }
+  }, [location.state, tab, books])
 
   const fetchDashboard = async () => {
     try {
@@ -103,7 +117,8 @@ export default function MemberDashboard() {
 
   const TABS = [
     { key: 'overview', label: 'My Dashboard', icon: '🏠' },
-    { key: 'catalog', label: 'Library Catalog', icon: '📚' },
+    { key: 'catalog', label: 'All Books', icon: '📚' },
+    { key: 'categories', label: 'By Category', icon: '🗂️' },
     { key: 'borrows', label: 'My Borrowings', icon: '📖' },
     { key: 'fines', label: 'My Fines', icon: '💳' },
     { key: 'profile', label: 'My Profile', icon: '👤' },
@@ -112,6 +127,17 @@ export default function MemberDashboard() {
 
   return (
     <DashboardShell role="member" navItems={TABS} activeTab={tab} setTab={setTab} user={user} logout={logout} tabLabel={tabLabel} searchQuery={searchQuery} setSearchQuery={setSearchQuery}>
+      <style>{`
+        @keyframes highlight-glow {
+          0% { box-shadow: 0 0 0px rgba(59,130,246,0); transform: scale(1); }
+          50% { box-shadow: 0 0 40px rgba(59,130,246,0.6); transform: scale(1.05); }
+          100% { box-shadow: 0 0 20px rgba(59,130,246,0.3); transform: scale(1.02); }
+        }
+        .highlight-book {
+          animation: highlight-glow 1.5s ease-out forwards;
+          border: 2px solid #3b82f6 !important;
+        }
+      `}</style>
 
       {tab === 'overview' && stats && (
         <div>
@@ -142,13 +168,37 @@ export default function MemberDashboard() {
       )}
 
       {tab === 'catalog' && (() => {
-        // Group books by category, filtered by searchQuery
         const filtered = books.filter(b => {
           if (!searchQuery) return true;
           const q = searchQuery.toLowerCase();
-          return b.Title?.toLowerCase().includes(q) || b.Authors?.toLowerCase().includes(q) || b.CategoryName?.toLowerCase().includes(q);
+          return (b.Title?.toLowerCase().includes(q) || b.Authors?.toLowerCase().includes(q) || b.CategoryName?.toLowerCase().includes(q));
         });
-        const groups = filtered.reduce((acc, b) => {
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+              <span style={{ fontSize: 24 }}>📚</span>
+              <h3 style={{ fontSize: 20, fontWeight: 800, color: textPrimary, margin: 0 }}>{searchQuery ? `Search Results (${filtered.length})` : 'All Books'}</h3>
+              <div style={{ flex: 1, height: 1, background: isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0', marginLeft: 10 }} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 20 }}>
+              {filtered.map(b => (
+                <BookCard 
+                  key={b.BookID} b={b} 
+                  isHighlighted={location.state?.bookId === b.BookID} 
+                  isDark={isDark} cardBg={cardBg} border={border} 
+                  textPrimary={textPrimary} textMuted={textMuted} 
+                  handleReserve={handleReserve}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {tab === 'categories' && (() => {
+        // Group books by category
+        const groups = books.reduce((acc, b) => {
           const cat = b.CategoryName || 'General';
           if (!acc[cat]) acc[cat] = [];
           acc[cat].push(b);
@@ -158,64 +208,77 @@ export default function MemberDashboard() {
 
         if (categoryNames.length === 0) return (
           <div style={{ padding: 60, textAlign: 'center', color: textMuted }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>🔍</div>
-            <div style={{ fontSize: 18, fontWeight: 600 }}>No books found</div>
-            <div style={{ fontSize: 14, marginTop: 8 }}>Try a different search term</div>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>🗂️</div>
+            <div style={{ fontSize: 18, fontWeight: 600 }}>No categories found</div>
           </div>
         );
 
-        return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 48 }}>
-            {categoryNames.map(cat => (
-              <div key={cat}>
-                {/* Category Section Header */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
-                  <div style={{ width: 5, height: 32, borderRadius: 4, background: 'linear-gradient(180deg, #3b82f6, #8b5cf6)' }} />
-                  <h2 style={{ fontSize: 22, fontWeight: 800, color: textPrimary, margin: 0 }}>{cat}</h2>
-                  <div style={{ flex: 1, height: 1, background: isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0' }} />
-                  <span style={{ fontSize: 13, color: textMuted, fontWeight: 600 }}>{groups[cat].length} book{groups[cat].length !== 1 ? 's' : ''}</span>
-                </div>
+        if (selectedCategory) {
+          const catBooks = groups[selectedCategory] || [];
+          const filteredCatBooks = catBooks.filter(b => {
+            if (!searchQuery) return true;
+            const q = searchQuery.toLowerCase();
+            return (b.Title?.toLowerCase().includes(q) || b.Authors?.toLowerCase().includes(q));
+          });
 
-                {/* Books Grid for this category */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 20 }}>
-                  {groups[cat].sort((a, b) => (a.BookID === location.state?.bookId ? -1 : b.BookID === location.state?.bookId ? 1 : 0)).map(b => (
-                    <div
-                      id={`book-${b.BookID}`}
-                      key={b.BookID}
-                      className="stat-card"
-                      style={{
-                        background: cardBg, backdropFilter: 'blur(12px)',
-                        border: location.state?.bookId === b.BookID ? '2px solid #3b82f6' : `1px solid ${border}`,
-                        borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column',
-                        boxShadow: location.state?.bookId === b.BookID ? '0 0 30px rgba(59,130,246,0.3)' : 'none',
-                        transition: 'transform 0.2s, box-shadow 0.2s'
-                      }}
-                    >
-                      <div style={{ height: 180, background: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                        {b.CoverImage ? (
-                          <img src={b.CoverImage.startsWith('http') ? b.CoverImage : `http://localhost:4000${b.CoverImage}`} alt={b.Title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        ) : (
-                          <span style={{ fontSize: 48 }}>📚</span>
-                        )}
-                      </div>
-                      <div style={{ padding: 16, flex: 1, display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ fontWeight: 700, color: textPrimary, fontSize: 15, marginBottom: 4, lineHeight: 1.3 }}>{b.Title}</div>
-                        <div style={{ color: textMuted, fontSize: 13, marginBottom: 14, flex: 1 }}>By {b.Authors || 'Unknown Author'}</div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${border}`, paddingTop: 12 }}>
-                          <div style={{ fontSize: 12, color: b.AvailableCopies > 0 ? '#10b981' : '#ef4444', fontWeight: 700 }}>
-                            {b.AvailableCopies}/{b.TotalCopies} Available
-                          </div>
-                          <button
-                            onClick={() => handleReserve(b.BookID)}
-                            disabled={b.AvailableCopies > 0}
-                            style={{ background: b.AvailableCopies > 0 ? (isDark ? 'rgba(255,255,255,0.05)' : '#e2e8f0') : 'linear-gradient(135deg,#3b82f6,#1d4ed8)', color: b.AvailableCopies > 0 ? textMuted : '#fff', border: 'none', padding: '5px 12px', borderRadius: 8, cursor: b.AvailableCopies > 0 ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 700 }}
-                          >
-                            Reserve
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <button 
+                  onClick={() => setSelectedCategory(null)}
+                  style={{ background: 'transparent', border: 'none', color: '#3b82f6', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 15, padding: 0 }}
+                >
+                  ← Back to Categories
+                </button>
+                <div style={{ width: 1, height: 24, background: border }} />
+                <h2 style={{ fontSize: 24, fontWeight: 800, color: textPrimary, margin: 0 }}>{selectedCategory}</h2>
+                <span style={{ background: 'rgba(59,130,246,0.15)', color: '#3b82f6', padding: '4px 12px', borderRadius: 20, fontSize: 13, fontWeight: 700 }}>{filteredCatBooks.length} Books</span>
+              </div>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 20 }}>
+                {filteredCatBooks.map(b => (
+                  <BookCard 
+                    key={b.BookID} b={b} 
+                    isHighlighted={location.state?.bookId === b.BookID} 
+                    isDark={isDark} cardBg={cardBg} border={border} 
+                    textPrimary={textPrimary} textMuted={textMuted} 
+                    handleReserve={handleReserve}
+                  />
+                ))}
+              </div>
+            </div>
+          )
+        }
+
+        return (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 24 }}>
+            {categoryNames.map(cat => (
+              <div 
+                key={cat} 
+                onClick={() => setSelectedCategory(cat)}
+                style={{ 
+                  background: cardBg, 
+                  border: `1px solid ${border}`, 
+                  borderRadius: 16, 
+                  padding: 30, 
+                  cursor: 'pointer',
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  gap: 16,
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.05)'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.borderColor = '#3b82f6'; e.currentTarget.style.boxShadow = '0 10px 30px rgba(59,130,246,0.15)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.borderColor = border; e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.05)'; }}
+              >
+                <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(59,130,246,0.1), rgba(139,92,246,0.1))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>
+                  🗂️
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <h3 style={{ fontSize: 18, fontWeight: 700, color: textPrimary, margin: '0 0 8px 0' }}>{cat}</h3>
+                  <span style={{ color: textMuted, fontSize: 14, fontWeight: 500 }}>{groups[cat].length} Books Available</span>
                 </div>
               </div>
             ))}
@@ -376,5 +439,46 @@ const StatCard = ({ title, value, color = '#3b82f6', highlight, cardBg, textPrim
   <div className="stat-card" style={{ background: cardBg, backdropFilter:'blur(12px)', border: highlight ? `2px solid ${color}` : `1px solid ${border}`, borderRadius: 16, padding: 24, boxShadow: highlight ? `0 0 24px ${color}22` : 'none' }}>
     <div style={{ fontSize: 12, color: highlight ? color : '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>{title}</div>
     <div style={{ fontSize: 36, fontWeight: 800, color: highlight ? color : textPrimary }}>{value ?? '—'}</div>
+  </div>
+)
+
+const BookCard = ({ b, isHighlighted, isDark, cardBg, border, textPrimary, textMuted, handleReserve }) => (
+  <div
+    id={`book-${b.BookID}`}
+    className={`stat-card ${isHighlighted ? 'highlight-book' : ''}`}
+    style={{
+      background: cardBg, backdropFilter: 'blur(12px)',
+      border: isHighlighted ? '2px solid #3b82f6' : `1px solid ${border}`,
+      borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column',
+      boxShadow: isHighlighted ? '0 0 30px rgba(59,130,246,0.4)' : 'none',
+      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      transform: isHighlighted ? 'scale(1.02)' : 'none',
+      zIndex: isHighlighted ? 10 : 1
+    }}
+  >
+    <div style={{ height: 180, background: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+      {b.CoverImage ? (
+        <img src={b.CoverImage.startsWith('http') ? b.CoverImage : `http://localhost:4000${b.CoverImage}`} alt={b.Title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      ) : (
+        <span style={{ fontSize: 48 }}>📚</span>
+      )}
+    </div>
+    <div style={{ padding: 16, flex: 1, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ fontSize: 11, color: '#3b82f6', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>{b.CategoryName || 'General'}</div>
+      <div style={{ fontWeight: 700, color: textPrimary, fontSize: 15, marginBottom: 4, lineHeight: 1.3 }}>{b.Title}</div>
+      <div style={{ color: textMuted, fontSize: 13, marginBottom: 14, flex: 1 }}>By {b.Authors || 'Unknown Author'}</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${border}`, paddingTop: 12 }}>
+        <div style={{ fontSize: 12, color: b.AvailableCopies > 0 ? '#10b981' : '#ef4444', fontWeight: 700 }}>
+          {b.AvailableCopies}/{b.TotalCopies} Available
+        </div>
+        <button
+          onClick={() => handleReserve(b.BookID)}
+          disabled={b.AvailableCopies > 0}
+          style={{ background: b.AvailableCopies > 0 ? (isDark ? 'rgba(255,255,255,0.05)' : '#e2e8f0') : 'linear-gradient(135deg,#3b82f6,#1d4ed8)', color: b.AvailableCopies > 0 ? textMuted : '#fff', border: 'none', padding: '5px 12px', borderRadius: 8, cursor: b.AvailableCopies > 0 ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 700 }}
+        >
+          Reserve
+        </button>
+      </div>
+    </div>
   </div>
 )

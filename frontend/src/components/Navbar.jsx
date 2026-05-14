@@ -63,11 +63,11 @@ export default function Navbar() {
             </div>
           </>
         ) : isAuthPage ? (
-          <>
-            <Link to="/" style={{ color: 'var(--nav-text)', textDecoration: 'none', fontWeight: 600 }}>Home 🏠</Link>
-            <Link to="/#books" style={{ color: 'var(--nav-text)', textDecoration: 'none', fontWeight: 500 }}>Catalog 📚</Link>
-            <a href="mailto:support@unilibrary.edu" style={{ color: 'var(--nav-text)', textDecoration: 'none', fontWeight: 500 }}>Support 💬</a>
-          </>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 13, color: 'var(--nav-text)', opacity: 0.6 }}>
+              {location.pathname === '/login' ? 'Sign in to access your library account' : 'Create your library account'}
+            </span>
+          </div>
         ) : (
           <>
             <Link to="/" style={{ color: 'var(--nav-text)', textDecoration: 'none', fontWeight: 600 }}>Home 🏠</Link>
@@ -92,11 +92,13 @@ export default function Navbar() {
              </div>
              <button onClick={logout} style={{ padding:'8px 16px', borderRadius:8, background:'rgba(239,68,68,0.1)', color:'#ef4444', border:'none', cursor:'pointer', fontWeight:600 }}>Log Out</button>
           </div>
-        ) : !isAuthPage && (
+        ) : !isAuthPage ? (
           <>
             <Link to="/login" style={{ color: 'var(--nav-text)', textDecoration: 'none', fontWeight: 600 }}>Sign In</Link>
             <Link to="/register" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#fff', padding: '10px 24px', borderRadius: 8, textDecoration: 'none', fontWeight: 600, boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)' }}>Join Now</Link>
           </>
+        ) : (
+          <Link to="/" style={{ color: 'var(--nav-text)', textDecoration: 'none', fontWeight: 500, fontSize: 14, opacity: 0.7 }}>← Back to Home</Link>
         )}
       </div>
     </nav>
