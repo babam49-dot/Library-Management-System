@@ -18,6 +18,17 @@ app.use('/api', require('./src/modules/users/users.routes'));
 // app.use('/api/member', require('./src/routes/members'));
 app.use('/api/books',  require('./src/routes/books'));
 
+// ─── Module 3: Borrowing Logic ────────────────────────────────────────────────
+app.use('/api/borrowing', require('./src/routes/borrowing'));
+app.use('/api/reservations', require('./src/routes/reservations'));
+app.use('/api/returns', require('./src/routes/returns'));
+app.use('/api/jobs', require('./src/routes/jobs'));
+
+// Start Cron Jobs
+require('./src/jobs/pickupExpirationJob');
+require('./src/jobs/overdueDetectionJob');
+
+
 // ─── Module 1: Catalog ───────────────────────────────────────────────────────
 app.use('/api/catalog', require('./src/catalog/catalog.routes'));
 
