@@ -1,13 +1,23 @@
-import React from 'react';
-import Header from './Header';
-import Footer from './Footer';
+import React from 'react'
+import { useLocation } from 'react-router-dom'
+import Navbar from './Navbar'
+import Footer from './Footer'
+import { useTheme } from '../context/ThemeContext'
 
 export default function Layout({ children }) {
+  const { isDark } = useTheme()
+  const location = useLocation()
+  
+  // Hide global nav/footer for dashboard pages
+  const isDashboard = ['/admin', '/staff', '/member'].some(path => location.pathname.startsWith(path))
+
   return (
-    <div className="flex min-h-screen flex-col bg-stone-50 text-gray-950 dark:bg-gray-950 dark:text-gray-100 font-sans">
-      <Header />
-      <main className="flex-grow flex flex-col">{children}</main>
-      <Footer />
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      {!isDashboard && <Navbar />}
+      <main style={{ flex: 1, paddingTop: isDashboard ? 0 : '72px' }}>
+        {children}
+      </main>
+      {!isDashboard && <Footer isDark={isDark} />}
     </div>
-  );
+  )
 }

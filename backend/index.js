@@ -8,11 +8,14 @@ app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// ─── Existing routes (unchanged) ─────────────────────────────────────────────
-app.use('/api/auth',   require('./src/routes/auth'));
-app.use('/api/admin',  require('./src/routes/admin'));
-app.use('/api/staff',  require('./src/routes/staff'));
-app.use('/api/member', require('./src/routes/members'));
+// ─── Module 2: Users & Roles (Consolidated) ──────────────────────────────────
+app.use('/api', require('./src/modules/users/users.routes'));
+
+// ─── Existing routes (legacy - consider removing once migration is verified) ──
+// app.use('/api/auth',   require('./src/routes/auth'));
+// app.use('/api/admin',  require('./src/routes/admin'));
+// app.use('/api/staff',  require('./src/routes/staff'));
+// app.use('/api/member', require('./src/routes/members'));
 app.use('/api/books',  require('./src/routes/books'));
 
 // ─── Module 1: Catalog ───────────────────────────────────────────────────────

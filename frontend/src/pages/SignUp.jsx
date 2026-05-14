@@ -57,12 +57,7 @@ export default function SignUp() {
       <div style={{ position:'fixed', bottom:'-10%', right:'-5%', width:450, height:450, background: isDark?`${role.color}12`:`${role.color}18`, borderRadius:'50%', filter:'blur(80px)', animation:'floatR 10s ease-in-out infinite', pointerEvents:'none' }} />
       <div style={{ position:'fixed', top:'50%', left:'30%', width:300, height:300, background: isDark?'rgba(139,92,246,0.05)':'rgba(139,92,246,0.08)', borderRadius:'50%', filter:'blur(70px)', animation:'float 14s ease-in-out infinite reverse', pointerEvents:'none' }} />
 
-      <div style={{ position:'fixed', top:20, right:20, zIndex:1000 }}><DarkModeToggle /></div>
 
-      <Link to="/" style={{ position:'fixed', top:24, left:24, display:'flex', alignItems:'center', gap:8, color: isDark?'#94a3b8':'#64748b', textDecoration:'none', fontSize:14, fontWeight:500, zIndex:1000 }}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-        Back to home
-      </Link>
 
       <div className="signup-anim" style={{ width:'100%', maxWidth:640, position:'relative', zIndex:10 }}>
         {/* Header */}

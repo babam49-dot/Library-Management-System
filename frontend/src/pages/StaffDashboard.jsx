@@ -180,6 +180,7 @@ export default function StaffDashboard() {
     { key: 'catalog', label: 'Register Book', icon: '📚' },
     { key: 'metadata', label: 'Manage Metadata', icon: '🏷️' },
     { key: 'circulation', label: 'Issue / Return', icon: '🔄' },
+    { key: 'profile', label: 'My Profile', icon: '👤' },
   ]
   const tabLabel = TABS.find(t => t.key === tab)?.label || 'Staff Dashboard'
 
@@ -188,18 +189,18 @@ export default function StaffDashboard() {
 
       {tab === 'overview' && stats && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20 }}>
-          <StatCard title="Active Borrows" value={stats.activeBorrowings} color="#10b981" />
-          <StatCard title="Returns Today" value={stats.returnsToday} color="#3b82f6" />
-          <StatCard title="Overdue Books" value={stats.overdueCount} color="#ef4444" highlight={stats.overdueCount > 0} />
-          <StatCard title="Pending Members" value={stats.pendingMembers} color="#f59e0b" highlight={stats.pendingMembers > 0} />
+          <StatCard title="Active Borrows" value={stats.activeBorrowings} color="#10b981" cardBg={cardBg} textPrimary={textPrimary} border={border} />
+          <StatCard title="Returns Today" value={stats.returnsToday} color="#3b82f6" cardBg={cardBg} textPrimary={textPrimary} border={border} />
+          <StatCard title="Overdue Books" value={stats.overdueCount} color="#ef4444" highlight={stats.overdueCount > 0} cardBg={cardBg} textPrimary={textPrimary} border={border} />
+          <StatCard title="Pending Members" value={stats.pendingMembers} color="#f59e0b" highlight={stats.pendingMembers > 0} cardBg={cardBg} textPrimary={textPrimary} border={border} />
         </div>
       )}
 
       {tab === 'members' && (
-        <div style={{ background: 'rgba(255,255,255,0.05)', backdropFilter:'blur(12px)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-          <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)', fontWeight: 600, color: '#f1f5f9', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div style={{ background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, overflow: 'hidden' }}>
+          <div style={{ padding: '16px 20px', borderBottom: `1px solid ${border}`, fontWeight: 600, color: textPrimary, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
             <span>Pending Member Registrations</span>
-            <span style={{ fontSize:13, color:'#64748b' }}>{pendingMembers.length} pending</span>
+            <span style={{ fontSize:13, color:textMuted }}>{pendingMembers.length} pending</span>
           </div>
           {pendingMembers.length === 0 ? (
             <div style={{ padding: 60, textAlign: 'center', color: '#64748b' }}>
@@ -218,9 +219,9 @@ export default function StaffDashboard() {
               </thead>
               <tbody>
                 {pendingMembers.map(m => (
-                  <tr key={m.UserID} className="table-row" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                    <td style={{ padding: 16, fontWeight: 600, color: '#f1f5f9' }}>{m.FullName}</td>
-                    <td style={{ padding: 16, color: '#64748b' }}>{m.Email}</td>
+                  <tr key={m.UserID} className="table-row" style={{ borderTop: `1px solid ${border}` }}>
+                    <td style={{ padding: 16, fontWeight: 600, color: textPrimary }}>{m.FullName}</td>
+                    <td style={{ padding: 16, color: textMuted }}>{m.Email}</td>
                     <td style={{ padding: 16, color: '#64748b' }}>{m.StudentID}</td>
                     <td style={{ padding: 16, textAlign: 'right' }}>
                       <button onClick={() => handleReject(m.UserID)} className="action-btn" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', padding: '6px 14px', borderRadius: 8, cursor: 'pointer', marginRight: 8, fontWeight:600 }}>Reject</button>
@@ -235,8 +236,8 @@ export default function StaffDashboard() {
       )}
 
       {tab === 'catalog' && (
-        <div style={{ background: 'rgba(255,255,255,0.05)', backdropFilter:'blur(12px)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)', padding: 32, maxWidth: 800 }}>
-          <p style={{ color: '#64748b', marginBottom: 20, fontSize:14 }}>Upload a new book to the library catalog, linking categories and assigning shelf locations.</p>
+        <div style={{ background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, padding: 32, maxWidth: 800 }}>
+          <p style={{ color: textMuted, marginBottom: 20, fontSize:14 }}>Upload a new book to the library catalog, linking categories and assigning shelf locations.</p>
           {bookMsg && <div style={{ padding: 12, marginBottom: 20, background: bookMsg.startsWith('Error') ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)', color: bookMsg.startsWith('Error') ? '#ef4444' : '#10b981', borderRadius: 10, border: `1px solid ${bookMsg.startsWith('Error') ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)'}` }}>{bookMsg}</div>}
           <form onSubmit={submitBook} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div style={{ gridColumn: 'span 2' }}>
@@ -301,8 +302,8 @@ export default function StaffDashboard() {
           {metaMsg && <div style={{ padding: 12, background: metaMsg.startsWith('Error') ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)', color: metaMsg.startsWith('Error') ? '#ef4444' : '#10b981', borderRadius: 10, border: `1px solid ${metaMsg.startsWith('Error') ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)'}` }}>{metaMsg}</div>}
           
           {/* Categories */}
-          <div style={{ background: 'rgba(255,255,255,0.05)', backdropFilter:'blur(12px)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)', padding: 24 }}>
-            <h3 style={{ color: '#f1f5f9', marginBottom: 16 }}>Manage Categories</h3>
+          <div style={{ background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, padding: 24 }}>
+            <h3 style={{ color: textPrimary, marginBottom: 16 }}>Manage Categories</h3>
             <form onSubmit={(e) => handleAddMeta(e, 'categories', categoryForm, setCategoryForm, {CategoryName:'', Description:''})} style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
               <input required type="text" placeholder="Category Name" value={categoryForm.CategoryName} onChange={e => setCategoryForm({...categoryForm, CategoryName: e.target.value})} style={inputStyle} />
               <input type="text" placeholder="Description" value={categoryForm.Description} onChange={e => setCategoryForm({...categoryForm, Description: e.target.value})} style={inputStyle} />
@@ -312,7 +313,7 @@ export default function StaffDashboard() {
               <thead><tr style={{ color: '#64748b' }}><th style={{ padding: 12 }}>Name</th><th style={{ padding: 12 }}>Description</th></tr></thead>
               <tbody>
                 {categories.map(c => (
-                  <tr key={c.CategoryID} style={{ borderTop: '1px solid rgba(255,255,255,0.05)', color: '#f1f5f9' }}>
+                  <tr key={c.CategoryID} style={{ borderTop: `1px solid ${border}`, color: textPrimary }}>
                     <td style={{ padding: 12 }}>{c.CategoryName}</td>
                     <td style={{ padding: 12, color: '#94a3b8' }}>{c.Description || '—'}</td>
                   </tr>
@@ -322,8 +323,8 @@ export default function StaffDashboard() {
           </div>
 
           {/* Authors */}
-          <div style={{ background: 'rgba(255,255,255,0.05)', backdropFilter:'blur(12px)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)', padding: 24 }}>
-            <h3 style={{ color: '#f1f5f9', marginBottom: 16 }}>Manage Authors</h3>
+          <div style={{ background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, padding: 24 }}>
+            <h3 style={{ color: textPrimary, marginBottom: 16 }}>Manage Authors</h3>
             <form onSubmit={(e) => handleAddMeta(e, 'authors', authorForm, setAuthorForm, {FirstName:'', LastName:'', Bio:'', Nationality:''})} style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
               <input required type="text" placeholder="First Name" value={authorForm.FirstName} onChange={e => setAuthorForm({...authorForm, FirstName: e.target.value})} style={{...inputStyle, flex:1, minWidth:120}} />
               <input required type="text" placeholder="Last Name" value={authorForm.LastName} onChange={e => setAuthorForm({...authorForm, LastName: e.target.value})} style={{...inputStyle, flex:1, minWidth:120}} />
@@ -335,7 +336,7 @@ export default function StaffDashboard() {
               <thead><tr style={{ color: '#64748b' }}><th style={{ padding: 12 }}>Name</th><th style={{ padding: 12 }}>Nationality</th><th style={{ padding: 12, textAlign: 'right' }}>Actions</th></tr></thead>
               <tbody>
                 {authors.map(a => (
-                  <tr key={a.AuthorID} style={{ borderTop: '1px solid rgba(255,255,255,0.05)', color: '#f1f5f9' }}>
+                  <tr key={a.AuthorID} style={{ borderTop: `1px solid ${border}`, color: textPrimary }}>
                     <td style={{ padding: 12 }}>{a.Name}</td>
                     <td style={{ padding: 12, color: '#94a3b8' }}>{a.Nationality || '—'}</td>
                     <td style={{ padding: 12, textAlign: 'right' }}>
@@ -348,8 +349,8 @@ export default function StaffDashboard() {
           </div>
 
           {/* Publishers */}
-          <div style={{ background: 'rgba(255,255,255,0.05)', backdropFilter:'blur(12px)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)', padding: 24 }}>
-            <h3 style={{ color: '#f1f5f9', marginBottom: 16 }}>Manage Publishers</h3>
+          <div style={{ background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, padding: 24 }}>
+            <h3 style={{ color: textPrimary, marginBottom: 16 }}>Manage Publishers</h3>
             <form onSubmit={(e) => handleAddMeta(e, 'publishers', publisherForm, setPublisherForm, {PublisherName:'', Email:'', Phone:'', Address:''})} style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
               <input required type="text" placeholder="Publisher Name" value={publisherForm.PublisherName} onChange={e => setPublisherForm({...publisherForm, PublisherName: e.target.value})} style={{...inputStyle, flex:2, minWidth:200}} />
               <input type="email" placeholder="Email" value={publisherForm.Email} onChange={e => setPublisherForm({...publisherForm, Email: e.target.value})} style={{...inputStyle, flex:1, minWidth:150}} />
@@ -360,7 +361,7 @@ export default function StaffDashboard() {
               <thead><tr style={{ color: '#64748b' }}><th style={{ padding: 12 }}>Name</th><th style={{ padding: 12 }}>Email</th><th style={{ padding: 12 }}>Phone</th></tr></thead>
               <tbody>
                 {publishers.map(p => (
-                  <tr key={p.PublisherID} style={{ borderTop: '1px solid rgba(255,255,255,0.05)', color: '#f1f5f9' }}>
+                  <tr key={p.PublisherID} style={{ borderTop: `1px solid ${border}`, color: textPrimary }}>
                     <td style={{ padding: 12 }}>{p.PublisherName}</td>
                     <td style={{ padding: 12, color: '#94a3b8' }}>{p.ContactEmail || '—'}</td>
                     <td style={{ padding: 12, color: '#94a3b8' }}>{p.Phone || '—'}</td>
@@ -374,9 +375,9 @@ export default function StaffDashboard() {
 
       {tab === 'circulation' && (
         <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap:'wrap' }}>
-          <div style={{ flex: 1, minWidth:280, background: 'rgba(255,255,255,0.05)', backdropFilter:'blur(12px)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)', padding: 28 }}>
-            <h3 style={{ fontSize: 18, marginBottom: 4, color:'#f1f5f9', fontWeight:700 }}>📤 Issue Book</h3>
-            <p style={{ color:'#64748b', fontSize:13, marginBottom:20 }}>Issue a book copy to a member</p>
+          <div style={{ flex: 1, minWidth:280, background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, padding: 28 }}>
+            <h3 style={{ fontSize: 18, marginBottom: 4, color:textPrimary, fontWeight:700 }}>📤 Issue Book</h3>
+            <p style={{ color:textMuted, fontSize:13, marginBottom:20 }}>Issue a book copy to a member</p>
             <form onSubmit={handleIssue} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
                 <label style={lblStyle}>Member ID</label>
@@ -390,9 +391,9 @@ export default function StaffDashboard() {
             </form>
           </div>
 
-          <div style={{ flex: 1, minWidth:280, background: 'rgba(255,255,255,0.05)', backdropFilter:'blur(12px)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)', padding: 28 }}>
-            <h3 style={{ fontSize: 18, marginBottom: 4, color:'#f1f5f9', fontWeight:700 }}>📥 Process Return</h3>
-            <p style={{ color:'#64748b', fontSize:13, marginBottom:20 }}>Record a book return and log its condition</p>
+          <div style={{ flex: 1, minWidth:280, background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, padding: 28 }}>
+            <h3 style={{ fontSize: 18, marginBottom: 4, color:textPrimary, fontWeight:700 }}>📥 Process Return</h3>
+            <p style={{ color:textMuted, fontSize:13, marginBottom:20 }}>Record a book return and log its condition</p>
             <form onSubmit={handleReturn} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
                 <label style={lblStyle}>Borrow ID</label>
@@ -413,16 +414,84 @@ export default function StaffDashboard() {
         </div>
       )}
 
+      {tab === 'profile' && <ProfileTab user={user} c={{ card: cardBg, text: textPrimary, muted: textMuted, border: border, input: inputBg }} />}
+
     </DashboardShell>
   )
 }
 
-const lblStyle = { display: 'block', fontSize: 13, fontWeight: 600, color: '#94a3b8', marginBottom: 6 }
-const inputStyle = { width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', fontSize: 14, outline: 'none', boxSizing: 'border-box', background: 'rgba(255,255,255,0.08)', color: '#f1f5f9' }
+function ProfileTab({ user, c }) {
+  const [pw, setPw] = React.useState({ current: '', new: '', confirm: '' })
+  const [loading, setLoading] = React.useState(false)
 
-const StatCard = ({ title, value, color = '#10b981', highlight }) => (
-  <div className="stat-card" style={{ background: 'rgba(255,255,255,0.04)', backdropFilter:'blur(12px)', border: highlight ? `2px solid ${color}` : '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 24, boxShadow: highlight ? `0 0 24px ${color}22` : 'none' }}>
+  const handlePw = async (e) => {
+    e.preventDefault()
+    if (pw.new !== pw.confirm) return alert("Passwords don't match")
+    setLoading(true)
+    try {
+      const res = await axios.patch(`http://localhost:4000/api/users/${user.UserID}/password`, {
+        currentPassword: pw.current,
+        newPassword: pw.new
+      }, { headers: { Authorization: `Bearer ${localStorage.getItem('lms_token')}` } })
+      if (res.data.success) {
+        alert("Password updated successfully!")
+        setPw({ current: '', new: '', confirm: '' })
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || err.message)
+    } finally { setLoading(false) }
+  }
+
+  return (
+    <div style={{ maxWidth: 600, margin: '0 auto' }}>
+      <div style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 32, marginBottom: 24, backdropFilter:'blur(12px)' }}>
+        <h3 style={{ color: c.text, margin: '0 0 20px', fontSize: 20, fontWeight: 700 }}>Staff Information</h3>
+        <div style={{ display: 'grid', gap: 20 }}>
+          <div>
+            <label style={{ color: c.muted, fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 }}>Full Name</label>
+            <div style={{ color: c.text, fontSize: 16, fontWeight: 600 }}>{user.FullName}</div>
+          </div>
+          <div>
+            <label style={{ color: c.muted, fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 }}>Email Address</label>
+            <div style={{ color: c.text, fontSize: 16, fontWeight: 600 }}>{user.Email}</div>
+          </div>
+          <div>
+            <label style={{ color: c.muted, fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 }}>Job Title</label>
+            <div style={{ color: '#10b981', fontSize: 16, fontWeight: 700 }}>{user.RoleName} / Librarian</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 32, backdropFilter:'blur(12px)' }}>
+        <h3 style={{ color: c.text, margin: '0 0 20px', fontSize: 20, fontWeight: 700 }}>Security Center</h3>
+        <form onSubmit={handlePw} style={{ display: 'grid', gap: 16 }}>
+          <div>
+            <label style={{ color: c.muted, fontSize: 12, display: 'block', marginBottom: 6 }}>Current Password</label>
+            <input type="password" required value={pw.current} onChange={e => setPw({ ...pw, current: e.target.value })} style={{ width: '100%', padding: 12, borderRadius: 8, border: `1px solid ${c.border}`, background: c.input, color: c.text }} />
+          </div>
+          <div>
+            <label style={{ color: c.muted, fontSize: 12, display: 'block', marginBottom: 6 }}>New Password</label>
+            <input type="password" required value={pw.new} onChange={e => setPw({ ...pw, new: e.target.value })} style={{ width: '100%', padding: 12, borderRadius: 8, border: `1px solid ${c.border}`, background: c.input, color: c.text }} />
+          </div>
+          <div>
+            <label style={{ color: c.muted, fontSize: 12, display: 'block', marginBottom: 6 }}>Confirm New Password</label>
+            <input type="password" required value={pw.confirm} onChange={e => setPw({ ...pw, confirm: e.target.value })} style={{ width: '100%', padding: 12, borderRadius: 8, border: `1px solid ${c.border}`, background: c.input, color: c.text }} />
+          </div>
+          <button type="submit" disabled={loading} style={{ background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff', border: 'none', padding: 14, borderRadius: 8, fontWeight: 700, cursor: 'pointer', marginTop: 10 }}>
+            {loading ? 'Updating Security...' : 'Update Password'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+const lblStyle = { display: 'block', fontSize: 13, fontWeight: 600, color: '#94a3b8', marginBottom: 6 }
+const inputStyle = { width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(150,150,150,0.2)', fontSize: 14, outline: 'none', boxSizing: 'border-box', background: 'transparent', color: 'inherit' }
+
+const StatCard = ({ title, value, color = '#10b981', highlight, cardBg, textPrimary, border }) => (
+  <div className="stat-card" style={{ background: cardBg, backdropFilter:'blur(12px)', border: highlight ? `2px solid ${color}` : `1px solid ${border}`, borderRadius: 16, padding: 24, boxShadow: highlight ? `0 0 24px ${color}22` : 'none' }}>
     <div style={{ fontSize: 12, color: highlight ? color : '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>{title}</div>
-    <div style={{ fontSize: 38, fontWeight: 800, color: highlight ? color : '#f1f5f9' }}>{value ?? '—'}</div>
+    <div style={{ fontSize: 38, fontWeight: 800, color: highlight ? color : textPrimary }}>{value ?? '—'}</div>
   </div>
 )

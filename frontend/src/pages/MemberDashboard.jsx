@@ -14,7 +14,7 @@ export default function MemberDashboard() {
   const [books, setBooks] = useState([])
   const [borrows, setBorrows] = useState([])
   const [fines, setFines] = useState([])
-  const [tab, setTab] = useState('overview')
+  const [tab, setTab] = useState('catalog')
 
   const getHeaders = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('lms_token')}` } })
 
@@ -103,6 +103,7 @@ export default function MemberDashboard() {
     { key: 'catalog', label: 'Library Catalog', icon: '📚' },
     { key: 'borrows', label: 'My Borrowings', icon: '📖' },
     { key: 'fines', label: 'My Fines', icon: '💳' },
+    { key: 'profile', label: 'My Profile', icon: '👤' },
   ]
   const tabLabel = TABS.find(t => t.key === tab)?.label || 'Member Dashboard'
 
@@ -112,22 +113,22 @@ export default function MemberDashboard() {
       {tab === 'overview' && stats && (
         <div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20, marginBottom: 32 }}>
-            <StatCard title="Active Borrows" value={stats.activeBorrowsCount} color="#3b82f6" />
-            <StatCard title="Pending Reservations" value={stats.reservationsCount} color="#8b5cf6" />
-            <StatCard title="Unpaid Fines" value={`$${stats.unpaidFinesTotal}`} color="#ef4444" highlight={stats.unpaidFinesTotal > 0} />
+            <StatCard title="Active Borrows" value={stats.activeBorrowsCount} color="#3b82f6" cardBg={cardBg} textPrimary={textPrimary} border={border} />
+            <StatCard title="Pending Reservations" value={stats.reservationsCount} color="#8b5cf6" cardBg={cardBg} textPrimary={textPrimary} border={border} />
+            <StatCard title="Unpaid Fines" value={`$${stats.unpaidFinesTotal}`} color="#ef4444" highlight={stats.unpaidFinesTotal > 0} cardBg={cardBg} textPrimary={textPrimary} border={border} />
           </div>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: '#94a3b8', marginBottom: 16, textTransform:'uppercase', letterSpacing:1 }}>Currently Borrowed</h3>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: textMuted, marginBottom: 16, textTransform:'uppercase', letterSpacing:1 }}>Currently Borrowed</h3>
           {stats.activeBorrows?.length === 0 ? (
-            <div style={{ background: 'rgba(255,255,255,0.04)', backdropFilter:'blur(12px)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: 30, textAlign: 'center', color: '#64748b' }}>
+            <div style={{ background: cardBg, backdropFilter:'blur(12px)', border: `1px solid ${border}`, borderRadius: 12, padding: 30, textAlign: 'center', color: textMuted }}>
               No active borrowings. Check the catalog to find a book!
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {stats.activeBorrows?.map(b => (
-                <div key={b.BorrowID} className="stat-card" style={{ background: 'rgba(255,255,255,0.04)', backdropFilter:'blur(12px)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div key={b.BorrowID} className="stat-card" style={{ background: cardBg, backdropFilter:'blur(12px)', border: `1px solid ${border}`, borderRadius: 12, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <div style={{ fontWeight: 600, color: '#f1f5f9', fontSize: 15 }}>{b.Title}</div>
-                    <div style={{ color: '#64748b', fontSize: 13, marginTop: 4 }}>Due: {new Date(b.DueDate).toLocaleDateString()}</div>
+                    <div style={{ fontWeight: 600, color: textPrimary, fontSize: 15 }}>{b.Title}</div>
+                    <div style={{ color: textMuted, fontSize: 13, marginTop: 4 }}>Due: {new Date(b.DueDate).toLocaleDateString()}</div>
                   </div>
                   <span style={{ background: 'rgba(59,130,246,0.15)', color: '#60a5fa', padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, border: '1px solid rgba(59,130,246,0.3)' }}>BORROWED</span>
                 </div>
@@ -140,7 +141,7 @@ export default function MemberDashboard() {
       {tab === 'catalog' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 20 }}>
           {books.map(b => (
-            <div key={b.BookID} className="stat-card" style={{ background: 'rgba(255,255,255,0.04)', backdropFilter:'blur(12px)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, overflow:'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div key={b.BookID} className="stat-card" style={{ background: cardBg, backdropFilter:'blur(12px)', border: `1px solid ${border}`, borderRadius: 16, overflow:'hidden', display: 'flex', flexDirection: 'column' }}>
               <div style={{ height: 180, background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow:'hidden' }}>
                 {b.CoverImage ? (
                   <img src={b.CoverImage.startsWith('http') ? b.CoverImage : `http://localhost:4000${b.CoverImage}`} alt={b.Title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -150,9 +151,9 @@ export default function MemberDashboard() {
               </div>
               <div style={{ padding: 20, flex:1, display:'flex', flexDirection:'column' }}>
                 <div style={{ fontSize: 11, color: '#3b82f6', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>{b.CategoryName || 'General'}</div>
-                <div style={{ fontWeight: 700, color: '#f1f5f9', fontSize: 16, marginBottom: 4 }}>{b.Title}</div>
-                <div style={{ color: '#64748b', fontSize: 13, marginBottom: 16, flex: 1 }}>By {b.Authors || 'Unknown Author'}</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 14 }}>
+                <div style={{ fontWeight: 700, color: textPrimary, fontSize: 16, marginBottom: 4 }}>{b.Title}</div>
+                <div style={{ color: textMuted, fontSize: 13, marginBottom: 16, flex: 1 }}>By {b.Authors || 'Unknown Author'}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${border}`, paddingTop: 14 }}>
                   <div style={{ fontSize: 13, color: b.AvailableCopies > 0 ? '#10b981' : '#ef4444', fontWeight: 600 }}>
                     {b.AvailableCopies}/{b.TotalCopies} Available
                   </div>
@@ -168,8 +169,8 @@ export default function MemberDashboard() {
       )}
 
       {tab === 'borrows' && (
-        <div style={{ background: 'rgba(255,255,255,0.04)', backdropFilter:'blur(12px)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-          {borrows.length === 0 ? <div style={{ padding: 48, textAlign: 'center', color: '#64748b' }}><div style={{fontSize:40,marginBottom:12}}>📭</div>No borrowing history found.</div> : (
+        <div style={{ background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, overflow: 'hidden' }}>
+          {borrows.length === 0 ? <div style={{ padding: 48, textAlign: 'center', color: textMuted }}><div style={{fontSize:40,marginBottom:12}}>📭</div>No borrowing history found.</div> : (
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
               <thead>
                 <tr style={{ background: 'rgba(255,255,255,0.04)', color: '#64748b' }}>
@@ -182,10 +183,10 @@ export default function MemberDashboard() {
               </thead>
               <tbody>
                 {borrows.map(b => (
-                  <tr key={b.BorrowID} className="table-row" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                    <td style={{ padding: 16, fontWeight: 600, color: '#f1f5f9' }}>{b.Title}</td>
-                    <td style={{ padding: 16, color: '#64748b' }}>{new Date(b.BorrowDate).toLocaleDateString()}</td>
-                    <td style={{ padding: 16, color: '#64748b' }}>{new Date(b.DueDate).toLocaleDateString()}</td>
+                  <tr key={b.BorrowID} className="table-row" style={{ borderTop: `1px solid ${border}` }}>
+                    <td style={{ padding: 16, fontWeight: 600, color: textPrimary }}>{b.Title}</td>
+                    <td style={{ padding: 16, color: textMuted }}>{new Date(b.BorrowDate).toLocaleDateString()}</td>
+                    <td style={{ padding: 16, color: textMuted }}>{new Date(b.DueDate).toLocaleDateString()}</td>
                     <td style={{ padding: 16 }}>
                       <span style={{ background: b.Status === 'returned' ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)', color: b.Status === 'returned' ? '#10b981' : '#f59e0b', padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>
                         {b.Status.toUpperCase()}
@@ -203,8 +204,8 @@ export default function MemberDashboard() {
       )}
 
       {tab === 'fines' && (
-        <div style={{ background: 'rgba(255,255,255,0.04)', backdropFilter:'blur(12px)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-          {fines.length === 0 ? <div style={{ padding: 48, textAlign: 'center', color: '#64748b' }}><div style={{fontSize:40,marginBottom:12}}>✅</div>You have no fines!</div> : (
+        <div style={{ background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, overflow: 'hidden' }}>
+          {fines.length === 0 ? <div style={{ padding: 48, textAlign: 'center', color: textMuted }}><div style={{fontSize:40,marginBottom:12}}>✅</div>You have no fines!</div> : (
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
               <thead>
                 <tr style={{ background: 'rgba(255,255,255,0.04)', color: '#64748b' }}>
@@ -217,10 +218,10 @@ export default function MemberDashboard() {
               </thead>
               <tbody>
                 {fines.map(f => (
-                  <tr key={f.FineID} className="table-row" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                  <tr key={f.FineID} className="table-row" style={{ borderTop: `1px solid ${border}` }}>
                     <td style={{ padding: 16 }}>
-                      <div style={{ fontWeight: 600, color: '#f1f5f9' }}>{f.TypeName || 'Library Fine'}</div>
-                      <div style={{ fontSize: 12, color: '#64748b' }}>{f.BookTitle}</div>
+                      <div style={{ fontWeight: 600, color: textPrimary }}>{f.TypeName || 'Library Fine'}</div>
+                      <div style={{ fontSize: 12, color: textMuted }}>{f.BookTitle}</div>
                     </td>
                     <td style={{ padding: 16, fontWeight: 700, color: '#ef4444', fontSize: 16 }}>${f.Amount}</td>
                     <td style={{ padding: 16, color: '#64748b' }}>{new Date(f.IssuedDate).toLocaleDateString()}</td>
@@ -244,13 +245,81 @@ export default function MemberDashboard() {
         </div>
       )}
 
+      {tab === 'profile' && <ProfileTab user={user} c={{ card: cardBg, text: textPrimary, muted: textMuted, border: border, input: isDark ? '#2a3550' : '#fff' }} />}
+
     </DashboardShell>
   )
 }
 
-const StatCard = ({ title, value, color = '#3b82f6', highlight }) => (
-  <div className="stat-card" style={{ background: 'rgba(255,255,255,0.04)', backdropFilter:'blur(12px)', border: highlight ? `2px solid ${color}` : '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 24, boxShadow: highlight ? `0 0 24px ${color}22` : 'none' }}>
+function ProfileTab({ user, c }) {
+  const [pw, setPw] = React.useState({ current: '', new: '', confirm: '' })
+  const [loading, setLoading] = React.useState(false)
+
+  const handlePw = async (e) => {
+    e.preventDefault()
+    if (pw.new !== pw.confirm) return alert("Passwords don't match")
+    setLoading(true)
+    try {
+      const res = await axios.patch(`http://localhost:4000/api/users/${user.UserID}/password`, {
+        currentPassword: pw.current,
+        newPassword: pw.new
+      }, { headers: { Authorization: `Bearer ${localStorage.getItem('lms_token')}` } })
+      if (res.data.success) {
+        alert("Password updated successfully!")
+        setPw({ current: '', new: '', confirm: '' })
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || err.message)
+    } finally { setLoading(false) }
+  }
+
+  return (
+    <div style={{ maxWidth: 600, margin: '0 auto' }}>
+      <div style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 32, marginBottom: 24, backdropFilter:'blur(12px)' }}>
+        <h3 style={{ color: c.text, margin: '0 0 20px', fontSize: 20, fontWeight: 700 }}>Account Information</h3>
+        <div style={{ display: 'grid', gap: 20 }}>
+          <div>
+            <label style={{ color: c.muted, fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 }}>Full Name</label>
+            <div style={{ color: c.text, fontSize: 16, fontWeight: 600 }}>{user.FullName}</div>
+          </div>
+          <div>
+            <label style={{ color: c.muted, fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 }}>Email Address</label>
+            <div style={{ color: c.text, fontSize: 16, fontWeight: 600 }}>{user.Email}</div>
+          </div>
+          <div>
+            <label style={{ color: c.muted, fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 }}>Account Role</label>
+            <div style={{ color: '#3b82f6', fontSize: 16, fontWeight: 700 }}>{user.RoleName}</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 32, backdropFilter:'blur(12px)' }}>
+        <h3 style={{ color: c.text, margin: '0 0 20px', fontSize: 20, fontWeight: 700 }}>Security Settings</h3>
+        <form onSubmit={handlePw} style={{ display: 'grid', gap: 16 }}>
+          <div>
+            <label style={{ color: c.muted, fontSize: 12, display: 'block', marginBottom: 6 }}>Current Password</label>
+            <input type="password" required value={pw.current} onChange={e => setPw({ ...pw, current: e.target.value })} style={{ width: '100%', padding: 12, borderRadius: 8, border: `1px solid ${c.border}`, background: c.input, color: c.text }} />
+          </div>
+          <div>
+            <label style={{ color: c.muted, fontSize: 12, display: 'block', marginBottom: 6 }}>New Password</label>
+            <input type="password" required value={pw.new} onChange={e => setPw({ ...pw, new: e.target.value })} style={{ width: '100%', padding: 12, borderRadius: 8, border: `1px solid ${c.border}`, background: c.input, color: c.text }} />
+          </div>
+          <div>
+            <label style={{ color: c.muted, fontSize: 12, display: 'block', marginBottom: 6 }}>Confirm New Password</label>
+            <input type="password" required value={pw.confirm} onChange={e => setPw({ ...pw, confirm: e.target.value })} style={{ width: '100%', padding: 12, borderRadius: 8, border: `1px solid ${c.border}`, background: c.input, color: c.text }} />
+          </div>
+          <button type="submit" disabled={loading} style={{ background: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', color: '#fff', border: 'none', padding: 14, borderRadius: 8, fontWeight: 700, cursor: 'pointer', marginTop: 10 }}>
+            {loading ? 'Updating...' : 'Change Password'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+const StatCard = ({ title, value, color = '#3b82f6', highlight, cardBg, textPrimary, border }) => (
+  <div className="stat-card" style={{ background: cardBg, backdropFilter:'blur(12px)', border: highlight ? `2px solid ${color}` : `1px solid ${border}`, borderRadius: 16, padding: 24, boxShadow: highlight ? `0 0 24px ${color}22` : 'none' }}>
     <div style={{ fontSize: 12, color: highlight ? color : '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>{title}</div>
-    <div style={{ fontSize: 36, fontWeight: 800, color: highlight ? color : '#f1f5f9' }}>{value ?? '—'}</div>
+    <div style={{ fontSize: 36, fontWeight: 800, color: highlight ? color : textPrimary }}>{value ?? '—'}</div>
   </div>
 )

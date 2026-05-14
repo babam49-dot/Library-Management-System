@@ -45,6 +45,7 @@ export default function AdminDashboard() {
     { key: 'fines', label: 'Fines', icon: '💰' },
     { key: 'fine-types', label: 'Fine Types', icon: '⚙️' },
     { key: 'damage', label: 'Damage Reports', icon: '🔍' },
+    { key: 'profile', label: 'My Profile', icon: '👤' },
   ]
 
   const fetchStats = useCallback(async () => {
@@ -264,6 +265,8 @@ export default function AdminDashboard() {
     )
   }
 
+  if (tab === 'profile') return <ProfileTab user={user} act={act} c={c} />
+
   const tabLabel = TABS.find(t => t.key === tab)?.label || 'Dashboard'
   const navItems = TABS.map(t => ({ ...t, badge: t.key === 'pending-staff' ? (stats?.pendingStaff || 0) : 0 }))
 
@@ -289,5 +292,71 @@ export default function AdminDashboard() {
 
       {renderContent()}
     </DashboardShell>
+  )
+}
+
+function ProfileTab({ user, act, c }) {
+  const [pw, setPw] = React.useState({ current: '', new: '', confirm: '' })
+  const [loading, setLoading] = React.useState(false)
+
+  const handlePw = async (e) => {
+    e.preventDefault()
+    if (pw.new !== pw.confirm) return alert("Passwords don't match")
+    setLoading(true)
+    try {
+      const res = await axios.patch(`http://localhost:4000/api/users/${user.UserID}/password`, {
+        currentPassword: pw.current,
+        newPassword: pw.new
+      }, { headers: { Authorization: `Bearer ${localStorage.getItem('lms_token')}` } })
+      if (res.data.success) {
+        alert("Password updated successfully!")
+        setPw({ current: '', new: '', confirm: '' })
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || err.message)
+    } finally { setLoading(false) }
+  }
+
+  return (
+    <div style={{ maxWidth: 600, margin: '0 auto' }}>
+      <div style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 32, marginBottom: 24 }}>
+        <h3 style={{ color: c.text, margin: '0 0 20px', fontSize: 20 }}>Account Information</h3>
+        <div style={{ display: 'grid', gap: 20 }}>
+          <div>
+            <label style={{ color: c.muted, fontSize: 12, textTransform: 'uppercase' }}>Full Name</label>
+            <div style={{ color: c.text, fontSize: 16, fontWeight: 600 }}>{user.FullName}</div>
+          </div>
+          <div>
+            <label style={{ color: c.muted, fontSize: 12, textTransform: 'uppercase' }}>Email Address</label>
+            <div style={{ color: c.text, fontSize: 16, fontWeight: 600 }}>{user.Email}</div>
+          </div>
+          <div>
+            <label style={{ color: c.muted, fontSize: 12, textTransform: 'uppercase' }}>Account Role</label>
+            <div style={{ color: '#f59e0b', fontSize: 16, fontWeight: 700 }}>{user.RoleName}</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 32 }}>
+        <h3 style={{ color: c.text, margin: '0 0 20px', fontSize: 20 }}>Security Settings</h3>
+        <form onSubmit={handlePw} style={{ display: 'grid', gap: 16 }}>
+          <div>
+            <label style={{ color: c.muted, fontSize: 12, display: 'block', marginBottom: 6 }}>Current Password</label>
+            <input type="password" required value={pw.current} onChange={e => setPw({ ...pw, current: e.target.value })} style={{ width: '100%', padding: 12, borderRadius: 8, border: `1px solid ${c.border}`, background: c.input, color: c.text }} />
+          </div>
+          <div>
+            <label style={{ color: c.muted, fontSize: 12, display: 'block', marginBottom: 6 }}>New Password</label>
+            <input type="password" required value={pw.new} onChange={e => setPw({ ...pw, new: e.target.value })} style={{ width: '100%', padding: 12, borderRadius: 8, border: `1px solid ${c.border}`, background: c.input, color: c.text }} />
+          </div>
+          <div>
+            <label style={{ color: c.muted, fontSize: 12, display: 'block', marginBottom: 6 }}>Confirm New Password</label>
+            <input type="password" required value={pw.confirm} onChange={e => setPw({ ...pw, confirm: e.target.value })} style={{ width: '100%', padding: 12, borderRadius: 8, border: `1px solid ${c.border}`, background: c.input, color: c.text }} />
+          </div>
+          <button type="submit" disabled={loading} style={{ background: '#f59e0b', color: '#fff', border: 'none', padding: 14, borderRadius: 8, fontWeight: 700, cursor: 'pointer', marginTop: 10 }}>
+            {loading ? 'Updating...' : 'Change Password'}
+          </button>
+        </form>
+      </div>
+    </div>
   )
 }

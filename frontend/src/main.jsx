@@ -9,6 +9,7 @@ import SignUp from './pages/SignUp'
 import AdminDashboard from './pages/AdminDashboard'
 import StaffDashboard from './pages/StaffDashboard'
 import MemberDashboard from './pages/MemberDashboard'
+import Layout from './components/Layout'
 import './styles/tailwind.css'
 
 function ProtectedRoute({ children, allowedRole }) {
@@ -27,15 +28,17 @@ createRoot(document.getElementById('root')).render(
   <ThemeProvider>
     <AuthProvider>
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/login" element={<SignIn />} />
-          <Route path="/register" element={<SignUp />} />
-          <Route path="/admin/*" element={<ProtectedRoute allowedRole={1}><AdminDashboard /></ProtectedRoute>} />
-          <Route path="/staff/*" element={<ProtectedRoute allowedRole={2}><StaffDashboard /></ProtectedRoute>} />
-          <Route path="/member/*" element={<ProtectedRoute allowedRole={3}><MemberDashboard /></ProtectedRoute>} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<SignIn />} />
+            <Route path="/register" element={<SignUp />} />
+            <Route path="/admin/*" element={<ProtectedRoute allowedRole={1}><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/staff/*" element={<ProtectedRoute allowedRole={2}><StaffDashboard /></ProtectedRoute>} />
+            <Route path="/member/*" element={<ProtectedRoute allowedRole={3}><MemberDashboard /></ProtectedRoute>} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Layout>
       </BrowserRouter>
     </AuthProvider>
   </ThemeProvider>

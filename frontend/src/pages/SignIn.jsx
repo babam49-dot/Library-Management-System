@@ -53,14 +53,7 @@ export default function SignIn() {
       <div style={{ position:'fixed', bottom:'-10%', right:'-5%', width:450, height:450, background: isDark ? `rgba(${role.id===3?'59,130,246':role.id===2?'16,185,129':'245,158,11'},0.08)` : `rgba(${role.id===3?'59,130,246':role.id===2?'16,185,129':'245,158,11'},0.12)`, borderRadius:'50%', filter:'blur(80px)', animation:'floatR 10s ease-in-out infinite', pointerEvents:'none' }} />
       <div style={{ position:'fixed', top:'40%', right:'15%', width:250, height:250, background: isDark ? 'rgba(139,92,246,0.06)' : 'rgba(139,92,246,0.1)', borderRadius:'50%', filter:'blur(60px)', animation:'float 12s ease-in-out infinite reverse', pointerEvents:'none' }} />
 
-      {/* Dark mode toggle */}
-      <div style={{ position:'fixed', top:20, right:20, zIndex:1000 }}><DarkModeToggle /></div>
 
-      {/* Back to home */}
-      <Link to="/" style={{ position:'fixed', top:24, left:24, display:'flex', alignItems:'center', gap:8, color: isDark ? '#94a3b8' : '#64748b', textDecoration:'none', fontSize:14, fontWeight:500, zIndex:1000 }}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-        Back to home
-      </Link>
 
       <div className="signin-card" style={{ width:'100%', maxWidth:900, margin:'0 auto', padding:'24px 16px', display:'flex', gap:24, alignItems:'stretch', zIndex:10, position:'relative' }}>
         {/* Left — Role selector */}
