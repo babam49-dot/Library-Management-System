@@ -122,9 +122,107 @@ router.get('/all-users', auth, async (req, res) => {
 router.patch('/users/:id/status', auth, async (req, res) => {
   try {
     const { status } = req.body;
-    if (!['active', 'suspended', 'rejected', 'pending'].includes(status)) return fail(res, 'Invalid status');
-    await pool.execute('UPDATE Users SET Status=? WHERE UserID=?', [status, req.params.id]);
-    return ok(res, `User status updated to ${status}`);
+    const allowed = ['Active', 'Suspended', 'Inactive', 'Pending', 'Rejected'];
+    // Let's accept lowercase as well and convert to Title Case
+    const formattedStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+    
+    if (!allowed.includes(formattedStatus)) return fail(res, 'Invalid status');
+    await pool.execute('UPDATE Users SET Status=? WHERE UserID=?', [formattedStatus, req.params.id]);
+    return ok(res, `User status updated to ${formattedStatus}`);
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
+// PATCH /api/admin/users/:id/unlock
+router.patch('/users/:id/unlock', auth, async (req, res) => {
+  try {
+    await pool.execute('UPDATE Users SET account_locked_until = NULL, failed_login_attempts = 0 WHERE UserID = ?', [req.params.id]);
+    return ok(res, 'User account unlocked');
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
+// PUT /api/admin/users/:id
+router.put('/users/:id', auth, async (req, res) => {
+  try {
+    const { fullName, phone, department, maxBooksAllowed } = req.body;
+    
+    // Split full name if provided to update FirstName/LastName
+    const nameParts = fullName ? fullName.split(' ') : [];
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+
+    await pool.execute('UPDATE Users SET FullName=?, FirstName=?, LastName=?, Phone=? WHERE UserID=?', 
+      [fullName, firstName, lastName, phone, req.params.id]);
+
+    if (department || maxBooksAllowed !== undefined) {
+      await pool.execute('UPDATE Members SET Department=COALESCE(?, Department), MaxBooksAllowed=COALESCE(?, MaxBooksAllowed) WHERE UserID=?', 
+        [department, maxBooksAllowed, req.params.id]);
+    }
+    return ok(res, 'User profile updated');
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
+const bcrypt = require('bcrypt');
+
+// POST /api/admin/users/member
+router.post('/users/member', auth, async (req, res) => {
+  try {
+    const { email, password, fullName, phone, studentId, department, maxBooksAllowed } = req.body;
+    if (!email || !password || !fullName || !studentId) return fail(res, 'Email, password, full name, and Student ID are required');
+    
+    const [existing] = await pool.execute('SELECT UserID FROM Users WHERE Email = ?', [email]);
+    if (existing.length > 0) return fail(res, 'Email already registered', 409);
+
+    const hashed = await bcrypt.hash(password, 10);
+    const [[{ nid }]] = await pool.execute('SELECT COALESCE(MAX(UserID), 0) + 1 AS nid FROM Users');
+    
+    const nameParts = fullName.split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+
+    await pool.execute(
+      'INSERT INTO Users (UserID, Email, Password, FullName, FirstName, LastName, Phone, Status, RoleID) VALUES (?,?,?,?,?,?,?,?,?)',
+      [nid, email, hashed, fullName, firstName, lastName, phone || null, 'Active', 3]
+    );
+
+    const [[{ mid }]] = await pool.execute('SELECT COALESCE(MAX(MemberID), 0) + 1 AS mid FROM Members');
+    await pool.execute(
+      'INSERT INTO Members (MemberID, UserID, StudentID, Department, RegistrationDate, MaxBooksAllowed) VALUES (?,?,?,?,?,?)',
+      [mid, nid, studentId, department || 'General', new Date(), maxBooksAllowed || 5]
+    );
+
+    return ok(res, 'Member account created');
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
+// POST /api/admin/users/staff
+router.post('/users/staff', auth, async (req, res) => {
+  try {
+    const { email, password, fullName, phone, jobTitle, salary, roleName } = req.body;
+    if (!email || !password || !fullName || !jobTitle) return fail(res, 'Email, password, full name, and job title are required');
+    
+    const [existing] = await pool.execute('SELECT UserID FROM Users WHERE Email = ?', [email]);
+    if (existing.length > 0) return fail(res, 'Email already registered', 409);
+
+    const roleId = roleName === 'Admin' ? 1 : 2;
+    const hashed = await bcrypt.hash(password, 10);
+    const [[{ nid }]] = await pool.execute('SELECT COALESCE(MAX(UserID), 0) + 1 AS nid FROM Users');
+    
+    const nameParts = fullName.split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+
+    await pool.execute(
+      'INSERT INTO Users (UserID, Email, Password, FullName, FirstName, LastName, Phone, Status, RoleID) VALUES (?,?,?,?,?,?,?,?,?)',
+      [nid, email, hashed, fullName, firstName, lastName, phone || null, 'Active', roleId]
+    );
+
+    const [[{ sid }]] = await pool.execute('SELECT COALESCE(MAX(StaffID), 0) + 1 AS sid FROM Staff');
+    await pool.execute(
+      'INSERT INTO Staff (StaffID, UserID, JobTitle, EmploymentDate, Salary) VALUES (?,?,?,?,?)',
+      [sid, nid, jobTitle, new Date(), salary || 0]
+    );
+
+    return ok(res, 'Staff account created');
   } catch (err) { return fail(res, err.message, 500); }
 });
 

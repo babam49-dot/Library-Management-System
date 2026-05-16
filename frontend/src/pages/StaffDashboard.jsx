@@ -41,6 +41,7 @@ export default function StaffDashboard() {
   const [categoryForm, setCategoryForm] = useState({ CategoryName: '', Description: '' })
   const [publisherForm, setPublisherForm] = useState({ PublisherName: '', Email: '', Phone: '', Address: '' })
   const [metaMsg, setMetaMsg] = useState('')
+  const [editModal, setEditModal] = useState(null)
 
   const getHeaders = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('lms_token')}` } })
 
@@ -180,6 +181,23 @@ export default function StaffDashboard() {
     } catch (err) { setMetaMsg('Error: ' + (err.response?.data?.message || err.message)) }
   }
 
+  const handleUpdateItem = async (e, type, id, payload) => {
+    e.preventDefault()
+    setMetaMsg('')
+    setBookMsg('')
+    try {
+      await axios.put(`${API}/catalog/${type}/${id}`, payload, getHeaders())
+      setEditModal(null)
+      fetchData()
+      if(type === 'books') setBookMsg('Book updated successfully!')
+      else setMetaMsg('Updated successfully!')
+    } catch (err) {
+      const msg = 'Error: ' + (err.response?.data?.message || err.message);
+      if(type === 'books') setBookMsg(msg)
+      else setMetaMsg(msg)
+    }
+  }
+
   const TABS = [
     { key: 'overview', label: 'Circulation Overview', icon: '📊', path: '/staff' },
     { key: 'members', label: 'Member Approvals', icon: '👤', badge: pendingMembers.length, path: '/staff' },
@@ -229,7 +247,10 @@ export default function StaffDashboard() {
                   <div style={{ color: textMuted, fontSize: 13, marginBottom: 12 }}>By {b.Authors || 'Unknown'}</div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${border}`, paddingTop: 12 }}>
                     <span style={{ color: b.AvailableCopies > 0 ? '#10b981' : '#ef4444', fontWeight: 700, fontSize: 13 }}>{b.AvailableCopies}/{b.TotalCopies} Available</span>
-                    <span style={{ fontSize: 11, color: textMuted, padding: '4px 10px', borderRadius: 12, background: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9' }}>ID: {b.BookID}</span>
+                    <div style={{ display:'flex', gap: 6, alignItems:'center' }}>
+                      <span style={{ fontSize: 11, color: textMuted, padding: '4px 10px', borderRadius: 12, background: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9' }}>ID: {b.BookID}</span>
+                      <button onClick={() => setEditModal({ type: 'books', item: b })} style={{ background:'transparent', border:'none', color:'#3b82f6', cursor:'pointer', fontSize:12, fontWeight:700 }}>Edit</button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -352,12 +373,15 @@ export default function StaffDashboard() {
               <button type="submit" style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}>Add Category</button>
             </form>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
-              <thead><tr style={{ color: '#64748b' }}><th style={{ padding: 12 }}>Name</th><th style={{ padding: 12 }}>Description</th></tr></thead>
+              <thead><tr style={{ color: '#64748b' }}><th style={{ padding: 12 }}>Name</th><th style={{ padding: 12 }}>Description</th><th style={{ padding: 12, textAlign: 'right' }}>Actions</th></tr></thead>
               <tbody>
                 {categories.map(c => (
                   <tr key={c.CategoryID} style={{ borderTop: `1px solid ${border}`, color: textPrimary }}>
                     <td style={{ padding: 12 }}>{c.CategoryName}</td>
                     <td style={{ padding: 12, color: '#94a3b8' }}>{c.Description || '—'}</td>
+                    <td style={{ padding: 12, textAlign: 'right' }}>
+                      <button onClick={() => setEditModal({type:'categories', item:c})} style={{ background: 'transparent', color: '#3b82f6', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Edit</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -382,6 +406,7 @@ export default function StaffDashboard() {
                     <td style={{ padding: 12 }}>{a.Name}</td>
                     <td style={{ padding: 12, color: '#94a3b8' }}>{a.Nationality || '—'}</td>
                     <td style={{ padding: 12, textAlign: 'right' }}>
+                      <button onClick={() => setEditModal({type:'authors', item:a})} style={{ background: 'transparent', color: '#3b82f6', border: 'none', cursor: 'pointer', fontWeight: 600, marginRight: 12 }}>Edit</button>
                       <button onClick={() => handleDeleteMeta('authors', a.AuthorID)} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', padding: '4px 10px', borderRadius: 6, cursor: 'pointer' }}>Delete</button>
                     </td>
                   </tr>
@@ -400,13 +425,16 @@ export default function StaffDashboard() {
               <button type="submit" style={{ background: '#8b5cf6', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Add Publisher</button>
             </form>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
-              <thead><tr style={{ color: '#64748b' }}><th style={{ padding: 12 }}>Name</th><th style={{ padding: 12 }}>Email</th><th style={{ padding: 12 }}>Phone</th></tr></thead>
+              <thead><tr style={{ color: '#64748b' }}><th style={{ padding: 12 }}>Name</th><th style={{ padding: 12 }}>Email</th><th style={{ padding: 12 }}>Phone</th><th style={{ padding: 12, textAlign: 'right' }}>Actions</th></tr></thead>
               <tbody>
                 {publishers.map(p => (
                   <tr key={p.PublisherID} style={{ borderTop: `1px solid ${border}`, color: textPrimary }}>
                     <td style={{ padding: 12 }}>{p.PublisherName}</td>
                     <td style={{ padding: 12, color: '#94a3b8' }}>{p.ContactEmail || '—'}</td>
                     <td style={{ padding: 12, color: '#94a3b8' }}>{p.Phone || '—'}</td>
+                    <td style={{ padding: 12, textAlign: 'right' }}>
+                      <button onClick={() => setEditModal({type:'publishers', item:p})} style={{ background: 'transparent', color: '#3b82f6', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Edit</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -457,6 +485,121 @@ export default function StaffDashboard() {
       )}
 
       {tab === 'profile' && <ProfileTab user={user} c={{ card: cardBg, text: textPrimary, muted: textMuted, border: border, input: inputBg }} />}
+
+      {/* Edit Modals */}
+      {editModal && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(4px)' }}>
+          <div style={{ background: cardBg, borderRadius: 20, padding: 32, width: editModal.type === 'books' ? 600 : 400, border:`1px solid ${border}`, boxShadow:'0 30px 80px rgba(0,0,0,0.5)', color: textPrimary }}>
+            <h3 style={{ margin: '0 0 16px', fontSize: 20, fontWeight: 700 }}>Edit {editModal.type.slice(0, -1).toUpperCase()}</h3>
+            <form onSubmit={(e) => {
+              const fd = new FormData(e.target);
+              const payload = Object.fromEntries(fd.entries());
+              let idField = { books: 'BookID', categories: 'CategoryID', authors: 'AuthorID', publishers: 'PublisherID' }[editModal.type];
+              handleUpdateItem(e, editModal.type, editModal.item[idField], payload);
+            }}>
+              
+              {editModal.type === 'books' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <label style={lblStyle}>Title</label>
+                    <input name="Title" defaultValue={editModal.item.Title} required style={dynInputStyle} />
+                  </div>
+                  <div>
+                    <label style={lblStyle}>ISBN</label>
+                    <input name="ISBN" defaultValue={editModal.item.ISBN} style={dynInputStyle} />
+                  </div>
+                  <div>
+                    <label style={lblStyle}>Year</label>
+                    <input name="PublishYear" type="number" defaultValue={editModal.item.PublishYear} style={dynInputStyle} />
+                  </div>
+                  <div>
+                    <label style={lblStyle}>Category</label>
+                    <select name="CategoryID" defaultValue={editModal.item.CategoryID} style={dynInputStyle}>
+                      {categories.map(c => <option key={c.CategoryID} value={c.CategoryID}>{c.CategoryName}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={lblStyle}>Publisher</label>
+                    <select name="PublisherID" defaultValue={editModal.item.PublisherID} style={dynInputStyle}>
+                      {publishers.map(p => <option key={p.PublisherID} value={p.PublisherID}>{p.PublisherName}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={lblStyle}>Edition</label>
+                    <input name="Edition" defaultValue={editModal.item.Edition} style={dynInputStyle} />
+                  </div>
+                  <div>
+                    <label style={lblStyle}>Language</label>
+                    <input name="Language" defaultValue={editModal.item.Language} style={dynInputStyle} />
+                  </div>
+                </div>
+              )}
+
+              {editModal.type === 'categories' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div>
+                    <label style={lblStyle}>Category Name</label>
+                    <input name="CategoryName" defaultValue={editModal.item.CategoryName} required style={dynInputStyle} />
+                  </div>
+                  <div>
+                    <label style={lblStyle}>Description</label>
+                    <input name="Description" defaultValue={editModal.item.Description} style={dynInputStyle} />
+                  </div>
+                </div>
+              )}
+
+              {editModal.type === 'authors' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div>
+                      <label style={lblStyle}>First Name</label>
+                      <input name="FirstName" defaultValue={editModal.item.Name.split(' ')[0]} required style={dynInputStyle} />
+                    </div>
+                    <div>
+                      <label style={lblStyle}>Last Name</label>
+                      <input name="LastName" defaultValue={editModal.item.Name.split(' ').slice(1).join(' ')} required style={dynInputStyle} />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={lblStyle}>Nationality</label>
+                    <input name="Nationality" defaultValue={editModal.item.Nationality} style={dynInputStyle} />
+                  </div>
+                  <div>
+                    <label style={lblStyle}>Bio</label>
+                    <textarea name="Bio" defaultValue={editModal.item.Bio} style={{...dynInputStyle, minHeight: 60}} />
+                  </div>
+                </div>
+              )}
+
+              {editModal.type === 'publishers' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div>
+                    <label style={lblStyle}>Publisher Name</label>
+                    <input name="PublisherName" defaultValue={editModal.item.PublisherName} required style={dynInputStyle} />
+                  </div>
+                  <div>
+                    <label style={lblStyle}>Email</label>
+                    <input name="Email" type="email" defaultValue={editModal.item.ContactEmail} style={dynInputStyle} />
+                  </div>
+                  <div>
+                    <label style={lblStyle}>Phone</label>
+                    <input name="Phone" defaultValue={editModal.item.Phone} style={dynInputStyle} />
+                  </div>
+                  <div>
+                    <label style={lblStyle}>Address</label>
+                    <input name="Address" defaultValue={editModal.item.Address} style={dynInputStyle} />
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display:'flex', gap:10, marginTop: 24 }}>
+                <button type="button" onClick={() => setEditModal(null)} style={{ flex:1, padding:11, borderRadius:10, border:`1px solid ${border}`, background:'transparent', color:textMuted, cursor:'pointer', fontWeight:600 }}>Cancel</button>
+                <button type="submit" style={{ flex:1, padding:11, borderRadius:10, border:'none', background:'linear-gradient(135deg,#3b82f6,#1d4ed8)', color:'#fff', fontWeight:700, cursor:'pointer' }}>Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </DashboardShell>
   )

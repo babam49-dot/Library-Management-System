@@ -8,7 +8,7 @@ import axios from 'axios'
 
 const API = 'http://localhost:4000/api'
 const fmt = (d) => d ? new Date(d).toLocaleDateString() : '—'
-const statusColor = (s) => ({ active:'#10b981', pending:'#f59e0b', rejected:'#ef4444', suspended:'#6b7280', inactive:'#ef4444', Active:'#10b981', Pending:'#f59e0b', Rejected:'#ef4444', Suspended:'#6b7280', Inactive:'#ef4444' }[s] || '#94a3b8')
+const statusColor = (s) => ({ active:'#10b981', pending:'#f59e0b', rejected:'#ef4444', suspended:'#6b7280' }[s] || '#94a3b8')
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth()
@@ -37,7 +37,6 @@ export default function AdminDashboard() {
 
   const TABS = [
     { key: 'overview', label: 'Overview', icon: '📊' },
-    { key: 'create-user', label: 'Create User', icon: '➕' },
     { key: 'pending-staff', label: 'Pending Staff', icon: '⏳' },
     { key: 'all-staff', label: 'All Staff', icon: '🗂️' },
     { key: 'members', label: 'Members', icon: '🎓' },
@@ -72,8 +71,8 @@ export default function AdminDashboard() {
         const r = await axios.get(`${API}${map[t]}`, h());
         let results = r.data.data || [];
         // Apply filtering based on tab
-        if (t === 'pending-staff') results = results.filter(u => u.RoleName === 'Staff' && (u.Status === 'Pending' || u.Status === 'pending'));
-        else if (t === 'all-staff') results = results.filter(u => (u.RoleName === 'Staff' || u.RoleName === 'Admin') && u.Status !== 'Pending' && u.Status !== 'pending');
+        if (t === 'pending-staff') results = results.filter(u => u.RoleName === 'Staff' && u.Status === 'Pending');
+        else if (t === 'all-staff') results = results.filter(u => (u.RoleName === 'Staff' || u.RoleName === 'Admin') && u.Status !== 'Pending');
         else if (t === 'members') results = results.filter(u => u.RoleName === 'Member');
         
         setData(results)
@@ -83,13 +82,13 @@ export default function AdminDashboard() {
   }, [])
 
   useEffect(() => { fetchStats() }, [])
-  useEffect(() => { if (tab !== 'overview' && tab !== 'create-user' && tab !== 'profile') fetchTab(tab) }, [tab])
+  useEffect(() => { if (tab !== 'overview') fetchTab(tab) }, [tab])
 
   const act = async (method, url, body, msg) => {
     try {
       await axios({ method, url: `${API}${url}`, data: body, ...h() })
       showToast(msg); fetchStats()
-      if (tab !== 'overview' && tab !== 'create-user' && tab !== 'profile') fetchTab(tab)
+      if (tab !== 'overview') fetchTab(tab)
     } catch (e) { showToast('Error: ' + (e.response?.data?.message || e.message)) }
   }
 
@@ -99,7 +98,7 @@ export default function AdminDashboard() {
   })
 
   const Badge = ({ v }) => (
-    <span style={{ background: statusColor(v)+'22', color: statusColor(v), padding:'2px 10px', borderRadius:20, fontSize:12, fontWeight:700, textTransform:'capitalize' }}>{v}</span>
+    <span style={{ background: statusColor(v)+'22', color: statusColor(v), padding:'2px 10px', borderRadius:20, fontSize:12, fontWeight:700 }}>{v}</span>
   )
 
   const Th = ({ children }) => <th style={{ padding:'12px 16px', textAlign:'left', fontSize:12, fontWeight:700, color:c.muted, textTransform:'uppercase', letterSpacing:1, background:c.head, whiteSpace:'nowrap' }}>{children}</th>
@@ -133,9 +132,6 @@ export default function AdminDashboard() {
       </div>
     )
 
-    if (tab === 'create-user') return <CreateUserTab c={c} act={act} />
-    if (tab === 'profile') return <ProfileTab user={user} act={act} c={c} />
-
     const cols = {
       'pending-staff': ['Name','Email','Job Title','Phone','Actions'],
       'all-staff': ['Name','Email','Job Title','Status','Joined','Actions'],
@@ -149,8 +145,6 @@ export default function AdminDashboard() {
     }
 
     const renderRow = (row, i) => {
-      const isStatus = (st) => String(row.Status).toLowerCase() === String(st).toLowerCase();
-
       if (tab === 'pending-staff') return (
         <tr key={i}>
           <Td><strong style={{color:c.text}}>{row.FullName}</strong></Td>
@@ -158,8 +152,8 @@ export default function AdminDashboard() {
           <Td>{row.JobTitle || '—'}</Td>
           <Td>{row.Phone || '—'}</Td>
           <Td>
-            <Btn color='#10b981' onClick={() => act('patch',`/admin/users/${row.UserID}/status`,{status:'Active'},'Staff approved!')}>Approve</Btn>
-            <Btn color='#ef4444' onClick={() => { if(window.confirm('Reject?')) act('patch',`/admin/users/${row.UserID}/status`,{status:'Rejected'},'Staff rejected.') }}>Reject</Btn>
+            <Btn color='#10b981' onClick={() => act('patch',`/users/${row.UserID}/status`,{status:'Active'},'Staff approved!')}>Approve</Btn>
+            <Btn color='#ef4444' onClick={() => { if(window.confirm('Reject?')) act('patch',`/users/${row.UserID}/status`,{status:'Inactive'},'Staff rejected.') }}>Reject</Btn>
           </Td>
         </tr>
       )
@@ -171,11 +165,9 @@ export default function AdminDashboard() {
           <Td><Badge v={row.Status} /></Td>
           <Td>{fmt(row.EmploymentDate)}</Td>
           <Td>
-            <Btn color='#3b82f6' onClick={() => setModal({type:'edit-user', item:row})}>Edit</Btn>
-            {isStatus('Active') && <Btn color='#f59e0b' onClick={() => act('patch',`/admin/users/${row.UserID}/status`,{status:'Suspended'},'Suspended.')}>Suspend</Btn>}
-            {(isStatus('Suspended') || isStatus('Inactive')) && <Btn color='#10b981' onClick={() => act('patch',`/admin/users/${row.UserID}/status`,{status:'Active'},'Activated.')}>Activate</Btn>}
-            {!isStatus('Inactive') && <Btn color='#ef4444' onClick={() => { if(window.confirm('Deactivate staff?')) act('patch',`/admin/users/${row.UserID}/status`,{status:'Inactive'},'Deactivated.') }}>Deactivate</Btn>}
-            <Btn color='#8b5cf6' onClick={() => act('patch',`/admin/users/${row.UserID}/unlock`,{},'Account Unlocked')}>Unlock</Btn>
+            {row.Status === 'Active' && <Btn color='#f59e0b' onClick={() => act('patch',`/users/${row.UserID}/status`,{status:'Suspended'},'Suspended.')}>Suspend</Btn>}
+            {row.Status === 'Suspended' && <Btn color='#10b981' onClick={() => act('patch',`/users/${row.UserID}/status`,{status:'Active'},'Activated.')}>Activate</Btn>}
+            <Btn color='#ef4444' onClick={() => { if(window.confirm('Deactivate staff?')) act('patch',`/users/${row.UserID}/status`,{status:'Inactive'},'Deactivated.') }}>Deactivate</Btn>
           </Td>
         </tr>
       )
@@ -187,16 +179,15 @@ export default function AdminDashboard() {
           <Td>
             <div style={{display:'flex',alignItems:'center',gap:6}}>
               <span>{row.MaxBooksAllowed}</span>
+              <Btn color='#3b82f6' onClick={() => setModal({type:'max-books', item:row})}>Edit</Btn>
             </div>
           </Td>
           <Td><Badge v={row.Status} /></Td>
           <Td>
-            <Btn color='#3b82f6' onClick={() => setModal({type:'edit-user', item:row})}>Edit</Btn>
-            {isStatus('Pending') && <Btn color='#10b981' onClick={() => act('patch',`/admin/users/${row.UserID}/status`,{status:'Active'},'Activated.')}>Approve</Btn>}
-            {isStatus('Active') && <Btn color='#f59e0b' onClick={() => act('patch',`/admin/users/${row.UserID}/status`,{status:'Suspended'},'Suspended.')}>Suspend</Btn>}
-            {(isStatus('Suspended') || isStatus('Inactive')) && <Btn color='#10b981' onClick={() => act('patch',`/admin/users/${row.UserID}/status`,{status:'Active'},'Activated.')}>Activate</Btn>}
-            {!isStatus('Inactive') && <Btn color='#ef4444' onClick={() => { if(window.confirm('Deactivate member?')) act('patch',`/admin/users/${row.UserID}/status`,{status:'Inactive'},'Deactivated.') }}>Deactivate</Btn>}
-            <Btn color='#8b5cf6' onClick={() => act('patch',`/admin/users/${row.UserID}/unlock`,{},'Account Unlocked')}>Unlock</Btn>
+            {row.Status === 'Pending' && <Btn color='#10b981' onClick={() => act('patch',`/users/${row.UserID}/status`,{status:'Active'},'Activated.')}>Approve</Btn>}
+            {row.Status === 'Active' && <Btn color='#f59e0b' onClick={() => act('patch',`/users/${row.UserID}/status`,{status:'Suspended'},'Suspended.')}>Suspend</Btn>}
+            {row.Status === 'Suspended' && <Btn color='#10b981' onClick={() => act('patch',`/users/${row.UserID}/status`,{status:'Active'},'Activated.')}>Activate</Btn>}
+            <Btn color='#ef4444' onClick={() => { if(window.confirm('Deactivate member?')) act('patch',`/users/${row.UserID}/status`,{status:'Inactive'},'Deactivated.') }}>Deactivate</Btn>
           </Td>
         </tr>
       )
@@ -209,10 +200,8 @@ export default function AdminDashboard() {
             <Td><span style={{background:(roleColor[row.RoleName]||'#64748b')+'22',color:roleColor[row.RoleName]||'#64748b',padding:'2px 10px',borderRadius:20,fontSize:12,fontWeight:700}}>{row.RoleName}</span></Td>
             <Td><Badge v={row.Status} /></Td>
             <Td>
-              <Btn color='#3b82f6' onClick={() => setModal({type:'edit-user', item:row})}>Edit</Btn>
-              {!isStatus('Active') && <Btn color='#10b981' onClick={() => act('patch',`/admin/users/${row.UserID}/status`,{status:'Active'},'User activated.')}>Activate</Btn>}
-              {isStatus('Active') && <Btn color='#f59e0b' onClick={() => act('patch',`/admin/users/${row.UserID}/status`,{status:'Suspended'},'Suspended.')}>Suspend</Btn>}
-              <Btn color='#8b5cf6' onClick={() => act('patch',`/admin/users/${row.UserID}/unlock`,{},'Account Unlocked')}>Unlock</Btn>
+              {row.Status !== 'active' && row.Status !== 'Active' && <Btn color='#10b981' onClick={() => act('patch',`/users/${row.UserID}/status`,{status:'Active'},'User activated.')}>Activate</Btn>}
+              {(row.Status === 'active' || row.Status === 'Active') && <Btn color='#f59e0b' onClick={() => act('patch',`/users/${row.UserID}/status`,{status:'Suspended'},'Suspended.')}>Suspend</Btn>}
               <Btn color='#ef4444' onClick={() => { if(window.confirm(`Permanently delete ${row.FullName}? This cannot be undone.`)) act('delete',`/admin/users/${row.UserID}`,{},'User deleted.') }}>Delete</Btn>
             </Td>
           </tr>
@@ -271,7 +260,7 @@ export default function AdminDashboard() {
     }
 
     return (
-      <div style={{ background:c.card, borderRadius:16, border:`1px solid ${c.border}`, overflow:'hidden', flex: 1 }}>
+      <div style={{ background:c.card, borderRadius:16, border:`1px solid ${c.border}`, overflow:'hidden' }}>
         <div style={{ padding:'16px 20px', borderBottom:`1px solid ${c.border}`, display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Filter by name, email, title..." style={{ flex:1, padding:'9px 14px', borderRadius:8, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, outline:'none' }} />
           <span style={{ fontSize:13, color:c.muted, whiteSpace:'nowrap' }}>{filtered.length} results</span>
@@ -295,171 +284,33 @@ export default function AdminDashboard() {
     )
   }
 
+  if (tab === 'profile') return <ProfileTab user={user} act={act} c={c} />
+
   const tabLabel = TABS.find(t => t.key === tab)?.label || 'Dashboard'
+  const navItems = TABS.map(t => ({ ...t, badge: t.key === 'pending-staff' ? (stats?.pendingStaff || 0) : 0 }))
 
   return (
-    <DashboardShell role="admin" navItems={[]} activeTab={tab} setTab={setTab} user={user} logout={logout} tabLabel={tabLabel}>
+    <DashboardShell role="admin" navItems={navItems} activeTab={tab} setTab={setTab} user={user} logout={logout} tabLabel={tabLabel}>
       {/* Toast */}
       {toast && <div style={{ position:'fixed', bottom:24, right:24, background:'#1e293b', color:'#fff', padding:'12px 20px', borderRadius:10, zIndex:9999, fontSize:14, boxShadow:'0 4px 24px rgba(0,0,0,0.3)', borderLeft:'3px solid #f59e0b' }}>{toast}</div>}
 
-      {/* Edit User Modal */}
-      {modal?.type === 'edit-user' && (
+      {/* Max Books Modal */}
+      {modal?.type === 'max-books' && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(4px)' }}>
-          <div style={{ background: c.card, backdropFilter:'blur(20px)', borderRadius:20, padding:32, width:400, border:`1px solid ${c.border}`, boxShadow:'0 30px 80px rgba(0,0,0,0.5)' }}>
-            <h3 style={{ color:c.text, margin:'0 0 16px', fontSize:20, fontWeight:700 }}>Edit User Profile</h3>
-            <form onSubmit={e => {
-              e.preventDefault();
-              const fd = new FormData(e.target);
-              const payload = { fullName: fd.get('fullName'), phone: fd.get('phone') };
-              if (modal.item.RoleName === 'Member' || modal.item.Department !== undefined) {
-                payload.department = fd.get('department');
-                payload.maxBooksAllowed = parseInt(fd.get('maxBooks') || 5);
-              }
-              act('put', `/admin/users/${modal.item.UserID}`, payload, 'Profile updated.');
-              setModal(null);
-            }}>
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ fontSize:12, color:c.muted, display:'block', marginBottom:4 }}>Full Name</label>
-                <input name="fullName" defaultValue={modal.item.FullName} required style={{ width:'100%', padding:'10px 14px', borderRadius:8, border:`1px solid ${c.border}`, background:c.input, color:c.text, boxSizing:'border-box' }} />
-              </div>
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ fontSize:12, color:c.muted, display:'block', marginBottom:4 }}>Phone</label>
-                <input name="phone" defaultValue={modal.item.Phone} style={{ width:'100%', padding:'10px 14px', borderRadius:8, border:`1px solid ${c.border}`, background:c.input, color:c.text, boxSizing:'border-box' }} />
-              </div>
-              {(modal.item.RoleName === 'Member' || modal.item.Department !== undefined) && (
-                <>
-                  <div style={{ marginBottom: 12 }}>
-                    <label style={{ fontSize:12, color:c.muted, display:'block', marginBottom:4 }}>Department</label>
-                    <input name="department" defaultValue={modal.item.Department} style={{ width:'100%', padding:'10px 14px', borderRadius:8, border:`1px solid ${c.border}`, background:c.input, color:c.text, boxSizing:'border-box' }} />
-                  </div>
-                  <div style={{ marginBottom: 20 }}>
-                    <label style={{ fontSize:12, color:c.muted, display:'block', marginBottom:4 }}>Max Books Allowed</label>
-                    <input name="maxBooks" type="number" min={1} defaultValue={modal.item.MaxBooksAllowed || 5} style={{ width:'100%', padding:'10px 14px', borderRadius:8, border:`1px solid ${c.border}`, background:c.input, color:c.text, boxSizing:'border-box' }} />
-                  </div>
-                </>
-              )}
-              <div style={{ display:'flex', gap:10, marginTop: 24 }}>
-                <button type="button" onClick={() => setModal(null)} style={{ flex:1, padding:11, borderRadius:10, border:`1px solid ${c.border}`, background:'transparent', color:c.muted, cursor:'pointer', fontWeight:600 }}>Cancel</button>
-                <button type="submit" style={{ flex:1, padding:11, borderRadius:10, border:'none', background:'linear-gradient(135deg,#3b82f6,#1d4ed8)', color:'#fff', fontWeight:700, cursor:'pointer' }}>Save Changes</button>
-              </div>
-            </form>
+          <div style={{ background: c.card, backdropFilter:'blur(20px)', borderRadius:20, padding:32, width:380, border:`1px solid ${c.border}`, boxShadow:'0 30px 80px rgba(0,0,0,0.5)' }}>
+            <h3 style={{ color:c.text, margin:'0 0 6px', fontSize:20, fontWeight:700 }}>Edit Max Books</h3>
+            <p style={{ color:c.muted, fontSize:14, marginBottom:20 }}>{modal.item.FullName}</p>
+            <input id="mbooks" type="number" defaultValue={modal.item.MaxBooksAllowed} min={1} style={{ width:'100%', padding:'12px 14px', borderRadius:10, border:`1.5px solid ${c.border}`, background: c.input, color:c.text, fontSize:16, outline:'none', boxSizing:'border-box', marginBottom:20 }} />
+            <div style={{ display:'flex', gap:10 }}>
+              <button onClick={() => setModal(null)} style={{ flex:1, padding:11, borderRadius:10, border:`1px solid ${c.border}`, background:'transparent', color:c.muted, cursor:'pointer', fontWeight:600 }}>Cancel</button>
+              <button onClick={() => { const v = document.getElementById('mbooks').value; act('patch',`/members/${modal.item.MemberID}/maxbooks`,{maxBooks:parseInt(v)},'Max books updated.'); setModal(null) }} style={{ flex:1, padding:11, borderRadius:10, border:'none', background:'linear-gradient(135deg,#3b82f6,#1d4ed8)', color:'#fff', fontWeight:700, cursor:'pointer' }}>Save Changes</button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Main Layout: Vertical Sidebar + Content Area */}
-      <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
-        {/* Vertical Sidebar Navigation */}
-        <div style={{ width: 260, background: c.card, borderRadius: 16, border: `1px solid ${c.border}`, padding: 16, display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0, position: 'sticky', top: 90 }}>
-          <h3 style={{ fontSize: 12, color: c.muted, textTransform: 'uppercase', letterSpacing: 1, margin: '8px 8px 16px', fontWeight: 700 }}>Management Menu</h3>
-          {TABS.map(t => (
-            <button 
-              key={t.key} 
-              onClick={() => setTab(t.key)}
-              style={{ 
-                display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 10,
-                background: tab === t.key ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
-                color: tab === t.key ? '#3b82f6' : c.text,
-                border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: tab === t.key ? 700 : 500,
-                transition: 'all 0.2s', textAlign: 'left'
-              }}>
-              <span style={{ fontSize: 18 }}>{t.icon}</span>
-              {t.label}
-              {t.key === 'pending-staff' && stats?.pendingStaff > 0 && (
-                <span style={{ marginLeft:'auto', background:'#f59e0b', color:'#fff', fontSize:11, padding:'2px 8px', borderRadius:20, fontWeight:700 }}>{stats.pendingStaff}</span>
-              )}
-            </button>
-          ))}
-        </div>
-        
-        {/* Active Tab Content */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {renderContent()}
-        </div>
-      </div>
+      {renderContent()}
     </DashboardShell>
-  )
-}
-
-function CreateUserTab({ c, act }) {
-  const [type, setType] = useState('Member');
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    const fd = new FormData(e.target);
-    const data = Object.fromEntries(fd.entries());
-    
-    if (type === 'Member') {
-      await act('post', '/admin/users/member', data, 'Member account created successfully!');
-    } else {
-      await act('post', '/admin/users/staff', data, 'Staff account created successfully!');
-    }
-    e.target.reset();
-    setLoading(false);
-  }
-
-  const Input = ({ label, name, type="text", required=false, ...props }) => (
-    <div style={{ marginBottom: 16 }}>
-      <label style={{ display:'block', fontSize:12, color:c.muted, marginBottom:6, fontWeight:600 }}>{label} {required&&'*'}</label>
-      <input name={name} type={type} required={required} style={{ width:'100%', padding:'12px 16px', borderRadius:10, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, boxSizing:'border-box', outline:'none' }} {...props} />
-    </div>
-  )
-
-  return (
-    <div style={{ background: c.card, borderRadius: 16, border: `1px solid ${c.border}`, padding: 32, maxWidth: 600, margin: '0 auto' }}>
-      <h2 style={{ margin: '0 0 24px', color: c.text, fontSize: 24, fontWeight: 800 }}>Provision New User</h2>
-      
-      <div style={{ display: 'flex', gap: 12, marginBottom: 24, background: c.input, padding: 6, borderRadius: 12 }}>
-        {['Member', 'Staff'].map(t => (
-          <button key={t} type="button" onClick={() => setType(t)} style={{ flex:1, padding:'10px', borderRadius:8, border:'none', background: type === t ? c.card : 'transparent', color: type === t ? '#3b82f6' : c.muted, fontWeight:600, cursor:'pointer', boxShadow: type===t ? '0 2px 10px rgba(0,0,0,0.1)' : 'none', transition:'all 0.2s' }}>
-            {t} Account
-          </button>
-        ))}
-      </div>
-
-      <form onSubmit={handleSubmit}>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-          <Input label="Full Name" name="fullName" required />
-          <Input label="Email Address" name="email" type="email" required />
-        </div>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-          <Input label="Temporary Password" name="password" type="password" required />
-          <Input label="Phone Number" name="phone" />
-        </div>
-
-        <div style={{ height:1, background:c.border, margin:'16px 0 24px' }} />
-        
-        {type === 'Member' ? (
-          <>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-              <Input label="Student / Member ID" name="studentId" required />
-              <Input label="Department" name="department" />
-            </div>
-            <Input label="Max Books Allowed" name="maxBooksAllowed" type="number" defaultValue={5} />
-          </>
-        ) : (
-          <>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-              <Input label="Job Title" name="jobTitle" required />
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display:'block', fontSize:12, color:c.muted, marginBottom:6, fontWeight:600 }}>System Role *</label>
-                <select name="roleName" style={{ width:'100%', padding:'12px 16px', borderRadius:10, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, outline:'none' }}>
-                  <option value="Staff">Library Staff</option>
-                  <option value="Admin">Administrator</option>
-                </select>
-              </div>
-            </div>
-            <Input label="Salary" name="salary" type="number" defaultValue={0} />
-          </>
-        )}
-
-        <button type="submit" disabled={loading} style={{ width:'100%', padding:14, borderRadius:10, border:'none', background:'linear-gradient(135deg,#3b82f6,#1d4ed8)', color:'#fff', fontWeight:700, fontSize:15, cursor:loading?'not-allowed':'pointer', marginTop:16 }}>
-          {loading ? 'Creating Account...' : `Create ${type} Account`}
-        </button>
-      </form>
-    </div>
   )
 }
 
