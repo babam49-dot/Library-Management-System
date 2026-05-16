@@ -6,7 +6,7 @@ export default function ReservationStatusBadge({ status }) {
   const isReady = status === 'Ready';
   
   return (
-    <span className={\`px-3 py-1 rounded-full text-xs font-semibold \${colorClass} \${isReady ? 'animate-pulse ring-2 ring-green-400' : ''}\`}>
+    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${colorClass} ${isReady ? 'animate-pulse ring-2 ring-green-400' : ''}`}>
       {status}
     </span>
   );

@@ -2,181 +2,333 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { authenticate, requireRole } = require('../middleware/auth');
+const chapa = require('../services/chapaService');
 
 const ok = (res, message, data = null) => res.json({ success: true, message, data });
-const fail = (res, message, status = 400) => res.status(status).json({ success: false, message, data: null });
+const fail = (res, message, status = 400, data = null) =>
+  res.status(status).json({ success: false, message, data });
 
-const auth = [authenticate, requireRole(3)];
+const memberOnly = [authenticate, requireRole(3)];
 
-// GET /api/member/dashboard
-router.get('/dashboard', auth, async (req, res) => {
+function getMemberId(req) {
+  return req.user.MemberID || req.user.memberID || req.user.extensionId;
+}
+
+async function reconcileFineStatus(connection, fineId) {
+  const [[fine]] = await connection.execute(
+    'SELECT FineID, Amount FROM Fines WHERE FineID = ?',
+    [fineId]
+  );
+  if (!fine) return null;
+
+  const [[paid]] = await connection.execute(
+    "SELECT COALESCE(SUM(AmountPaid),0) AS totalPaid FROM Payments WHERE FineID = ? AND PaymentStatus = 'Completed'",
+    [fineId]
+  );
+
+  const amount = Number(fine.Amount || 0);
+  const totalPaid = Number(paid.totalPaid || 0);
+  const status = totalPaid >= amount ? 'Paid' : totalPaid > 0 ? 'Partial' : 'Unpaid';
+
+  await connection.execute('UPDATE Fines SET FineStatus = ? WHERE FineID = ?', [status, fineId]);
+  return { amount, totalPaid, balance: Math.max(amount - totalPaid, 0), status };
+}
+
+async function getMemberSummary(memberId) {
+  const [[borrowed]] = await pool.execute(
+    "SELECT COUNT(*) AS count FROM BorrowingRecords WHERE MemberID = ? AND Status IN ('Pending','Borrowed','Overdue')",
+    [memberId]
+  );
+  const [[reservations]] = await pool.execute(
+    "SELECT COUNT(*) AS count FROM Reservations WHERE MemberID = ? AND Status IN ('Queued','Ready')",
+    [memberId]
+  );
+  const [[fines]] = await pool.execute(
+    "SELECT COALESCE(SUM(f.Amount - COALESCE(p.TotalPaid,0)),0) AS balance FROM Fines f LEFT JOIN (SELECT FineID, SUM(AmountPaid) AS TotalPaid FROM Payments WHERE PaymentStatus = 'Completed' GROUP BY FineID) p ON p.FineID = f.FineID WHERE f.MemberID = ? AND f.FineStatus IN ('Unpaid','Partial')",
+    [memberId]
+  );
+  const [[member]] = await pool.execute(
+    `SELECT m.MemberID, m.StudentID, m.Department, m.MaxBooksAllowed,
+            u.UserID, u.FullName, u.Email, u.Status
+     FROM Members m
+     JOIN Users u ON u.UserID = m.UserID
+     WHERE m.MemberID = ?`,
+    [memberId]
+  );
+
+  return {
+    profile: member,
+    activeBorrowCount: Number(borrowed.count || 0),
+    reservationCount: Number(reservations.count || 0),
+    fineBalance: Number(fines.balance || 0),
+    borrowingBlocked: Number(fines.balance || 0) > Number(process.env.FINE_THRESHOLD || 100)
+  };
+}
+
+router.get('/dashboard', memberOnly, async (req, res) => {
   try {
-    const [memRows] = await pool.execute("SELECT MemberID FROM Members WHERE UserID=?", [req.user.userID]);
-    if (!memRows.length) return fail(res, 'Member profile not found', 404);
-    const memberId = memRows[0].MemberID;
-
-    const [[borrows]] = await pool.execute("SELECT COUNT(*) as cnt FROM BorrowingRecords WHERE MemberID=? AND Status='borrowed'", [memberId]);
-    const [[reservations]] = await pool.execute("SELECT COUNT(*) as cnt FROM Reservations WHERE MemberID=? AND Status='pending'", [memberId]);
-    const [[fines]] = await pool.execute("SELECT COALESCE(SUM(Amount),0) as total FROM Fines WHERE UserID=? AND FineStatus='Unpaid'", [req.user.userID]);
-
-    const [activeBorrows] = await pool.execute(
-      `SELECT br.BorrowID, br.BorrowDate, br.DueDate, br.Status,
-              b.Title, b.ISBN, bc.ShelfLocation, bc.CopyID
-       FROM BorrowingRecords br
-       JOIN BookCopies bc ON bc.CopyID = br.CopyID
-       JOIN Books b ON b.BookID = bc.BookID
-       WHERE br.MemberID=? AND br.Status='borrowed'
-       ORDER BY br.DueDate ASC`,
-      [memberId]
-    );
-
-    return ok(res, 'Member dashboard', {
-      activeBorrowsCount: borrows.cnt,
-      reservationsCount: reservations.cnt,
-      unpaidFinesTotal: fines.total,
-      activeBorrows
-    });
-  } catch (err) { return fail(res, err.message, 500); }
+    const memberId = getMemberId(req);
+    if (!memberId) return fail(res, 'Member profile not found', 404);
+    return ok(res, 'Member dashboard', await getMemberSummary(memberId));
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
 });
 
-// GET /api/member/books
-router.get('/books', auth, async (req, res) => {
+router.get('/books', memberOnly, async (req, res) => {
   try {
-    const { q } = req.query;
+    const { q, title, author, category, isbn } = req.query;
+    const params = [];
+    const filters = [];
     let sql = `
-      SELECT b.BookID, b.Title, b.ISBN, b.Year, b.Language, b.CoverImage,
-             c.CategoryName, p.PublisherName,
-             GROUP_CONCAT(DISTINCT a.Name SEPARATOR ', ') as Authors,
-             COUNT(DISTINCT CASE WHEN bc.Status='available' THEN bc.CopyID END) as AvailableCopies,
-             COUNT(DISTINCT bc.CopyID) as TotalCopies
+      SELECT
+        b.BookID, b.Title, b.ISBN, b.Language, b.Edition, b.Year AS PublishYear, b.CoverImage,
+        c.CategoryName, p.PublisherName,
+        GROUP_CONCAT(DISTINCT a.Name SEPARATOR ', ') AS Authors,
+        COUNT(DISTINCT CASE WHEN bc.Status = 'Available' THEN bc.CopyID END) AS AvailableCopies,
+        COUNT(DISTINCT bc.CopyID) AS TotalCopies,
+        GROUP_CONCAT(DISTINCT CASE WHEN bc.Status = 'Available' THEN bc.CopyID END ORDER BY bc.CopyID SEPARATOR ',') AS AvailableCopyIds
       FROM Books b
       LEFT JOIN Categories c ON c.CategoryID = b.CategoryID
       LEFT JOIN Publishers p ON p.PublisherID = b.PublisherID
       LEFT JOIN BookAuthors ba ON ba.BookID = b.BookID
       LEFT JOIN Authors a ON a.AuthorID = ba.AuthorID
       LEFT JOIN BookCopies bc ON bc.BookID = b.BookID
+      WHERE COALESCE(b.IsActive, 1) = 1
     `;
-    const params = [];
+
     if (q) {
-      sql += ` WHERE b.Title LIKE ? OR b.ISBN LIKE ? OR a.Name LIKE ? OR c.CategoryName LIKE ?`;
-      const like = `%${q}%`;
-      params.push(like, like, like, like);
+      filters.push('(b.Title LIKE ? OR a.Name LIKE ? OR c.CategoryName LIKE ? OR b.ISBN LIKE ?)');
+      params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
     }
+    if (title) { filters.push('b.Title LIKE ?'); params.push(`%${title}%`); }
+    if (author) { filters.push('a.Name LIKE ?'); params.push(`%${author}%`); }
+    if (category) { filters.push('c.CategoryName = ?'); params.push(category); }
+    if (isbn) { filters.push('b.ISBN LIKE ?'); params.push(`%${isbn}%`); }
+
+    if (filters.length) sql += ` AND ${filters.join(' AND ')}`;
     sql += ' GROUP BY b.BookID ORDER BY b.Title';
+
     const [rows] = await pool.execute(sql, params);
-    return ok(res, 'Books list', rows);
-  } catch (err) { return fail(res, err.message, 500); }
+    return ok(res, 'Catalog books', rows);
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
 });
 
-// GET /api/member/my-borrowings
-router.get('/my-borrowings', auth, async (req, res) => {
+router.get('/my-borrowings', memberOnly, async (req, res) => {
   try {
-    const [memRows] = await pool.execute("SELECT MemberID FROM Members WHERE UserID=?", [req.user.userID]);
-    if (!memRows.length) return fail(res, 'Member not found', 404);
-
     const [rows] = await pool.execute(
-      `SELECT br.BorrowID, br.BorrowDate, br.DueDate, br.Status,
-              b.Title, b.ISBN, bc.CopyID, bc.ShelfLocation,
-              r.ReturnDate, r.Condition
+      `SELECT br.BorrowID, br.RequestCode, br.BorrowDate, br.DueDate, br.ReturnDate, br.Status,
+              b.Title, b.ISBN, bc.CopyID, bc.BarcodeNumber, bc.ShelfLocation
        FROM BorrowingRecords br
        JOIN BookCopies bc ON bc.CopyID = br.CopyID
        JOIN Books b ON b.BookID = bc.BookID
-       LEFT JOIN Returns r ON r.BorrowID = br.BorrowID
-       WHERE br.MemberID=?
-       ORDER BY br.BorrowDate DESC`,
-      [memRows[0].MemberID]
+       WHERE br.MemberID = ?
+       ORDER BY br.BorrowDate DESC, br.BorrowID DESC`,
+      [getMemberId(req)]
     );
-    return ok(res, 'My borrowings', rows);
-  } catch (err) { return fail(res, err.message, 500); }
+    return ok(res, 'My borrowed books', rows);
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
 });
 
-// GET /api/member/my-reservations
-router.get('/my-reservations', auth, async (req, res) => {
+router.get('/my-reservations', memberOnly, async (req, res) => {
   try {
-    const [memRows] = await pool.execute("SELECT MemberID FROM Members WHERE UserID=?", [req.user.userID]);
-    if (!memRows.length) return fail(res, 'Member not found', 404);
-
     const [rows] = await pool.execute(
-      `SELECT r.ResID, r.ReservationDate, r.Status, b.Title, b.BookID
+      `SELECT r.ReservationID, r.RequestCode, r.Status, r.Priority, r.ReservationDate, r.PickupDeadline,
+              b.BookID, b.Title, b.ISBN, bc.CopyID
        FROM Reservations r
-       JOIN Books b ON b.BookID = r.BookID
-       WHERE r.MemberID=?
+       JOIN BookCopies bc ON bc.CopyID = r.CopyID
+       JOIN Books b ON b.BookID = bc.BookID
+       WHERE r.MemberID = ?
        ORDER BY r.ReservationDate DESC`,
-      [memRows[0].MemberID]
+      [getMemberId(req)]
     );
     return ok(res, 'My reservations', rows);
-  } catch (err) { return fail(res, err.message, 500); }
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
 });
 
-// POST /api/member/reservations
-router.post('/reservations', auth, async (req, res) => {
-  try {
-    const { bookId } = req.body;
-    if (!bookId) return fail(res, 'bookId required');
-
-    const [copies] = await pool.execute("SELECT CopyID FROM BookCopies WHERE BookID=? AND Status='available'", [bookId]);
-    if (copies.length > 0) return fail(res, 'Copies are available — please borrow directly');
-
-    const [memRows] = await pool.execute("SELECT MemberID FROM Members WHERE UserID=?", [req.user.userID]);
-    if (!memRows.length) return fail(res, 'Member not found', 404);
-
-    const [existing] = await pool.execute(
-      "SELECT ResID FROM Reservations WHERE MemberID=? AND BookID=? AND Status='pending'",
-      [memRows[0].MemberID, bookId]
-    );
-    if (existing.length) return fail(res, 'You already have a pending reservation for this book');
-
-    await pool.execute(
-      "INSERT INTO Reservations (MemberID, BookID, ReservationDate, Status) VALUES (?,?,NOW(),'pending')",
-      [memRows[0].MemberID, bookId]
-    );
-    return ok(res, 'Reservation created successfully');
-  } catch (err) { return fail(res, err.message, 500); }
-});
-
-// DELETE /api/member/reservations/:id
-router.delete('/reservations/:id', auth, async (req, res) => {
-  try {
-    const [memRows] = await pool.execute("SELECT MemberID FROM Members WHERE UserID=?", [req.user.userID]);
-    if (!memRows.length) return fail(res, 'Member not found', 404);
-    await pool.execute("DELETE FROM Reservations WHERE ResID=? AND MemberID=?", [req.params.id, memRows[0].MemberID]);
-    return ok(res, 'Reservation cancelled');
-  } catch (err) { return fail(res, err.message, 500); }
-});
-
-// GET /api/member/my-fines
-router.get('/my-fines', auth, async (req, res) => {
+router.get('/my-fines', memberOnly, async (req, res) => {
   try {
     const [rows] = await pool.execute(
-      `SELECT f.FineID, f.Amount, f.IssuedDate, f.FineStatus, ft.TypeName, ft.Description,
-              b.Title as BookTitle
+      `SELECT f.FineID, f.BorrowID, f.MemberID, f.Amount, f.FineStatus, f.GeneratedDate,
+              ft.TypeName, ft.Description,
+              b.Title AS BookTitle,
+              COALESCE(p.TotalPaid,0) AS TotalPaid,
+              GREATEST(f.Amount - COALESCE(p.TotalPaid,0),0) AS Balance
        FROM Fines f
-       LEFT JOIN FineTypes ft ON ft.TypeID = f.TypeID
+       LEFT JOIN FineTypes ft ON ft.TypeID = f.FineTypeID
        LEFT JOIN BorrowingRecords br ON br.BorrowID = f.BorrowID
        LEFT JOIN BookCopies bc ON bc.CopyID = br.CopyID
        LEFT JOIN Books b ON b.BookID = bc.BookID
-       WHERE f.UserID=?
-       ORDER BY f.IssuedDate DESC`,
-      [req.user.userID]
+       LEFT JOIN (
+         SELECT FineID, SUM(AmountPaid) AS TotalPaid
+         FROM Payments
+         WHERE PaymentStatus = 'Completed'
+         GROUP BY FineID
+       ) p ON p.FineID = f.FineID
+       WHERE f.MemberID = ?
+       ORDER BY f.GeneratedDate DESC, f.FineID DESC`,
+      [getMemberId(req)]
     );
     return ok(res, 'My fines', rows);
-  } catch (err) { return fail(res, err.message, 500); }
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
 });
 
-// GET /api/member/my-profile
-router.get('/my-profile', auth, async (req, res) => {
+router.post('/payments/chapa/initialize', memberOnly, async (req, res) => {
+  const { fineId, amount } = req.body;
+  const memberId = getMemberId(req);
+  const connection = await pool.getConnection();
+
   try {
-    const [rows] = await pool.execute(
-      `SELECT u.UserID, u.FirstName, u.LastName, u.FullName, u.Email, u.Phone, u.UniversityID, u.Status,
-              m.MemberID, m.StudentID, m.Department, m.RegistrationDate, m.MaxBooksAllowed
-       FROM Users u
-       LEFT JOIN Members m ON m.UserID = u.UserID
-       WHERE u.UserID=?`,
-      [req.user.userID]
+    await connection.beginTransaction();
+
+    const [[fine]] = await connection.execute(
+      `SELECT f.*, u.Email, u.FullName
+       FROM Fines f
+       JOIN Members m ON m.MemberID = f.MemberID
+       JOIN Users u ON u.UserID = m.UserID
+       WHERE f.FineID = ? AND f.MemberID = ? FOR UPDATE`,
+      [fineId, memberId]
     );
-    if (!rows.length) return fail(res, 'Profile not found', 404);
-    return ok(res, 'Profile', rows[0]);
-  } catch (err) { return fail(res, err.message, 500); }
+    if (!fine) {
+      await connection.rollback();
+      return fail(res, 'Fine not found', 404);
+    }
+
+    const current = await reconcileFineStatus(connection, fineId);
+    if (current.status === 'Paid') {
+      await connection.commit();
+      return ok(res, 'Fine already paid', { fineId, status: 'Paid' });
+    }
+
+    const payable = Number(amount || current.balance);
+    if (!payable || payable <= 0 || payable > current.balance) {
+      await connection.rollback();
+      return fail(res, `Amount must be between 1 and ${current.balance.toFixed(2)}`);
+    }
+
+    const txRef = `LMS-${memberId}-${fineId}-${Date.now()}`;
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const backendUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 4000}`;
+
+    const chapaPayload = {
+      amount: payable.toFixed(2),
+      currency: 'ETB',
+      email: fine.Email,
+      first_name: String(fine.FullName || 'Library').split(' ')[0],
+      last_name: String(fine.FullName || 'Member').split(' ').slice(1).join(' ') || 'Member',
+      tx_ref: txRef,
+      callback_url: `${backendUrl}/api/member/payments/chapa/callback/${txRef}`,
+      return_url: `${frontendUrl}/member?tab=fines&tx_ref=${encodeURIComponent(txRef)}`
+    };
+
+    const chapaResponse = await chapa.initializePayment(chapaPayload);
+    await connection.execute(
+      `INSERT INTO Payments
+       (FineID, MemberID, AmountPaid, PaymentMethod, PaymentReference, ChapaTransactionID, PaymentStatus)
+       VALUES (?, ?, ?, 'Chapa', ?, ?, 'Pending')`,
+      [fineId, memberId, payable, txRef, chapaResponse?.data?.reference || null]
+    );
+
+    await connection.commit();
+    return ok(res, 'Chapa checkout initialized', {
+      txRef,
+      checkoutUrl: chapaResponse?.data?.checkout_url,
+      chapa: chapaResponse
+    });
+  } catch (err) {
+    await connection.rollback();
+    return fail(res, err.message, err.status || 500, err.payload || null);
+  } finally {
+    connection.release();
+  }
+});
+
+router.post('/payments/mock', memberOnly, async (req, res) => {
+  const { fineId, amount } = req.body;
+  const memberId = getMemberId(req);
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+    const [[fine]] = await connection.execute(
+      'SELECT FineID, Amount FROM Fines WHERE FineID = ? AND MemberID = ? FOR UPDATE',
+      [fineId, memberId]
+    );
+    if (!fine) {
+      await connection.rollback();
+      return fail(res, 'Fine not found', 404);
+    }
+
+    const current = await reconcileFineStatus(connection, fineId);
+    const payable = Number(amount || current.balance);
+    if (!payable || payable <= 0 || payable > current.balance) {
+      await connection.rollback();
+      return fail(res, `Amount must be between 1 and ${current.balance.toFixed(2)}`);
+    }
+
+    await connection.execute(
+      `INSERT INTO Payments (FineID, MemberID, AmountPaid, PaymentMethod, PaymentReference, PaymentStatus)
+       VALUES (?, ?, ?, 'Mock-Chapa', ?, 'Completed')`,
+      [fineId, memberId, payable, `MOCK-${Date.now()}`]
+    );
+    const status = await reconcileFineStatus(connection, fineId);
+    await connection.commit();
+    return ok(res, 'Payment recorded', status);
+  } catch (err) {
+    await connection.rollback();
+    return fail(res, err.message, 500);
+  } finally {
+    connection.release();
+  }
+});
+
+router.get('/payments/chapa/verify/:txRef', memberOnly, async (req, res) => {
+  const { txRef } = req.params;
+  const memberId = getMemberId(req);
+  const connection = await pool.getConnection();
+
+  try {
+    const chapaResponse = await chapa.verifyPayment(txRef);
+    const statusText = String(chapaResponse?.data?.status || chapaResponse?.status || '').toLowerCase();
+    const isCompleted = statusText === 'success' || statusText === 'completed';
+
+    await connection.beginTransaction();
+    const [[payment]] = await connection.execute(
+      'SELECT * FROM Payments WHERE PaymentReference = ? AND MemberID = ? FOR UPDATE',
+      [txRef, memberId]
+    );
+    if (!payment) {
+      await connection.rollback();
+      return fail(res, 'Payment reference not found', 404);
+    }
+
+    await connection.execute(
+      `UPDATE Payments SET PaymentStatus = ?, ChapaTransactionID = COALESCE(?, ChapaTransactionID)
+       WHERE PaymentID = ?`,
+      [isCompleted ? 'Completed' : 'Failed', chapaResponse?.data?.reference || null, payment.PaymentID]
+    );
+    const fineStatus = await reconcileFineStatus(connection, payment.FineID);
+    await connection.commit();
+
+    return ok(res, 'Chapa payment verified', { txRef, completed: isCompleted, fineStatus, chapa: chapaResponse });
+  } catch (err) {
+    await connection.rollback();
+    return fail(res, err.message, err.status || 500, err.payload || null);
+  } finally {
+    connection.release();
+  }
+});
+
+router.get('/payments/chapa/callback/:txRef', async (req, res) => {
+  res.json({ success: true, message: 'Payment callback received', txRef: req.params.txRef });
 });
 
 module.exports = router;

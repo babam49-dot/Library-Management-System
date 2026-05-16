@@ -21,7 +21,19 @@ const authenticateToken = (req, res, next) => {
       });
     }
 
-    req.user = user;
+    req.user = {
+      ...user,
+      userID: user.userID || user.UserID,
+      UserID: user.UserID || user.userID,
+      roleID: user.roleID || user.RoleID,
+      RoleID: user.RoleID || user.roleID,
+      roleName: user.roleName || user.RoleName,
+      RoleName: user.RoleName || user.roleName,
+      memberID: user.memberID || user.MemberID,
+      MemberID: user.MemberID || user.memberID,
+      staffID: user.staffID || user.StaffID,
+      StaffID: user.StaffID || user.staffID
+    };
     next();
   });
 };

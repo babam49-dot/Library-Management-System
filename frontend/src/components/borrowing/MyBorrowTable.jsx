@@ -8,7 +8,7 @@ export default function MyBorrowTable({ borrows, onCancel }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left text-sm whitespace-nowrap">
-        <thead className={\`\${isDark ? 'bg-gray-800' : 'bg-gray-50'}\`}>
+        <thead className={`${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}>
           <tr>
             <th className="p-3">Request Code</th>
             <th className="p-3">Book Title</th>
@@ -21,7 +21,7 @@ export default function MyBorrowTable({ borrows, onCancel }) {
         </thead>
         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
           {borrows.map(row => (
-            <tr key={row.borrowId} className={\`\${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}\`}>
+            <tr key={row.borrowId} className={`${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}`}>
               <td className="p-3 font-mono">{row.requestCode}</td>
               <td className="p-3 font-bold">{row.bookTitle}</td>
               <td className="p-3"><BorrowStatusBadge status={row.status} /></td>

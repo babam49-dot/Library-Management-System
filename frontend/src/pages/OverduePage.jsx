@@ -29,7 +29,7 @@ export default function OverduePage() {
     
     const headers = ['Borrow ID', 'Request Code', 'Member Name', 'Student ID', 'Book Title', 'Due Date', 'Days Overdue', 'Est. Fine (ETB)'];
     const csvRows = records.map(r => [
-      r.borrowId, r.requestCode, \`"\${r.fullName}"\`, r.studentID, \`"\${r.bookTitle}"\`,
+      r.borrowId, r.requestCode, `"${r.fullName}"`, r.studentID, `"${r.bookTitle}"`,
       new Date(r.dueDate).toLocaleDateString(), r.daysOverdue, r.estimatedFine
     ]);
     
@@ -39,7 +39,7 @@ export default function OverduePage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', \`overdue-report-\${new Date().toISOString().split('T')[0]}.csv\`);
+    link.setAttribute('download', `overdue-report-${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -57,28 +57,28 @@ export default function OverduePage() {
   return (
     <DashboardShell title="Overdue Books">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div className={\`p-6 rounded-2xl shadow-sm \${isDark ? 'bg-gray-800' : 'bg-white'}\`}>
+        <div className={`p-6 rounded-2xl shadow-sm ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
           <p className="text-gray-500 text-sm font-bold uppercase tracking-wider mb-2">Total Overdue</p>
           <p className="text-4xl font-bold font-mono text-red-500">{totalOverdue}</p>
         </div>
-        <div className={\`p-6 rounded-2xl shadow-sm \${isDark ? 'bg-gray-800' : 'bg-white'}\`}>
+        <div className={`p-6 rounded-2xl shadow-sm ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
           <p className="text-gray-500 text-sm font-bold uppercase tracking-wider mb-2">Members Affected</p>
           <p className="text-4xl font-bold font-mono">{uniqueMembers}</p>
         </div>
-        <div className={\`p-6 rounded-2xl shadow-sm \${isDark ? 'bg-gray-800' : 'bg-white'}\`}>
+        <div className={`p-6 rounded-2xl shadow-sm ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
           <p className="text-gray-500 text-sm font-bold uppercase tracking-wider mb-2">Est. Total Fines</p>
           <p className="text-4xl font-bold font-mono text-[#d4af37]">ETB {totalEstFines.toFixed(2)}</p>
         </div>
       </div>
 
-      <div className={\`p-6 rounded-2xl shadow-sm mb-6 flex flex-wrap gap-4 items-center justify-between \${isDark ? 'bg-gray-800' : 'bg-white'}\`}>
+      <div className={`p-6 rounded-2xl shadow-sm mb-6 flex flex-wrap gap-4 items-center justify-between ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
         <div className="flex-1 min-w-[250px]">
           <input 
             type="text" 
             placeholder="Search by Member Name or ID..."
             value={memberFilter}
             onChange={e => setMemberFilter(e.target.value)}
-            className={\`w-full p-3 rounded-lg border \${isDark ? 'bg-gray-900 border-gray-700 text-white' : 'bg-gray-50 border-gray-300'} focus:outline-none focus:ring-2 focus:ring-[#d4af37]\`}
+            className={`w-full p-3 rounded-lg border ${isDark ? 'bg-gray-900 border-gray-700 text-white' : 'bg-gray-50 border-gray-300'} focus:outline-none focus:ring-2 focus:ring-[#d4af37]`}
           />
         </div>
         <button 
@@ -91,7 +91,7 @@ export default function OverduePage() {
         </button>
       </div>
 
-      <div className={\`rounded-2xl border shadow-sm overflow-hidden \${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}\`}>
+      <div className={`rounded-2xl border shadow-sm overflow-hidden ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
         {loading ? (
           <div className="p-10 text-center text-gray-500">Loading...</div>
         ) : (

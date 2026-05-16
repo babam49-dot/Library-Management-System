@@ -1,22 +1,22 @@
 const db = require('../db');
 
-const LIBRARY_FINE_THRESHOLD = 100.00;
+const LIBRARY_FINE_THRESHOLD = Number(process.env.FINE_THRESHOLD || 100.00);
 
 async function validateDebtCheck(memberId, connection) {
   const queryRunner = connection || db;
   
   try {
     const [rows] = await queryRunner.query(`
-      SELECT SUM(Amount) as total FROM Fines
-      WHERE MemberID = ? AND Status IN ('Unpaid', 'Partial')
+      SELECT COALESCE(SUM(Amount),0) as total FROM Fines
+      WHERE MemberID = ? AND FineStatus IN ('Unpaid', 'Partial')
     `, [memberId]);
     
     const unpaidTotal = rows[0].total || 0;
     
-    if (unpaidTotal >= LIBRARY_FINE_THRESHOLD) {
+    if (Number(unpaidTotal) > LIBRARY_FINE_THRESHOLD) {
       return { 
         passed: false, 
-        message: \`You have unpaid fines of ETB \${unpaidTotal}. Please settle your balance before borrowing.\`, 
+        message: `You have unpaid fines of ETB ${unpaidTotal}. Please settle your balance before borrowing.`, 
         code: "DEBT_BLOCK",
         unpaidTotal
       };
@@ -57,7 +57,7 @@ async function validateQuantityCheck(memberId, requestedCount, connection) {
     if (activeBorrows + requestedCount > maxBooksAllowed) {
       return { 
         passed: false, 
-        message: \`This request would exceed your borrow limit of \${maxBooksAllowed} books. (Active: \${activeBorrows}, Requested: \${requestedCount})\`, 
+        message: `This request would exceed your borrow limit of ${maxBooksAllowed} books. (Active: ${activeBorrows}, Requested: ${requestedCount})`, 
         code: "LIMIT_EXCEEDED" 
       };
     }

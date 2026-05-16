@@ -9,7 +9,7 @@ export default function OverdueTable({ records, onShowMember }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left text-sm whitespace-nowrap">
-        <thead className={\`\${isDark ? 'bg-gray-800' : 'bg-gray-50'}\`}>
+        <thead className={`${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}>
           <tr>
             <th className="p-3">Req Code</th>
             <th className="p-3">Member Name</th>
@@ -23,7 +23,7 @@ export default function OverdueTable({ records, onShowMember }) {
         </thead>
         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
           {records.map(rec => (
-            <tr key={rec.borrowId} className={\`\${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50'} \${rec.daysOverdue > 14 ? 'bg-red-50/50 dark:bg-red-900/10' : ''}\`}>
+            <tr key={rec.borrowId} className={`${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50'} ${rec.daysOverdue > 14 ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}>
               <td className="p-3 font-mono">{rec.requestCode}</td>
               <td className="p-3 font-bold cursor-pointer hover:text-[#d4af37]" onClick={() => onShowMember && onShowMember(rec.memberID)}>
                 {rec.fullName}
@@ -32,10 +32,10 @@ export default function OverdueTable({ records, onShowMember }) {
               <td className="p-3">{rec.bookTitle}</td>
               <td className="p-3">{new Date(rec.dueDate).toLocaleDateString()}</td>
               <td className="p-3 text-red-500 font-bold">{rec.daysOverdue} days</td>
-              <td className={\`p-3 font-mono \${rec.estimatedFine > 50 ? 'text-red-500 font-bold' : ''}\`}>
+              <td className={`p-3 font-mono ${rec.estimatedFine > 50 ? 'text-red-500 font-bold' : ''}`}>
                 ETB {parseFloat(rec.estimatedFine).toFixed(2)}
               </td>
-              <td className="p-3 flex gap-2">
+              <td className="p-3">
                 <button 
                   onClick={() => navigate('/desk', { state: { code: rec.requestCode, tab: 'return' } })}
                   className="px-3 py-1 bg-[#d4af37] text-white rounded text-xs font-bold hover:bg-[#b5952f]"

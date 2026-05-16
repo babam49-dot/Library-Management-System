@@ -9,10 +9,10 @@ export default function BorrowRequestModal({ cart, onClose, onSubmit, loading, e
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 backdrop-blur-sm">
-      <div className={\`w-full max-w-2xl p-6 rounded-2xl shadow-2xl \${isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'}\`}>
+      <div className={`w-full max-w-2xl p-6 rounded-2xl shadow-2xl ${isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'}`}>
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold font-serif">Confirm Request</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">×</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl">×</button>
         </div>
 
         {error && (
@@ -38,7 +38,7 @@ export default function BorrowRequestModal({ cart, onClose, onSubmit, loading, e
           ) : (
             <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
               <table className="w-full text-left text-sm">
-                <thead className={\`\${isDark ? 'bg-gray-800' : 'bg-gray-50'}\`}>
+                <thead className={`${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}>
                   <tr>
                     <th className="p-3">Title</th>
                     <th className="p-3">Shelf Location</th>
@@ -60,7 +60,7 @@ export default function BorrowRequestModal({ cart, onClose, onSubmit, loading, e
         <div className="flex gap-4">
           <button 
             onClick={onClose}
-            className={\`flex-1 py-3 rounded-xl font-bold \${isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'}\`}
+            className={`flex-1 py-3 rounded-xl font-bold ${isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'}`}
           >
             Cancel
           </button>

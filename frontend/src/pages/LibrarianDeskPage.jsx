@@ -98,21 +98,21 @@ export default function LibrarianDeskPage() {
       <div className="flex border-b mb-6 dark:border-gray-700">
         <button
           onClick={() => { setTab('pickup'); clearSession(); }}
-          className={\`px-6 py-3 font-semibold transition-colors border-b-2 \${
+          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${
             tab === 'pickup' 
               ? 'border-[#d4af37] text-[#d4af37]' 
               : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-          }\`}
+          }`}
         >
           Process Pickup
         </button>
         <button
           onClick={() => { setTab('return'); clearSession(); }}
-          className={\`px-6 py-3 font-semibold transition-colors border-b-2 \${
+          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${
             tab === 'return' 
               ? 'border-[#d4af37] text-[#d4af37]' 
               : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-          }\`}
+          }`}
         >
           Process Return
         </button>
@@ -139,8 +139,8 @@ export default function LibrarianDeskPage() {
         )}
 
         {sessionData && tab === 'return' && (
-          <div className={\`rounded-2xl shadow-lg border overflow-hidden \${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}\`}>
-            <div className={\`p-6 border-b \${isDark ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-gray-50'}\`}>
+          <div className={`rounded-2xl shadow-lg border overflow-hidden ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+            <div className={`p-6 border-b ${isDark ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-gray-50'}`}>
               <h2 className="text-xl font-bold font-serif">Return Books - Session {sessionData.requestCode}</h2>
               <p className="text-gray-500 text-sm">Member: {sessionData.member.fullName}</p>
             </div>
@@ -174,7 +174,7 @@ export default function LibrarianDeskPage() {
                             placeholder="Optional notes..."
                             value={state.notes}
                             onChange={(e) => updateReturnState(row.borrowId, 'notes', e.target.value)}
-                            className={\`w-full p-2 rounded border text-sm \${isDark ? 'bg-gray-900 border-gray-700 text-white' : 'bg-white border-gray-300'} focus:ring-2 focus:ring-[#d4af37] outline-none\`}
+                            className={`w-full p-2 rounded border text-sm ${isDark ? 'bg-gray-900 border-gray-700 text-white' : 'bg-white border-gray-300'} focus:ring-2 focus:ring-[#d4af37] outline-none`}
                           />
                         </div>
                         <button 

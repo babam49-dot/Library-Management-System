@@ -35,8 +35,8 @@ export default function BorrowingPage() {
   const fetchBooks = async () => {
     try {
       // Reusing the catalog endpoint since it includes copies nested
-      const res = await axios.get(\`\${API}/catalog/books\`, {
-        headers: { Authorization: \`Bearer \${localStorage.getItem('lms_token')}\` }
+      const res = await axios.get(`${API}/catalog/books`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('lms_token')}` }
       });
       setBooks(res.data.data.filter(b => b.Status === 'Active'));
     } catch (err) {
@@ -116,15 +116,15 @@ export default function BorrowingPage() {
       <div className="flex flex-col md:flex-row h-full">
         <div className="flex-1 flex flex-col min-w-0 pr-0 md:pr-4 overflow-y-auto pb-24 md:pb-0">
           
-          <div className={\`mb-6 p-4 rounded-xl flex items-center justify-between \${isDark ? 'bg-gray-800' : 'bg-white'} shadow\`}>
+          <div className={`mb-6 p-4 rounded-xl flex items-center justify-between ${isDark ? 'bg-gray-800' : 'bg-white'} shadow`}>
             <div>
               <p className="text-sm text-gray-500">Your Borrow Limit</p>
               <p className="font-bold">{activeBorrows} / {maxAllowed} active borrows</p>
             </div>
             <div className="w-1/2 h-2 bg-gray-200 rounded-full overflow-hidden">
               <div 
-                className={\`h-full \${limitReached ? 'bg-red-500' : 'bg-[#d4af37]'}\`} 
-                style={{ width: \`\${Math.min((activeBorrows / maxAllowed) * 100, 100)}%\` }}
+                className={`h-full ${limitReached ? 'bg-red-500' : 'bg-[#d4af37]'}`} 
+                style={{ width: `${Math.min((activeBorrows / maxAllowed) * 100, 100)}%` }}
               ></div>
             </div>
           </div>
@@ -139,12 +139,12 @@ export default function BorrowingPage() {
             <input 
               type="text"
               placeholder="Search books..."
-              className={\`flex-1 p-3 rounded-lg border \${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200'} focus:ring-2 focus:ring-[#d4af37] outline-none\`}
+              className={`flex-1 p-3 rounded-lg border ${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200'} focus:ring-2 focus:ring-[#d4af37] outline-none`}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
             />
             <select
-              className={\`p-3 rounded-lg border \${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200'}\`}
+              className={`p-3 rounded-lg border ${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200'}`}
               value={categoryFilter}
               onChange={e => setCategoryFilter(e.target.value)}
             >

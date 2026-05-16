@@ -11,6 +11,10 @@ const SALT_ROUNDS = 10;
  */
 
 const login = async (email, password) => {
+  if (!email || !password) {
+    throw { status: 400, message: "Email and password are required" };
+  }
+
   // Step 1: Query Users table by email
   const [users] = await pool.execute(
     'SELECT u.*, r.RoleName FROM Users u JOIN Roles r ON u.RoleID = r.RoleID WHERE u.Email = ?',
@@ -24,25 +28,31 @@ const login = async (email, password) => {
     throw { status: 401, message: "Invalid credentials" };
   }
 
-  // Step 3: Compare submitted password with stored bcrypt hash
+  // Step 3: Compare submitted password with stored bcrypt hash.
+  // Plain-text passwords are intentionally never accepted.
   const isMatch = await bcrypt.compare(password, user.Password);
   if (!isMatch) {
     throw { status: 401, message: "Invalid credentials" };
   }
 
   // Step 5: Check Status
-  if (user.Status === 'Suspended' || user.Status === 'Inactive') {
+  const normalizedStatus = String(user.Status || '').toLowerCase();
+  if (normalizedStatus === 'suspended' || normalizedStatus === 'inactive') {
     throw { status: 401, message: "Account is not active" };
+  }
+  if (normalizedStatus !== 'active') {
+    throw { status: 403, message: "Account is not active" };
   }
 
   // Step 6: Query extension table
-  let extensionId = null;
+  let extensionProfile = null;
   if (user.RoleName === 'Member') {
-    const [members] = await pool.execute('SELECT MemberID FROM Members WHERE UserID = ?', [user.UserID]);
-    extensionId = members[0]?.MemberID;
+    const [members] = await pool.execute('SELECT * FROM Members WHERE UserID = ?', [user.UserID]);
+    extensionProfile = members[0] || null;
+    if (!extensionProfile) throw { status: 403, message: "Member profile not found" };
   } else if (user.RoleName === 'Staff' || user.RoleName === 'Admin') {
-    const [staff] = await pool.execute('SELECT StaffID FROM Staff WHERE UserID = ?', [user.UserID]);
-    extensionId = staff[0]?.StaffID;
+    const [staff] = await pool.execute('SELECT * FROM Staff WHERE UserID = ?', [user.UserID]);
+    extensionProfile = staff[0] || null;
   }
 
   // Step 7: Sign JWT
@@ -50,11 +60,20 @@ const login = async (email, password) => {
     UserID: user.UserID,
     RoleID: user.RoleID,
     RoleName: user.RoleName,
-    ...(user.RoleName === 'Member' ? { MemberID: extensionId } : { StaffID: extensionId })
+    ...(user.RoleName === 'Member' ? { MemberID: extensionProfile.MemberID } : { StaffID: extensionProfile?.StaffID || null })
   };
 
-  const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: '24h' });
-  return { token, user: tokenPayload };
+  const token = jwt.sign(tokenPayload, process.env.JWT_SECRET || 'secret', { expiresIn: process.env.JWT_EXPIRES_IN || '24h' });
+  return {
+    token,
+    user: {
+      ...tokenPayload,
+      FullName: user.FullName,
+      Email: user.Email,
+      Status: user.Status,
+      memberContext: user.RoleName === 'Member' ? extensionProfile : null
+    }
+  };
 };
 
 const getMe = async (userId) => {
@@ -261,10 +280,13 @@ const getMemberBorrowingContext = async (memberId) => {
 
   // Query unpaid fines total
   // Table Fines (assume exists as per spec)
-  const [fines] = await pool.execute(
-    "SELECT SUM(Amount) as UnpaidFineTotal FROM Fines WHERE MemberID = ? AND Status IN ('Unpaid', 'Partial')",
-    [memberId]
-  );
+  let fines = [{ UnpaidFineTotal: 0 }];
+  try {
+    [fines] = await pool.execute(
+      "SELECT COALESCE(SUM(Amount),0) as UnpaidFineTotal FROM Fines WHERE MemberID = ? AND FineStatus IN ('Unpaid', 'Partial')",
+      [memberId]
+    );
+  } catch (_) {}
 
   // Query currently borrowed books
   // Table BorrowingRecords (assume exists as per spec)

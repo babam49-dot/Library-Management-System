@@ -4,7 +4,7 @@ exports.getAllReservations = async (req, res) => {
   try {
     const { copyId, memberId, status } = req.query;
     
-    let query = \`
+    let query = `
       SELECT 
         r.ReservationID as reservationId, r.RequestCode as requestCode,
         r.CopyID as copyId, r.Status as status, r.Priority as priority,
@@ -16,7 +16,7 @@ exports.getAllReservations = async (req, res) => {
       JOIN Users u ON m.UserID = u.UserID
       JOIN BookCopies bc ON r.CopyID = bc.CopyID
       JOIN Books b ON bc.BookID = b.BookID
-    \`;
+    `;
     const params = [];
     const conditions = [];
 
@@ -41,7 +41,7 @@ exports.getMyReservations = async (req, res) => {
   try {
     const memberId = req.user.extensionId;
     
-    const [rows] = await db.query(\`
+    const [rows] = await db.query(`
       SELECT 
         r.ReservationID as reservationId, r.RequestCode as requestCode,
         r.CopyID as copyId, r.Status as status, r.Priority as priority,
@@ -53,7 +53,7 @@ exports.getMyReservations = async (req, res) => {
       JOIN Books b ON bc.BookID = b.BookID
       WHERE r.MemberID = ?
       ORDER BY r.ReservationDate DESC
-    \`, [memberId]);
+    `, [memberId]);
 
     res.json({ success: true, data: rows });
   } catch (err) {
@@ -79,37 +79,37 @@ exports.cancelReservation = async (req, res) => {
       if (resRecord.Status !== 'Queued') return res.status(400).json({ success: false, message: "Can only cancel queued reservations" });
     }
 
-    await db.query(\`UPDATE Reservations SET Status = 'Cancelled' WHERE ReservationID = ?\`, [id]);
+    await db.query(`UPDATE Reservations SET Status = 'Cancelled' WHERE ReservationID = ?`, [id]);
 
     // If it was ready, we need to release the copy and check queue
     if (resRecord.Status === 'Ready') {
       // Find pending borrowing record to kill
-      const [br] = await db.query(\`
+      const [br] = await db.query(`
         SELECT BorrowID FROM BorrowingRecords 
         WHERE MemberID = ? AND CopyID = ? AND Status = 'Pending'
-      \`, [resRecord.MemberID, resRecord.CopyID]);
+      `, [resRecord.MemberID, resRecord.CopyID]);
 
       if (br.length > 0) {
-        await db.query(\`UPDATE BorrowingRecords SET Status = 'Expired' WHERE BorrowID = ?\`, [br[0].BorrowID]);
+        await db.query(`UPDATE BorrowingRecords SET Status = 'Expired' WHERE BorrowID = ?`, [br[0].BorrowID]);
       }
 
-      await db.query(\`UPDATE BookCopies SET Status = 'Available' WHERE CopyID = ?\`, [resRecord.CopyID]);
+      await db.query(`UPDATE BookCopies SET Status = 'Available' WHERE CopyID = ?`, [resRecord.CopyID]);
 
       // Check next in queue
-      const [nextRes] = await db.query(\`
+      const [nextRes] = await db.query(`
         SELECT ReservationID, MemberID, RequestCode FROM Reservations
         WHERE CopyID = ? AND Status = 'Queued'
         ORDER BY Priority ASC, ReservationDate ASC LIMIT 1
-      \`, [resRecord.CopyID]);
+      `, [resRecord.CopyID]);
 
       if (nextRes.length > 0) {
         const next = nextRes[0];
-        await db.query(\`
+        await db.query(`
           INSERT INTO BorrowingRecords (MemberID, CopyID, RequestCode, BorrowDate, Status, PickupDeadline)
           VALUES (?, ?, ?, CURDATE(), 'Pending', DATE_ADD(NOW(), INTERVAL 24 HOUR))
-        \`, [next.MemberID, resRecord.CopyID, next.RequestCode]);
-        await db.query(\`UPDATE BookCopies SET Status = 'Reserved_on_Shelf' WHERE CopyID = ?\`, [resRecord.CopyID]);
-        await db.query(\`UPDATE Reservations SET Status = 'Ready', PickupDeadline = DATE_ADD(NOW(), INTERVAL 24 HOUR) WHERE ReservationID = ?\`, [next.ReservationID]);
+        `, [next.MemberID, resRecord.CopyID, next.RequestCode]);
+        await db.query(`UPDATE BookCopies SET Status = 'Reserved_on_Shelf' WHERE CopyID = ?`, [resRecord.CopyID]);
+        await db.query(`UPDATE Reservations SET Status = 'Ready', PickupDeadline = DATE_ADD(NOW(), INTERVAL 24 HOUR) WHERE ReservationID = ?`, [next.ReservationID]);
       }
     }
 
@@ -122,7 +122,7 @@ exports.cancelReservation = async (req, res) => {
 exports.getQueueForCopy = async (req, res) => {
   try {
     const { copyId } = req.params;
-    const [rows] = await db.query(\`
+    const [rows] = await db.query(`
       SELECT 
         r.ReservationID as reservationId, r.RequestCode as requestCode,
         r.Status as status, r.Priority as priority, r.ReservationDate as reservationDate,
@@ -132,7 +132,7 @@ exports.getQueueForCopy = async (req, res) => {
       JOIN Users u ON m.UserID = u.UserID
       WHERE r.CopyID = ? AND r.Status IN ('Queued', 'Ready')
       ORDER BY r.Priority ASC, r.ReservationDate ASC
-    \`, [copyId]);
+    `, [copyId]);
 
     res.json({ success: true, data: rows });
   } catch (err) {

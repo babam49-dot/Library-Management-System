@@ -33,17 +33,6 @@ export default function ReservationsPage() {
     }
   };
 
-  const handleCancel = async (id) => {
-    if (window.confirm("Cancel this reservation? This will release the hold if ready, or remove from queue.")) {
-      try {
-        await cancelReservation(id);
-        handleFilter(); // refresh
-      } catch (e) {
-        alert("Failed to cancel: " + e);
-      }
-    }
-  };
-
   const STAFF_NAV_ITEMS = [
     { key: 'overview', label: 'Circulation Overview', icon: '📊', path: '/staff' },
     { key: 'members', label: 'Member Approvals', icon: '👤', path: '/staff' },
@@ -58,7 +47,7 @@ export default function ReservationsPage() {
 
   return (
     <DashboardShell role="staff" navItems={STAFF_NAV_ITEMS} activeTab="reservations" tabLabel="Reservations">
-      <div className={\`p-6 rounded-2xl shadow-sm mb-6 flex flex-wrap gap-4 items-end \${isDark ? 'bg-gray-800' : 'bg-white'}\`}>
+      <div className={`p-6 rounded-2xl shadow-sm mb-6 flex flex-wrap gap-4 items-end ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
         <div className="flex-1 min-w-[200px]">
           <label className="block text-sm font-bold mb-2">Copy ID</label>
           <input 
@@ -66,7 +55,7 @@ export default function ReservationsPage() {
             placeholder="e.g. 101"
             value={copyIdFilter}
             onChange={e => setCopyIdFilter(e.target.value)}
-            className={\`w-full p-3 rounded-lg border \${isDark ? 'bg-gray-900 border-gray-700 text-white' : 'bg-gray-50 border-gray-300'} focus:outline-none focus:ring-2 focus:ring-[#d4af37]\`}
+            className={`w-full p-3 rounded-lg border ${isDark ? 'bg-gray-900 border-gray-700 text-white' : 'bg-gray-50 border-gray-300'} focus:outline-none focus:ring-2 focus:ring-[#d4af37]`}
           />
         </div>
         <div className="flex-1 min-w-[200px]">
@@ -74,7 +63,7 @@ export default function ReservationsPage() {
           <select 
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
-            className={\`w-full p-3 rounded-lg border \${isDark ? 'bg-gray-900 border-gray-700 text-white' : 'bg-gray-50 border-gray-300'} focus:outline-none focus:ring-2 focus:ring-[#d4af37]\`}
+            className={`w-full p-3 rounded-lg border ${isDark ? 'bg-gray-900 border-gray-700 text-white' : 'bg-gray-50 border-gray-300'} focus:outline-none focus:ring-2 focus:ring-[#d4af37]`}
           >
             <option value="">All Statuses</option>
             <option value="Queued">Queued</option>
@@ -92,7 +81,7 @@ export default function ReservationsPage() {
         </button>
       </div>
 
-      <div className={\`rounded-2xl border shadow-sm overflow-hidden \${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}\`}>
+      <div className={`rounded-2xl border shadow-sm overflow-hidden ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
         {loading ? (
           <div className="p-10 text-center text-gray-500">Loading...</div>
         ) : (

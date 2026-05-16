@@ -29,7 +29,7 @@ const runExpirationJob = async () => {
         SELECT ReservationID, MemberID, RequestCode FROM Reservations
         WHERE CopyID = ? AND Status = 'Queued'
         ORDER BY Priority ASC, ReservationDate ASC LIMIT 1 FOR UPDATE
-      `, [row.CopyID]);
+      `);
 
       if (resRows.length > 0) {
         // c. Advance queue
@@ -54,7 +54,7 @@ const runExpirationJob = async () => {
     }
 
     await conn.commit();
-    console.log(\`Pickup expiration job: \${expiredCount} rows expired, \${queueAdvances} queue advances\`);
+    console.log(`Pickup expiration job: ${expiredCount} rows expired, ${queueAdvances} queue advances`);
     return { expiredCount, queueAdvances };
   } catch (err) {
     if (conn) await conn.rollback();

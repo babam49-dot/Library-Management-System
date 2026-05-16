@@ -179,7 +179,9 @@ async function listBooks(filters) {
       b.CategoryID, b.PublisherID, b.CoverImage,
       c.CategoryName, p.PublisherName,
       GROUP_CONCAT(DISTINCT a.Name SEPARATOR ', ') AS Authors,
-      COUNT(DISTINCT CASE WHEN bc.Status = 'Available' THEN bc.CopyID END) AS AvailableCopies
+      COUNT(DISTINCT CASE WHEN bc.Status = 'Available' THEN bc.CopyID END) AS AvailableCopies,
+      COUNT(DISTINCT bc.CopyID) AS TotalCopies,
+      GROUP_CONCAT(DISTINCT CASE WHEN bc.Status = 'Available' THEN bc.CopyID END ORDER BY bc.CopyID SEPARATOR ',') AS AvailableCopyIds
     FROM Books b
     LEFT JOIN Categories c   ON c.CategoryID  = b.CategoryID
     LEFT JOIN Publishers p   ON p.PublisherID  = b.PublisherID

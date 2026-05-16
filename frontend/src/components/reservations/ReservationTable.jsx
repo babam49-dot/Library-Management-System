@@ -8,7 +8,7 @@ export default function ReservationTable({ reservations, onCancel, onShowMember 
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left text-sm whitespace-nowrap">
-        <thead className={\`\${isDark ? 'bg-gray-800' : 'bg-gray-50'}\`}>
+        <thead className={`${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}>
           <tr>
             <th className="p-3">Res ID</th>
             <th className="p-3">Member Name</th>
@@ -23,7 +23,7 @@ export default function ReservationTable({ reservations, onCancel, onShowMember 
         </thead>
         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
           {reservations.map(res => (
-            <tr key={res.reservationId} className={\`\${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50'} \${res.status === 'Ready' ? 'bg-green-50/50 dark:bg-green-900/20' : ''}\`}>
+            <tr key={res.reservationId} className={`${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50'} ${res.status === 'Ready' ? 'bg-green-50/50 dark:bg-green-900/20' : ''}`}>
               <td className="p-3 text-gray-500">#{res.reservationId}</td>
               <td className="p-3 font-bold cursor-pointer hover:text-[#d4af37]" onClick={() => onShowMember && onShowMember(res.memberID)}>
                 {res.memberName}

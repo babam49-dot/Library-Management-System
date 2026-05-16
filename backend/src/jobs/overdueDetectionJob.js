@@ -37,7 +37,7 @@ const runOverdueJob = async () => {
     }
 
     await conn.commit();
-    console.log(\`Overdue job: \${overdueCount} records flagged as overdue\`);
+    console.log(`Overdue job: ${overdueCount} records flagged as overdue`);
     return { overdueCount };
   } catch (err) {
     if (conn) await conn.rollback();

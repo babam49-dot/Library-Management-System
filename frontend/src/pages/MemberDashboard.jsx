@@ -1,485 +1,413 @@
-import React, { useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import React, { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { useTheme } from '../context/ThemeContext'
 import DashboardShell from '../components/DashboardShell'
-import axios from 'axios'
-import jsPDF from 'jspdf'
+import api from '../api/axiosInstance'
 
-const API = 'http://localhost:4000/api'
+const navItems = [
+  { key: 'catalog', label: 'Browse Catalog', icon: '📚' },
+  { key: 'borrows', label: 'My Borrowed Books', icon: '📖' },
+  { key: 'reservations', label: 'My Reservations', icon: '🕒' },
+  { key: 'fines', label: 'My Fines', icon: '💳' }
+]
+
+const tabTitles = {
+  catalog: 'Browse Catalog',
+  borrows: 'My Borrowed Books',
+  reservations: 'My Reservations',
+  fines: 'My Fines'
+}
 
 export default function MemberDashboard() {
   const { user, logout } = useAuth()
-  const { isDark } = useTheme()
-  const [stats, setStats] = useState(null)
+  const location = useLocation()
+  const navigate = useNavigate()
+  const params = new URLSearchParams(location.search)
+  const initialTab = params.get('tab') || location.state?.tab || 'catalog'
+
+  const [tab, setTab] = useState(initialTab)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [dashboard, setDashboard] = useState(null)
   const [books, setBooks] = useState([])
   const [borrows, setBorrows] = useState([])
+  const [reservations, setReservations] = useState([])
   const [fines, setFines] = useState([])
-  const [selectedCategory, setSelectedCategory] = useState(null)
-  const location = useLocation()
-  const [tab, setTab] = useState(location.state?.tab || 'overview')
-  const [searchQuery, setSearchQuery] = useState('')
-
-  const getHeaders = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('lms_token')}` } })
-
-  const bg = isDark ? '#0a0e1a' : '#f8f9fa'
-  const sidebar = isDark ? '#111827' : '#1a0f0a'
-  const cardBg = isDark ? '#1e2334' : '#fff'
-  const textPrimary = isDark ? '#f1f5f9' : '#1a0f0a'
-  const textMuted = isDark ? '#94a3b8' : '#8b6a4a'
-  const border = isDark ? '#2d3748' : '#e5e5e5'
-  const tableHead = isDark ? '#1a2236' : '#faf6f0'
+  const [cart, setCart] = useState([])
+  const [category, setCategory] = useState('')
+  const [author, setAuthor] = useState('')
+  const [isbn, setIsbn] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [notice, setNotice] = useState('')
+  const [payingFineId, setPayingFineId] = useState(null)
 
   useEffect(() => {
-    fetchDashboard()
-    fetchBooks()
-    fetchBorrows()
-    fetchFines()
+    loadAll()
   }, [])
 
   useEffect(() => {
-    if (location.state?.bookId && tab === 'catalog') {
-      setTimeout(() => {
-        const el = document.getElementById(`book-${location.state.bookId}`)
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-          el.classList.add('highlight-book')
-          setTimeout(() => el.classList.remove('highlight-book'), 3000)
-        }
-      }, 500)
-    }
-  }, [location.state, tab, books])
+    const txRef = params.get('tx_ref')
+    if (txRef) verifyChapa(txRef)
+  }, [location.search])
 
-  const fetchDashboard = async () => {
+  const loadAll = async () => {
+    setLoading(true)
     try {
-      if (!user?.MemberID) return;
-      const s = await axios.get(`${API}/members/${user.MemberID}`, getHeaders())
-      const data = s.data.data;
-      setStats({
-        activeBorrowsCount: data.CurrentlyBorrowed,
-        reservationsCount: data.reservationsCount || 0, // Fallback for now
-        unpaidFinesTotal: data.UnpaidFineTotal,
-        activeBorrows: [] // This will be fetched by fetchBorrows
-      })
-    } catch (err) { console.error(err) }
-  }
-
-  const fetchBooks = async () => {
-    try {
-      const b = await axios.get(`${API}/catalog/books`, getHeaders())
-      setBooks(b.data.data)
-    } catch (err) { console.error(err) }
-  }
-
-  const fetchBorrows = async () => {
-    try {
-      const b = await axios.get(`${API}/member/my-borrowings`, getHeaders())
-      setBorrows(b.data.data)
-    } catch (err) { console.error(err) }
-  }
-
-  const fetchFines = async () => {
-    try {
-      const f = await axios.get(`${API}/member/my-fines`, getHeaders())
-      setFines(f.data.data)
-    } catch (err) { console.error(err) }
-  }
-
-  const handleReserve = async (bookId) => {
-    try {
-      await axios.post(`${API}/member/reservations`, { bookId }, getHeaders())
-      alert('Reservation created!')
-      fetchDashboard()
+      const [dash, catalog, borrowed, reserved, fineRows] = await Promise.all([
+        api.get('/member/dashboard'),
+        api.get('/member/books'),
+        api.get('/member/my-borrowings'),
+        api.get('/member/my-reservations'),
+        api.get('/member/my-fines')
+      ])
+      setDashboard(dash.data.data)
+      setBooks(catalog.data.data || [])
+      setBorrows(borrowed.data.data || [])
+      setReservations(reserved.data.data || [])
+      setFines(fineRows.data.data || [])
     } catch (err) {
-      alert(err.response?.data?.message || err.message || 'Error')
+      setNotice(err.response?.data?.message || err.message || 'Could not load member dashboard')
+    } finally {
+      setLoading(false)
     }
   }
 
-  const generatePDF = (borrowRecord) => {
-    const doc = new jsPDF()
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(22)
-    doc.text('Library Borrowing Receipt', 20, 30)
-    
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(14)
-    doc.text(`Book Title: ${borrowRecord.Title}`, 20, 50)
-    doc.text(`Borrowed On: ${new Date(borrowRecord.BorrowDate).toLocaleDateString()}`, 20, 60)
-    doc.text(`Due Date: ${new Date(borrowRecord.DueDate).toLocaleDateString()}`, 20, 70)
-    doc.text(`Status: ${borrowRecord.Status.toUpperCase()}`, 20, 80)
-    
-    doc.setFontSize(12)
-    doc.setTextColor(100)
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, 20, 110)
-    
-    doc.save(`Receipt_${borrowRecord.BorrowID}.pdf`)
+  const filteredBooks = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    return books.filter(book => {
+      const matchesSearch = !q || [book.Title, book.Authors, book.CategoryName, book.ISBN]
+        .some(value => String(value || '').toLowerCase().includes(q))
+      const matchesCategory = !category || book.CategoryName === category
+      const matchesAuthor = !author || String(book.Authors || '').toLowerCase().includes(author.toLowerCase())
+      const matchesIsbn = !isbn || String(book.ISBN || '').toLowerCase().includes(isbn.toLowerCase())
+      return matchesSearch && matchesCategory && matchesAuthor && matchesIsbn
+    })
+  }, [books, searchQuery, category, author, isbn])
+
+  const categories = useMemo(
+    () => [...new Set(books.map(book => book.CategoryName).filter(Boolean))],
+    [books]
+  )
+
+  const cartCopyIds = cart.map(item => item.copyId)
+
+  const addToCart = (book) => {
+    const copyId = String(book.AvailableCopyIds || '').split(',').filter(Boolean)[0]
+    if (!copyId) return setNotice('No available copy for this book right now.')
+    if (cartCopyIds.includes(Number(copyId))) return setNotice('That book is already in your request cart.')
+
+    setCart(prev => [...prev, {
+      bookId: book.BookID,
+      copyId: Number(copyId),
+      title: book.Title,
+      authors: book.Authors,
+      category: book.CategoryName
+    }])
+    setNotice(`${book.Title} added to your borrow cart.`)
   }
 
-  const TABS = [
-    { key: 'overview', label: 'My Dashboard', icon: '🏠', path: '/member' },
-    { key: 'catalog', label: 'All Books', icon: '📚', path: '/member' },
-    { key: 'categories', label: 'By Category', icon: '🗂️', path: '/member' },
-    { key: 'borrow', label: 'Borrow Books', icon: '📖', path: '/borrow' },
-    { key: 'my-borrows', label: 'My Borrows', icon: '📋', path: '/my-borrows' },
-    { key: 'fines', label: 'My Fines', icon: '💳', path: '/member' },
-    { key: 'profile', label: 'My Profile', icon: '👤', path: '/member' },
-  ]
-  const tabLabel = TABS.find(t => t.key === tab)?.label || 'Member Dashboard'
+  const submitBorrowRequest = async () => {
+    if (!cart.length) return setNotice('Add at least one available book first.')
+    try {
+      const response = await api.post('/borrowing/request', { copyIds: cart.map(item => item.copyId) })
+      setNotice(response.data.data?.message || 'Borrow request submitted.')
+      setCart([])
+      await loadAll()
+      setTab('borrows')
+    } catch (err) {
+      setNotice(err.response?.data?.message || err.response?.data?.error || err.message)
+    }
+  }
+
+  const payWithChapa = async (fine, amount) => {
+    setPayingFineId(fine.FineID)
+    try {
+      const response = await api.post('/member/payments/chapa/initialize', {
+        fineId: fine.FineID,
+        amount
+      })
+      const checkoutUrl = response.data.data?.checkoutUrl
+      if (checkoutUrl) window.location.href = checkoutUrl
+      else setNotice('Chapa checkout was initialized but no checkout URL was returned.')
+    } catch (err) {
+      setNotice(err.response?.data?.message || err.message || 'Unable to initialize Chapa payment.')
+    } finally {
+      setPayingFineId(null)
+    }
+  }
+
+  const recordMockPayment = async (fine, amount) => {
+    setPayingFineId(fine.FineID)
+    try {
+      await api.post('/member/payments/mock', { fineId: fine.FineID, amount })
+      setNotice('Development payment recorded. Fine balance updated.')
+      await loadAll()
+    } catch (err) {
+      setNotice(err.response?.data?.message || err.message)
+    } finally {
+      setPayingFineId(null)
+    }
+  }
+
+  const verifyChapa = async (txRef) => {
+    try {
+      const response = await api.get(`/member/payments/chapa/verify/${txRef}`)
+      setNotice(response.data.data?.completed ? 'Chapa payment verified successfully.' : 'Chapa payment was not completed.')
+      navigate('/member?tab=fines', { replace: true })
+      await loadAll()
+    } catch (err) {
+      setNotice(err.response?.data?.message || err.message || 'Could not verify Chapa payment.')
+    }
+  }
 
   return (
-    <DashboardShell role="member" navItems={TABS} activeTab={tab} setTab={setTab} user={user} logout={logout} tabLabel={tabLabel} searchQuery={searchQuery} setSearchQuery={setSearchQuery}>
+    <DashboardShell
+      role="member"
+      navItems={navItems}
+      activeTab={tab}
+      setTab={setTab}
+      user={user}
+      logout={logout}
+      tabLabel={tabTitles[tab] || 'Member Dashboard'}
+      searchQuery={searchQuery}
+      setSearchQuery={setSearchQuery}
+    >
       <style>{`
-        @keyframes highlight-glow {
-          0% { box-shadow: 0 0 0px rgba(59,130,246,0); transform: scale(1); }
-          50% { box-shadow: 0 0 40px rgba(59,130,246,0.6); transform: scale(1.05); }
-          100% { box-shadow: 0 0 20px rgba(59,130,246,0.3); transform: scale(1.02); }
-        }
-        .highlight-book {
-          animation: highlight-glow 1.5s ease-out forwards;
-          border: 2px solid #3b82f6 !important;
-        }
+        @keyframes cardIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulseSoft { 0%,100% { box-shadow: 0 0 0 rgba(37,99,235,0); } 50% { box-shadow: 0 0 28px rgba(37,99,235,.22); } }
+        .member-card { animation: cardIn .38s ease both; transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
+        .member-card:hover { transform: translateY(-4px); box-shadow: 0 16px 34px rgba(15,23,42,.12); border-color: rgba(37,99,235,.35) !important; }
+        .member-button { transition: transform .18s ease, filter .18s ease, box-shadow .18s ease; }
+        .member-button:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.04); }
+        .member-button:active:not(:disabled) { transform: translateY(0); }
+        .soft-pulse { animation: pulseSoft 2.4s ease-in-out infinite; }
       `}</style>
 
-      {tab === 'overview' && stats && (
-        <div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20, marginBottom: 32 }}>
-            <StatCard title="Active Borrows" value={stats.activeBorrowsCount} color="#3b82f6" cardBg={cardBg} textPrimary={textPrimary} border={border} />
-            <StatCard title="Pending Reservations" value={stats.reservationsCount} color="#8b5cf6" cardBg={cardBg} textPrimary={textPrimary} border={border} />
-            <StatCard title="Unpaid Fines" value={`$${stats.unpaidFinesTotal}`} color="#ef4444" highlight={stats.unpaidFinesTotal > 0} cardBg={cardBg} textPrimary={textPrimary} border={border} />
-          </div>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: textMuted, marginBottom: 16, textTransform:'uppercase', letterSpacing:1 }}>Currently Borrowed</h3>
-          {stats.activeBorrows?.length === 0 ? (
-            <div style={{ background: cardBg, backdropFilter:'blur(12px)', border: `1px solid ${border}`, borderRadius: 12, padding: 30, textAlign: 'center', color: textMuted }}>
-              No active borrowings. Check the catalog to find a book!
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {stats.activeBorrows?.map(b => (
-                <div key={b.BorrowID} className="stat-card" style={{ background: cardBg, backdropFilter:'blur(12px)', border: `1px solid ${border}`, borderRadius: 12, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ fontWeight: 600, color: textPrimary, fontSize: 15 }}>{b.Title}</div>
-                    <div style={{ color: textMuted, fontSize: 13, marginTop: 4 }}>Due: {new Date(b.DueDate).toLocaleDateString()}</div>
-                  </div>
-                  <span style={{ background: 'rgba(59,130,246,0.15)', color: '#60a5fa', padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, border: '1px solid rgba(59,130,246,0.3)' }}>BORROWED</span>
-                </div>
-              ))}
-            </div>
-          )}
+      {notice && (
+        <div className="member-card" style={{ marginBottom: 18, padding: 14, borderRadius: 12, border: '1px solid rgba(37,99,235,.25)', background: '#eff6ff', color: '#1e3a8a', fontWeight: 700 }}>
+          {notice}
         </div>
       )}
 
-      {tab === 'catalog' && (() => {
-        const filtered = books.filter(b => {
-          if (!searchQuery) return true;
-          const q = searchQuery.toLowerCase();
-          return (b.Title?.toLowerCase().includes(q) || b.Authors?.toLowerCase().includes(q) || b.CategoryName?.toLowerCase().includes(q));
-        });
+      <SummaryStrip dashboard={dashboard} loading={loading} />
 
-        return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-              <span style={{ fontSize: 24 }}>📚</span>
-              <h3 style={{ fontSize: 20, fontWeight: 800, color: textPrimary, margin: 0 }}>{searchQuery ? `Search Results (${filtered.length})` : 'All Books'}</h3>
-              <div style={{ flex: 1, height: 1, background: isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0', marginLeft: 10 }} />
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 20 }}>
-              {filtered.map(b => (
-                <BookCard 
-                  key={b.BookID} b={b} 
-                  isHighlighted={location.state?.bookId === b.BookID} 
-                  isDark={isDark} cardBg={cardBg} border={border} 
-                  textPrimary={textPrimary} textMuted={textMuted} 
-                  handleReserve={handleReserve}
-                />
-              ))}
-            </div>
-          </div>
-        );
-      })()}
-
-      {tab === 'categories' && (() => {
-        // Group books by category
-        const groups = books.reduce((acc, b) => {
-          const cat = b.CategoryName || 'General';
-          if (!acc[cat]) acc[cat] = [];
-          acc[cat].push(b);
-          return acc;
-        }, {});
-        const categoryNames = Object.keys(groups);
-
-        if (categoryNames.length === 0) return (
-          <div style={{ padding: 60, textAlign: 'center', color: textMuted }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>🗂️</div>
-            <div style={{ fontSize: 18, fontWeight: 600 }}>No categories found</div>
-          </div>
-        );
-
-        if (selectedCategory) {
-          const catBooks = groups[selectedCategory] || [];
-          const filteredCatBooks = catBooks.filter(b => {
-            if (!searchQuery) return true;
-            const q = searchQuery.toLowerCase();
-            return (b.Title?.toLowerCase().includes(q) || b.Authors?.toLowerCase().includes(q));
-          });
-
-          return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <button 
-                  onClick={() => setSelectedCategory(null)}
-                  style={{ background: 'transparent', border: 'none', color: '#3b82f6', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 15, padding: 0 }}
-                >
-                  ← Back to Categories
-                </button>
-                <div style={{ width: 1, height: 24, background: border }} />
-                <h2 style={{ fontSize: 24, fontWeight: 800, color: textPrimary, margin: 0 }}>{selectedCategory}</h2>
-                <span style={{ background: 'rgba(59,130,246,0.15)', color: '#3b82f6', padding: '4px 12px', borderRadius: 20, fontSize: 13, fontWeight: 700 }}>{filteredCatBooks.length} Books</span>
-              </div>
-              
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 20 }}>
-                {filteredCatBooks.map(b => (
-                  <BookCard 
-                    key={b.BookID} b={b} 
-                    isHighlighted={location.state?.bookId === b.BookID} 
-                    isDark={isDark} cardBg={cardBg} border={border} 
-                    textPrimary={textPrimary} textMuted={textMuted} 
-                    handleReserve={handleReserve}
-                  />
-                ))}
-              </div>
-            </div>
-          )
-        }
-
-        return (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 24 }}>
-            {categoryNames.map(cat => (
-              <div 
-                key={cat} 
-                onClick={() => setSelectedCategory(cat)}
-                style={{ 
-                  background: cardBg, 
-                  border: `1px solid ${border}`, 
-                  borderRadius: 16, 
-                  padding: 30, 
-                  cursor: 'pointer',
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  alignItems: 'center', 
-                  justifyContent: 'center',
-                  gap: 16,
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.05)'
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.borderColor = '#3b82f6'; e.currentTarget.style.boxShadow = '0 10px 30px rgba(59,130,246,0.15)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.borderColor = border; e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.05)'; }}
-              >
-                <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(59,130,246,0.1), rgba(139,92,246,0.1))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>
-                  🗂️
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <h3 style={{ fontSize: 18, fontWeight: 700, color: textPrimary, margin: '0 0 8px 0' }}>{cat}</h3>
-                  <span style={{ color: textMuted, fontSize: 14, fontWeight: 500 }}>{groups[cat].length} Books Available</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        );
-      })()}
-
-      {tab === 'borrows' && (
-        <div style={{ background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, overflow: 'hidden' }}>
-          {borrows.length === 0 ? <div style={{ padding: 48, textAlign: 'center', color: textMuted }}><div style={{fontSize:40,marginBottom:12}}>📭</div>No borrowing history found.</div> : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
-              <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.04)', color: '#64748b' }}>
-                  <th style={{ padding: 16 }}>Book Title</th>
-                  <th style={{ padding: 16 }}>Borrowed On</th>
-                  <th style={{ padding: 16 }}>Due Date</th>
-                  <th style={{ padding: 16 }}>Status</th>
-                  <th style={{ padding: 16 }}>Receipt</th>
-                </tr>
-              </thead>
-              <tbody>
-                {borrows.map(b => (
-                  <tr key={b.BorrowID} className="table-row" style={{ borderTop: `1px solid ${border}` }}>
-                    <td style={{ padding: 16, fontWeight: 600, color: textPrimary }}>{b.Title}</td>
-                    <td style={{ padding: 16, color: textMuted }}>{new Date(b.BorrowDate).toLocaleDateString()}</td>
-                    <td style={{ padding: 16, color: textMuted }}>{new Date(b.DueDate).toLocaleDateString()}</td>
-                    <td style={{ padding: 16 }}>
-                      <span style={{ background: b.Status === 'returned' ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)', color: b.Status === 'returned' ? '#10b981' : '#f59e0b', padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>
-                        {b.Status.toUpperCase()}
-                      </span>
-                    </td>
-                    <td style={{ padding: 16 }}>
-                      <button onClick={() => generatePDF(b)} className="action-btn" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', padding: '6px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>PDF ↓</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+      {tab === 'catalog' && (
+        <CatalogTab
+          books={filteredBooks}
+          categories={categories}
+          category={category}
+          setCategory={setCategory}
+          author={author}
+          setAuthor={setAuthor}
+          isbn={isbn}
+          setIsbn={setIsbn}
+          addToCart={addToCart}
+          cart={cart}
+          removeFromCart={(copyId) => setCart(prev => prev.filter(item => item.copyId !== copyId))}
+          submitBorrowRequest={submitBorrowRequest}
+          blocked={dashboard?.borrowingBlocked}
+        />
       )}
 
+      {tab === 'borrows' && <BorrowedTab rows={borrows} />}
+      {tab === 'reservations' && <ReservationsTab rows={reservations} />}
       {tab === 'fines' && (
-        <div style={{ background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, overflow: 'hidden' }}>
-          {fines.length === 0 ? <div style={{ padding: 48, textAlign: 'center', color: textMuted }}><div style={{fontSize:40,marginBottom:12}}>✅</div>You have no fines!</div> : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
-              <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.04)', color: '#64748b' }}>
-                  <th style={{ padding: 16 }}>Fine Type</th>
-                  <th style={{ padding: 16 }}>Amount</th>
-                  <th style={{ padding: 16 }}>Issued On</th>
-                  <th style={{ padding: 16 }}>Status</th>
-                  <th style={{ padding: 16 }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {fines.map(f => (
-                  <tr key={f.FineID} className="table-row" style={{ borderTop: `1px solid ${border}` }}>
-                    <td style={{ padding: 16 }}>
-                      <div style={{ fontWeight: 600, color: textPrimary }}>{f.TypeName || 'Library Fine'}</div>
-                      <div style={{ fontSize: 12, color: textMuted }}>{f.BookTitle}</div>
-                    </td>
-                    <td style={{ padding: 16, fontWeight: 700, color: '#ef4444', fontSize: 16 }}>${f.Amount}</td>
-                    <td style={{ padding: 16, color: '#64748b' }}>{new Date(f.IssuedDate).toLocaleDateString()}</td>
-                    <td style={{ padding: 16 }}>
-                      <span style={{ background: f.FineStatus === 'Paid' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: f.FineStatus === 'Paid' ? '#10b981' : '#ef4444', padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>
-                        {f.FineStatus?.toUpperCase()}
-                      </span>
-                    </td>
-                    <td style={{ padding: 16 }}>
-                      {f.FineStatus === 'Unpaid' ? (
-                        <button className="action-btn" onClick={() => alert('Chapa payment integration coming soon!')} style={{ background: 'linear-gradient(135deg,#10b981,#059669)', border: 'none', color: '#fff', padding: '7px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700, boxShadow:'0 2px 12px rgba(16,185,129,0.3)' }}>Pay Now</button>
-                      ) : (
-                        <span style={{ color: '#10b981', fontSize: 13, fontWeight: 600 }}>✓ Resolved</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+        <FinesTab
+          fines={fines}
+          payingFineId={payingFineId}
+          payWithChapa={payWithChapa}
+          recordMockPayment={recordMockPayment}
+        />
       )}
-
-      {tab === 'profile' && <ProfileTab user={user} c={{ card: cardBg, text: textPrimary, muted: textMuted, border: border, input: isDark ? '#2a3550' : '#fff' }} />}
-
     </DashboardShell>
   )
 }
 
-function ProfileTab({ user, c }) {
-  const [pw, setPw] = React.useState({ current: '', new: '', confirm: '' })
-  const [loading, setLoading] = React.useState(false)
-
-  const handlePw = async (e) => {
-    e.preventDefault()
-    if (pw.new !== pw.confirm) return alert("Passwords don't match")
-    setLoading(true)
-    try {
-      const res = await axios.post(`${API}/auth/change-password`, {
-        currentPassword: pw.current,
-        newPassword: pw.new
-      }, { headers: { Authorization: `Bearer ${localStorage.getItem('lms_token')}` } })
-      if (res.data.success) {
-        alert("Password updated successfully!")
-        setPw({ current: '', new: '', confirm: '' })
-      }
-    } catch (err) {
-      alert(err.response?.data?.message || err.message)
-    } finally { setLoading(false) }
-  }
+function SummaryStrip({ dashboard, loading }) {
+  const items = [
+    ['Borrowed / Pending', dashboard?.activeBorrowCount ?? 0, '#2563eb'],
+    ['Reservations', dashboard?.reservationCount ?? 0, '#7c3aed'],
+    ['Fine Balance', `ETB ${Number(dashboard?.fineBalance || 0).toFixed(2)}`, '#dc2626'],
+    ['Borrow Limit', dashboard?.profile?.MaxBooksAllowed ?? 5, '#059669']
+  ]
 
   return (
-    <div style={{ maxWidth: 600, margin: '0 auto' }}>
-      <div style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 32, marginBottom: 24, backdropFilter:'blur(12px)' }}>
-        <h3 style={{ color: c.text, margin: '0 0 20px', fontSize: 20, fontWeight: 700 }}>Account Information</h3>
-        <div style={{ display: 'grid', gap: 20 }}>
-          <div>
-            <label style={{ color: c.muted, fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 }}>Full Name</label>
-            <div style={{ color: c.text, fontSize: 16, fontWeight: 600 }}>{user.FullName}</div>
-          </div>
-          <div>
-            <label style={{ color: c.muted, fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 }}>Email Address</label>
-            <div style={{ color: c.text, fontSize: 16, fontWeight: 600 }}>{user.Email}</div>
-          </div>
-          <div>
-            <label style={{ color: c.muted, fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 }}>Account Role</label>
-            <div style={{ color: '#3b82f6', fontSize: 16, fontWeight: 700 }}>{user.RoleName}</div>
-          </div>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 14, marginBottom: 22 }}>
+      {items.map(([label, value, color]) => (
+        <div key={label} className="member-card" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: 18 }}>
+          <div style={{ color: '#64748b', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.6 }}>{label}</div>
+          <div style={{ color, fontSize: 28, fontWeight: 900, marginTop: 8 }}>{loading ? '...' : value}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function CatalogTab({ books, categories, category, setCategory, author, setAuthor, isbn, setIsbn, addToCart, cart, removeFromCart, submitBorrowRequest, blocked }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 320px', gap: 18 }}>
+      <section>
+        <div className="member-card" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: 16, marginBottom: 16, display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 12 }}>
+          <select value={category} onChange={e => setCategory(e.target.value)} style={filterStyle}>
+            <option value="">All categories</option>
+            {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+          </select>
+          <input value={author} onChange={e => setAuthor(e.target.value)} placeholder="Filter by author" style={filterStyle} />
+          <input value={isbn} onChange={e => setIsbn(e.target.value)} placeholder="Filter by ISBN" style={filterStyle} />
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 16 }}>
+          {books.map(book => (
+            <BookCard key={book.BookID} book={book} addToCart={addToCart} blocked={blocked} />
+          ))}
+          {!books.length && <EmptyState title="No books found" text="Try a different title, author, category, or ISBN." />}
+        </div>
+      </section>
+
+      <aside className="member-card soft-pulse" style={{ background: '#0f172a', color: '#fff', borderRadius: 16, padding: 18, height: 'fit-content', position: 'sticky', top: 92 }}>
+        <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900 }}>Borrow Request Cart</h3>
+        <p style={{ color: '#cbd5e1', fontSize: 13, lineHeight: 1.5 }}>Add available books, then submit one request code for the whole session.</p>
+        <div style={{ display: 'grid', gap: 10, margin: '16px 0' }}>
+          {cart.map(item => (
+            <div key={item.copyId} style={{ background: 'rgba(255,255,255,.08)', borderRadius: 12, padding: 12 }}>
+              <div style={{ fontWeight: 800 }}>{item.title}</div>
+              <div style={{ color: '#94a3b8', fontSize: 12 }}>Copy #{item.copyId}</div>
+              <button onClick={() => removeFromCart(item.copyId)} style={{ marginTop: 8, background: 'transparent', color: '#fca5a5', border: 0, padding: 0, cursor: 'pointer', fontWeight: 800 }}>Remove</button>
+            </div>
+          ))}
+          {!cart.length && <div style={{ color: '#94a3b8', fontSize: 13 }}>Your cart is empty.</div>}
+        </div>
+        <button className="member-button" onClick={submitBorrowRequest} disabled={!cart.length || blocked} style={{ width: '100%', border: 0, borderRadius: 12, padding: 13, color: '#fff', background: blocked ? '#64748b' : 'linear-gradient(135deg,#2563eb,#1d4ed8)', cursor: !cart.length || blocked ? 'not-allowed' : 'pointer', fontWeight: 900 }}>
+          {blocked ? 'Borrowing Blocked by Fines' : 'Submit Request'}
+        </button>
+      </aside>
+    </div>
+  )
+}
+
+function BookCard({ book, addToCart, blocked }) {
+  const available = Number(book.AvailableCopies || 0)
+  return (
+    <article className="member-card" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, overflow: 'hidden' }}>
+      <div style={{ minHeight: 118, background: 'linear-gradient(135deg,#1e3a8a,#2563eb)', color: '#fff', padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <span style={{ alignSelf: 'flex-start', background: 'rgba(255,255,255,.16)', padding: '5px 9px', borderRadius: 999, fontSize: 12, fontWeight: 800 }}>{book.CategoryName || 'General'}</span>
+        <h3 style={{ margin: '18px 0 0', fontSize: 18, lineHeight: 1.25 }}>{book.Title}</h3>
+      </div>
+      <div style={{ padding: 16 }}>
+        <p style={{ color: '#475569', fontSize: 13, minHeight: 38, margin: 0 }}>By {book.Authors || 'Unknown author'}</p>
+        <div style={{ color: '#64748b', fontSize: 12, marginTop: 10 }}>ISBN: {book.ISBN || 'N/A'} • {book.Language || 'Language N/A'}</div>
+        <div style={{ marginTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ color: available ? '#059669' : '#dc2626', fontWeight: 900 }}>{available} available</span>
+          <button className="member-button" disabled={!available || blocked} onClick={() => addToCart(book)} style={{ border: 0, borderRadius: 10, padding: '9px 12px', color: '#fff', background: available && !blocked ? '#2563eb' : '#94a3b8', cursor: available && !blocked ? 'pointer' : 'not-allowed', fontWeight: 900 }}>
+            Add
+          </button>
         </div>
       </div>
+    </article>
+  )
+}
 
-      <div style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 32, backdropFilter:'blur(12px)' }}>
-        <h3 style={{ color: c.text, margin: '0 0 20px', fontSize: 20, fontWeight: 700 }}>Security Settings</h3>
-        <form onSubmit={handlePw} style={{ display: 'grid', gap: 16 }}>
-          <div>
-            <label style={{ color: c.muted, fontSize: 12, display: 'block', marginBottom: 6 }}>Current Password</label>
-            <input type="password" required value={pw.current} onChange={e => setPw({ ...pw, current: e.target.value })} style={{ width: '100%', padding: 12, borderRadius: 8, border: `1px solid ${c.border}`, background: c.input, color: c.text }} />
-          </div>
-          <div>
-            <label style={{ color: c.muted, fontSize: 12, display: 'block', marginBottom: 6 }}>New Password</label>
-            <input type="password" required value={pw.new} onChange={e => setPw({ ...pw, new: e.target.value })} style={{ width: '100%', padding: 12, borderRadius: 8, border: `1px solid ${c.border}`, background: c.input, color: c.text }} />
-          </div>
-          <div>
-            <label style={{ color: c.muted, fontSize: 12, display: 'block', marginBottom: 6 }}>Confirm New Password</label>
-            <input type="password" required value={pw.confirm} onChange={e => setPw({ ...pw, confirm: e.target.value })} style={{ width: '100%', padding: 12, borderRadius: 8, border: `1px solid ${c.border}`, background: c.input, color: c.text }} />
-          </div>
-          <button type="submit" disabled={loading} style={{ background: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', color: '#fff', border: 'none', padding: 14, borderRadius: 8, fontWeight: 700, cursor: 'pointer', marginTop: 10 }}>
-            {loading ? 'Updating...' : 'Change Password'}
-          </button>
-        </form>
+function BorrowedTab({ rows }) {
+  return <DataTable rows={rows} empty="No borrowed books yet." columns={[
+    ['Title', r => r.Title],
+    ['Request Code', r => r.RequestCode],
+    ['Status', r => <Badge value={r.Status} />],
+    ['Due Date', r => r.DueDate ? new Date(r.DueDate).toLocaleDateString() : '-']
+  ]} />
+}
+
+function ReservationsTab({ rows }) {
+  return <DataTable rows={rows} empty="No reservations yet." columns={[
+    ['Title', r => r.Title],
+    ['Code', r => r.RequestCode],
+    ['Status', r => <Badge value={r.Status} />],
+    ['Pickup Deadline', r => r.PickupDeadline ? new Date(r.PickupDeadline).toLocaleString() : '-']
+  ]} />
+}
+
+function FinesTab({ fines, payingFineId, payWithChapa, recordMockPayment }) {
+  return (
+    <div style={{ display: 'grid', gap: 14 }}>
+      {fines.map(fine => <FineCard key={fine.FineID} fine={fine} busy={payingFineId === fine.FineID} payWithChapa={payWithChapa} recordMockPayment={recordMockPayment} />)}
+      {!fines.length && <EmptyState title="No fines" text="Your account is clear. Borrowing access is open." />}
+    </div>
+  )
+}
+
+function FineCard({ fine, busy, payWithChapa, recordMockPayment }) {
+  const balance = Number(fine.Balance || fine.Amount || 0)
+  const [amount, setAmount] = useState(balance.toFixed(2))
+  const paid = fine.FineStatus === 'Paid' || balance <= 0
+
+  return (
+    <div className="member-card" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, padding: 18, display: 'grid', gridTemplateColumns: '1fr auto', gap: 16 }}>
+      <div>
+        <h3 style={{ margin: 0, color: '#0f172a' }}>{fine.TypeName || 'Library Fine'} {fine.BookTitle ? `• ${fine.BookTitle}` : ''}</h3>
+        <p style={{ margin: '8px 0 0', color: '#64748b' }}>Amount ETB {Number(fine.Amount || 0).toFixed(2)} • Paid ETB {Number(fine.TotalPaid || 0).toFixed(2)} • Balance ETB {balance.toFixed(2)}</p>
+        <div style={{ marginTop: 10 }}><Badge value={fine.FineStatus} /></div>
+      </div>
+      <div style={{ minWidth: 250 }}>
+        {!paid ? (
+          <>
+            <input type="number" min="1" max={balance} step="0.01" value={amount} onChange={e => setAmount(e.target.value)} style={{ ...filterStyle, width: '100%', marginBottom: 10 }} />
+            <button className="member-button" disabled={busy} onClick={() => payWithChapa(fine, Number(amount))} style={{ width: '100%', border: 0, borderRadius: 11, padding: 11, background: '#10b981', color: '#fff', fontWeight: 900, cursor: busy ? 'wait' : 'pointer' }}>
+              {busy ? 'Opening Chapa...' : 'Pay with Chapa'}
+            </button>
+            <button className="member-button" disabled={busy} onClick={() => recordMockPayment(fine, Number(amount))} style={{ width: '100%', marginTop: 8, border: '1px solid #cbd5e1', borderRadius: 11, padding: 10, background: '#fff', color: '#334155', fontWeight: 800, cursor: busy ? 'wait' : 'pointer' }}>
+              Dev Mock Payment
+            </button>
+          </>
+        ) : (
+          <div style={{ color: '#059669', fontWeight: 900, textAlign: 'right' }}>Resolved</div>
+        )}
       </div>
     </div>
   )
 }
 
-const StatCard = ({ title, value, color = '#3b82f6', highlight, cardBg, textPrimary, border }) => (
-  <div className="stat-card" style={{ background: cardBg, backdropFilter:'blur(12px)', border: highlight ? `2px solid ${color}` : `1px solid ${border}`, borderRadius: 16, padding: 24, boxShadow: highlight ? `0 0 24px ${color}22` : 'none' }}>
-    <div style={{ fontSize: 12, color: highlight ? color : '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>{title}</div>
-    <div style={{ fontSize: 36, fontWeight: 800, color: highlight ? color : textPrimary }}>{value ?? '—'}</div>
-  </div>
-)
+function DataTable({ rows, columns, empty }) {
+  if (!rows.length) return <EmptyState title={empty} text="Anything new will appear here automatically." />
+  return (
+    <div className="member-card" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, overflow: 'hidden' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead style={{ background: '#f8fafc' }}>
+          <tr>{columns.map(([label]) => <th key={label} style={{ textAlign: 'left', padding: 14, color: '#475569', fontSize: 12, textTransform: 'uppercase' }}>{label}</th>)}</tr>
+        </thead>
+        <tbody>
+          {rows.map((row, index) => (
+            <tr key={row.BorrowID || row.ReservationID || index} style={{ borderTop: '1px solid #e2e8f0' }}>
+              {columns.map(([label, render]) => <td key={label} style={{ padding: 14, color: '#0f172a', fontWeight: 600 }}>{render(row)}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
 
-const BookCard = ({ b, isHighlighted, isDark, cardBg, border, textPrimary, textMuted, handleReserve }) => (
-  <div
-    id={`book-${b.BookID}`}
-    className={`stat-card ${isHighlighted ? 'highlight-book' : ''}`}
-    style={{
-      background: cardBg, backdropFilter: 'blur(12px)',
-      border: isHighlighted ? '2px solid #3b82f6' : `1px solid ${border}`,
-      borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column',
-      boxShadow: isHighlighted ? '0 0 30px rgba(59,130,246,0.4)' : 'none',
-      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-      transform: isHighlighted ? 'scale(1.02)' : 'none',
-      zIndex: isHighlighted ? 10 : 1
-    }}
-  >
-    <div style={{ height: 180, background: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-      {b.CoverImage ? (
-        <img src={b.CoverImage.startsWith('http') ? b.CoverImage : `http://localhost:4000${b.CoverImage}`} alt={b.Title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-      ) : (
-        <span style={{ fontSize: 48 }}>📚</span>
-      )}
+function Badge({ value }) {
+  const normalized = String(value || '').toLowerCase()
+  const color = normalized.includes('paid') || normalized.includes('available') || normalized.includes('returned') ? '#059669'
+    : normalized.includes('partial') || normalized.includes('pending') || normalized.includes('queued') ? '#d97706'
+      : '#dc2626'
+  return <span style={{ color, background: `${color}16`, border: `1px solid ${color}33`, borderRadius: 999, padding: '5px 10px', fontSize: 12, fontWeight: 900 }}>{value || 'Unknown'}</span>
+}
+
+function EmptyState({ title, text }) {
+  return (
+    <div className="member-card" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, padding: 36, textAlign: 'center', color: '#64748b' }}>
+      <div style={{ fontSize: 36, marginBottom: 10 }}>📘</div>
+      <h3 style={{ color: '#0f172a', margin: 0 }}>{title}</h3>
+      <p>{text}</p>
     </div>
-    <div style={{ padding: 16, flex: 1, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ fontSize: 11, color: '#3b82f6', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>{b.CategoryName || 'General'}</div>
-      <div style={{ fontWeight: 700, color: textPrimary, fontSize: 15, marginBottom: 4, lineHeight: 1.3 }}>{b.Title}</div>
-      <div style={{ color: textMuted, fontSize: 13, marginBottom: 14, flex: 1 }}>By {b.Authors || 'Unknown Author'}</div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${border}`, paddingTop: 12 }}>
-        <div style={{ fontSize: 12, color: b.AvailableCopies > 0 ? '#10b981' : '#ef4444', fontWeight: 700 }}>
-          {b.AvailableCopies}/{b.TotalCopies} Available
-        </div>
-        <button
-          onClick={() => handleReserve(b.BookID)}
-          disabled={b.AvailableCopies > 0}
-          style={{ background: b.AvailableCopies > 0 ? (isDark ? 'rgba(255,255,255,0.05)' : '#e2e8f0') : 'linear-gradient(135deg,#3b82f6,#1d4ed8)', color: b.AvailableCopies > 0 ? textMuted : '#fff', border: 'none', padding: '5px 12px', borderRadius: 8, cursor: b.AvailableCopies > 0 ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 700 }}
-        >
-          Reserve
-        </button>
-      </div>
-    </div>
-  </div>
-)
+  )
+}
+
+const filterStyle = {
+  border: '1px solid #cbd5e1',
+  borderRadius: 11,
+  padding: '11px 12px',
+  outline: 'none',
+  background: '#fff',
+  color: '#0f172a',
+  fontWeight: 700
+}

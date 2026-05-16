@@ -20,7 +20,7 @@ export default function MyBorrowsPage() {
   }, [tab, fetchMyBorrows, fetchMyReservations]);
 
   const handleCancelRequest = async (code) => {
-    if (window.confirm(\`Cancel request \${code}?\`)) {
+    if (window.confirm(`Cancel request ${code}?`)) {
       try {
         await cancelRequest(code);
         fetchMyBorrows({ status: 'Pending,Borrowed,Overdue' });
@@ -69,18 +69,18 @@ export default function MyBorrowsPage() {
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={\`px-6 py-3 font-semibold transition-colors border-b-2 \${
+            className={`px-6 py-3 font-semibold transition-colors border-b-2 ${
               tab === t 
                 ? 'border-[#d4af37] text-[#d4af37]' 
                 : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-            }\`}
+            }`}
           >
             {t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
       </div>
 
-      <div className={\`rounded-xl border shadow-sm \${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} overflow-hidden\`}>
+      <div className={`rounded-xl border shadow-sm ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} overflow-hidden`}>
         {loading && <div className="p-8 text-center text-gray-500">Loading...</div>}
         
         {!loading && (tab === 'active' || tab === 'history') && (
@@ -93,7 +93,7 @@ export default function MyBorrowsPage() {
         {!loading && tab === 'reservations' && (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className={\`\${isDark ? 'bg-gray-800' : 'bg-gray-50'}\`}>
+              <thead className={`${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}>
                 <tr>
                   <th className="p-3">Book Title</th>
                   <th className="p-3">Queue Pos</th>
@@ -105,9 +105,9 @@ export default function MyBorrowsPage() {
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {reservations.map(res => (
-                  <tr key={res.reservationId} className={\`\${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50'} \${res.status === 'Ready' ? 'border-l-4 border-l-green-500' : ''}\`}>
+                  <tr key={res.reservationId} className={`${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50'} ${res.status === 'Ready' ? 'border-l-4 border-l-green-500' : ''}`}>
                     <td className="p-3 font-bold">{res.bookTitle}</td>
-                    <td className="p-3">{res.status === 'Queued' ? \`#\${res.queuePosition}\` : '-'}</td>
+                    <td className="p-3">{res.status === 'Queued' ? `#${res.queuePosition}` : '-'}</td>
                     <td className="p-3"><ReservationStatusBadge status={res.status} /></td>
                     <td className="p-3">{new Date(res.reservationDate).toLocaleDateString()}</td>
                     <td className="p-3">{res.pickupDeadline ? new Date(res.pickupDeadline).toLocaleString() : '-'}</td>

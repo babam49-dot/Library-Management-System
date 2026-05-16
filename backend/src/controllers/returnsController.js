@@ -4,7 +4,7 @@ exports.getAllReturns = async (req, res) => {
   try {
     const { condition, staffId, fromDate, toDate } = req.query;
     
-    let query = \`
+    let query = `
       SELECT 
         rt.ReturnID as returnId, rt.ReturnDate as returnDate, 
         rt.ConditionOnReturn as conditionOnReturn, rt.Notes as notes,
@@ -21,7 +21,7 @@ exports.getAllReturns = async (req, res) => {
       JOIN Books b ON bc.BookID = b.BookID
       JOIN Staff s ON rt.ProcessedByStaffID = s.StaffID
       JOIN Users su ON s.UserID = su.UserID
-    \`;
+    `;
     const params = [];
     const conditions = [];
 

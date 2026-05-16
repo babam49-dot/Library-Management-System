@@ -17,6 +17,7 @@ app.use('/api', require('./src/modules/users/users.routes'));
 // app.use('/api/staff',  require('./src/routes/staff'));
 // app.use('/api/member', require('./src/routes/members'));
 app.use('/api/books',  require('./src/routes/books'));
+app.use('/api/member', require('./src/routes/members'));
 
 // ─── Module 3: Borrowing Logic ────────────────────────────────────────────────
 app.use('/api/borrowing', require('./src/routes/borrowing'));

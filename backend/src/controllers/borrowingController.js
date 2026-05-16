@@ -7,7 +7,7 @@ const getConnection = async () => await db.getConnection();
 
 exports.submitRequest = async (req, res) => {
   const { copyIds } = req.body;
-  const memberId = req.user.extensionId;
+  const memberId = req.user.MemberID || req.user.memberID || req.user.extensionId;
 
   if (!copyIds || !Array.isArray(copyIds) || copyIds.length === 0) {
     return res.status(400).json({ success: false, message: "copyIds must be a non-empty array" });
@@ -67,7 +67,13 @@ exports.submitRequest = async (req, res) => {
       const bookId = copies[0].BookID;
 
       // Get Book Info for response
-      const [books] = await conn.query('SELECT Title, ShelfLocation FROM Books WHERE BookID = ?', [bookId]);
+    const [books] = await conn.query(
+      `SELECT b.Title, bc.ShelfLocation
+       FROM Books b
+       LEFT JOIN BookCopies bc ON bc.BookID = b.BookID AND bc.CopyID = ?
+       WHERE b.BookID = ?`,
+      [copyId, bookId]
+    );
       const bookTitle = books[0]?.Title || 'Unknown';
       const shelfLocation = books[0]?.ShelfLocation || 'Unknown';
 
@@ -100,7 +106,7 @@ exports.submitRequest = async (req, res) => {
 
       } else {
         // Rule C
-        skipped.push({ copyId, bookTitle, reason: \`Copy is \${copyStatus}\` });
+        skipped.push({ copyId, bookTitle, reason: `Copy is ${copyStatus}` });
       }
     }
 
@@ -115,8 +121,8 @@ exports.submitRequest = async (req, res) => {
         queued,
         skipped,
         message: pending.length > 0 
-          ? \`Your request has been submitted. Present code \${requestCode} at the desk.\`
-          : \`Your request has been queued. Code: \${requestCode}\`
+          ? `Your request has been submitted. Present code ${requestCode} at the desk.`
+          : `Your request has been queued. Code: ${requestCode}`
       }
     });
 
@@ -193,7 +199,7 @@ exports.getSession = async (req, res) => {
 exports.confirmCollection = async (req, res) => {
   const { code } = req.params;
   const { borrowIds, loanPeriodDays = 14 } = req.body;
-  const staffId = req.user.extensionId;
+  const staffId = req.user.StaffID || req.user.staffID || req.user.extensionId;
 
   if (!borrowIds || !Array.isArray(borrowIds) || borrowIds.length === 0) {
     return res.status(400).json({ success: false, message: "No borrowIds provided" });
@@ -250,7 +256,7 @@ exports.confirmCollection = async (req, res) => {
       data: {
         confirmed,
         expired,
-        message: \`\${confirmed.length} books confirmed.\`
+        message: `${confirmed.length} books confirmed.`
       }
     });
 
@@ -264,7 +270,7 @@ exports.confirmCollection = async (req, res) => {
 
 exports.processReturn = async (req, res) => {
   const { borrowId, conditionOnReturn, notes } = req.body;
-  const staffId = req.user.extensionId;
+  const staffId = req.user.StaffID || req.user.staffID || req.user.extensionId;
 
   if (!conditionOnReturn) {
     return res.status(400).json({ success: false, message: "conditionOnReturn is mandatory" });
@@ -288,7 +294,7 @@ exports.processReturn = async (req, res) => {
     const record = bRows[0];
     if (!['Borrowed', 'Overdue'].includes(record.Status)) {
       await conn.rollback();
-      return res.status(400).json({ success: false, message: \`Cannot return record with status \${record.Status}\` });
+      return res.status(400).json({ success: false, message: `Cannot return record with status ${record.Status}` });
     }
 
     // 2. Update BorrowingRecords
@@ -343,7 +349,7 @@ exports.processReturn = async (req, res) => {
           WHERE ReservationID = ?
         `, [nextRes.ReservationID]);
 
-        console.log(\`[QUEUE] Copy \${record.CopyID} now ready for MemberID \${nextRes.MemberID}\`);
+        console.log(`[QUEUE] Copy ${record.CopyID} now ready for MemberID ${nextRes.MemberID}`);
         nextMemberNotified = true;
       }
     }
@@ -368,11 +374,11 @@ exports.processReturn = async (req, res) => {
 
 exports.getMyBorrows = async (req, res) => {
   try {
-    const memberId = req.user.extensionId;
+    const memberId = req.user.MemberID || req.user.memberID || req.user.extensionId;
     const { status, page = 1, limit = 50 } = req.query;
     const offset = (page - 1) * limit;
 
-    let query = \`
+    let query = `
       SELECT 
         br.BorrowID as borrowId, br.RequestCode as requestCode, br.CopyID as copyId,
         b.Title as bookTitle, b.ISBN as isbn, b.CoverImage as coverImage,
@@ -384,16 +390,16 @@ exports.getMyBorrows = async (req, res) => {
       JOIN BookCopies bc ON br.CopyID = bc.CopyID
       JOIN Books b ON bc.BookID = b.BookID
       WHERE br.MemberID = ?
-    \`;
+    `;
     const params = [memberId];
 
     if (status) {
       const statuses = status.split(',').map(s => s.trim());
-      query += \` AND br.Status IN (?)\`;
+      query += ` AND br.Status IN (?)`;
       params.push(statuses);
     }
 
-    query += \` ORDER BY br.BorrowDate DESC LIMIT ? OFFSET ?\`;
+    query += ` ORDER BY br.BorrowDate DESC LIMIT ? OFFSET ?`;
     params.push(parseInt(limit), parseInt(offset));
 
     const [rows] = await db.query(query, params);
@@ -422,7 +428,7 @@ exports.getMyBorrows = async (req, res) => {
 
 exports.getActiveCount = async (req, res) => {
   try {
-    const memberId = req.user.extensionId;
+    const memberId = req.user.MemberID || req.user.memberID || req.user.extensionId;
     const [bRows] = await db.query(`
       SELECT COUNT(*) as c FROM BorrowingRecords WHERE MemberID = ? AND Status IN ('Pending', 'Borrowed')
     `, [memberId]);
@@ -444,7 +450,7 @@ exports.getOverdue = async (req, res) => {
   try {
     const { memberId, fromDate, toDate } = req.query;
     
-    let query = \`
+    let query = `
       SELECT 
         br.BorrowID as borrowId, br.RequestCode as requestCode,
         m.MemberID as memberID, u.FullName as fullName, u.Email as email, m.UniversityID as studentID,
@@ -458,7 +464,7 @@ exports.getOverdue = async (req, res) => {
       JOIN BookCopies bc ON br.CopyID = bc.CopyID
       JOIN Books b ON bc.BookID = b.BookID
       WHERE br.Status = 'Overdue'
-    \`;
+    `;
     const params = [];
 
     if (memberId) { query += ' AND m.MemberID = ?'; params.push(memberId); }
@@ -479,7 +485,7 @@ exports.getSessions = async (req, res) => {
   try {
     const { status, limit = 50, sort } = req.query;
 
-    let query = \`
+    let query = `
       SELECT 
         br.RequestCode as requestCode,
         u.FullName as memberName, u.Email as memberEmail,
@@ -493,12 +499,12 @@ exports.getSessions = async (req, res) => {
       FROM BorrowingRecords br
       JOIN Members m ON br.MemberID = m.MemberID
       JOIN Users u ON m.UserID = u.UserID
-    \`;
+    `;
     const params = [];
     const conditions = [];
 
     if (status) {
-      conditions.push(\`br.Status = ?\`);
+      conditions.push(`br.Status = ?`);
       params.push(status);
     }
 
@@ -524,7 +530,7 @@ exports.getSessions = async (req, res) => {
 
 exports.cancelRequest = async (req, res) => {
   const { code } = req.params;
-  const memberId = req.user.extensionId;
+  const memberId = req.user.MemberID || req.user.memberID || req.user.extensionId;
 
   let conn;
   try {
