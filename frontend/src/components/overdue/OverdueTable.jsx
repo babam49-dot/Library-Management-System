@@ -1,44 +1,38 @@
 import React from 'react';
-import { useTheme } from '../../context/ThemeContext';
 import { useNavigate } from 'react-router-dom';
 
-export default function OverdueTable({ records, onShowMember }) {
-  const { isDark } = useTheme();
+export default function OverdueTable({ records, onShowMember, c }) {
   const navigate = useNavigate();
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left text-sm whitespace-nowrap">
-        <thead className={`${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}>
-          <tr>
-            <th className="p-3">Req Code</th>
-            <th className="p-3">Member Name</th>
-            <th className="p-3">Student ID</th>
-            <th className="p-3">Book Title</th>
-            <th className="p-3">Due Date</th>
-            <th className="p-3">Days Overdue</th>
-            <th className="p-3">Est. Fine</th>
-            <th className="p-3">Actions</th>
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
+        <thead>
+          <tr style={{ background: c ? (c.card === '#fff' ? '#f8fafc' : '#1a2236') : 'rgba(0,0,0,0.02)' }}>
+            {['Req Code', 'Member Name', 'Student ID', 'Book Title', 'Due Date', 'Days Overdue', 'Est. Fine', 'Actions'].map(h => (
+              <th key={h} style={{ padding: '12px 16px', fontWeight: 700, color: c ? c.muted : '#64748b', textTransform: 'uppercase', letterSpacing: 1, fontSize: 12 }}>{h}</th>
+            ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+        <tbody>
           {records.map(rec => (
-            <tr key={rec.borrowId} className={`${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50'} ${rec.daysOverdue > 14 ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}>
-              <td className="p-3 font-mono">{rec.requestCode}</td>
-              <td className="p-3 font-bold cursor-pointer hover:text-[#d4af37]" onClick={() => onShowMember && onShowMember(rec.memberID)}>
+            <tr key={rec.borrowId} className="table-row" style={{ borderTop: `1px solid ${c ? c.border : '#e2e8f0'}`, background: rec.daysOverdue > 14 ? 'rgba(239, 68, 68, 0.05)' : 'transparent' }}>
+              <td style={{ padding: '12px 16px', fontFamily: 'monospace', color: c ? c.text : 'inherit' }}>{rec.requestCode}</td>
+              <td style={{ padding: '12px 16px', fontWeight: 700, cursor: 'pointer', color: '#3b82f6' }} onClick={() => onShowMember && onShowMember(rec.memberID)}>
                 {rec.fullName}
               </td>
-              <td className="p-3 font-mono text-gray-500">{rec.studentID}</td>
-              <td className="p-3">{rec.bookTitle}</td>
-              <td className="p-3">{new Date(rec.dueDate).toLocaleDateString()}</td>
-              <td className="p-3 text-red-500 font-bold">{rec.daysOverdue} days</td>
-              <td className={`p-3 font-mono ${rec.estimatedFine > 50 ? 'text-red-500 font-bold' : ''}`}>
+              <td style={{ padding: '12px 16px', fontFamily: 'monospace', color: c ? c.muted : '#64748b' }}>{rec.studentID}</td>
+              <td style={{ padding: '12px 16px', color: c ? c.text : 'inherit', maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{rec.bookTitle}</td>
+              <td style={{ padding: '12px 16px', color: c ? c.text : 'inherit' }}>{new Date(rec.dueDate).toLocaleDateString()}</td>
+              <td style={{ padding: '12px 16px', color: '#ef4444', fontWeight: 800 }}>{rec.daysOverdue} days</td>
+              <td style={{ padding: '12px 16px', fontFamily: 'monospace', color: rec.estimatedFine > 50 ? '#ef4444' : (c ? c.text : 'inherit'), fontWeight: rec.estimatedFine > 50 ? 800 : 500 }}>
                 ETB {parseFloat(rec.estimatedFine).toFixed(2)}
               </td>
-              <td className="p-3">
+              <td style={{ padding: '12px 16px' }}>
                 <button 
                   onClick={() => navigate('/desk', { state: { code: rec.requestCode, tab: 'return' } })}
-                  className="px-3 py-1 bg-[#d4af37] text-white rounded text-xs font-bold hover:bg-[#b5952f]"
+                  className="interactive-btn"
+                  style={{ padding: '6px 12px', background: '#f59e0b', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
                 >
                   Process Return
                 </button>
@@ -47,7 +41,7 @@ export default function OverdueTable({ records, onShowMember }) {
           ))}
           {records.length === 0 && (
             <tr>
-              <td colSpan="8" className="p-4 text-center text-gray-500">No overdue records found.</td>
+              <td colSpan="8" style={{ padding: 40, textAlign: 'center', color: c ? c.muted : '#64748b' }}>No overdue records found.</td>
             </tr>
           )}
         </tbody>

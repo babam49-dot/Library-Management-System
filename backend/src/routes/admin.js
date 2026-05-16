@@ -246,17 +246,17 @@ router.delete('/users/:id', auth, async (req, res) => {
 router.get('/all-books', auth, async (req, res) => {
   try {
     const [rows] = await pool.execute(
-      `SELECT b.BookID, b.Title, b.ISBN, b.Year, b.Language, b.CoverImage,
-              c.CategoryName, p.PublisherName,
+      `SELECT b.BookID, b.Title, b.ISBN, b.Year, b.Edition, b.Language, b.Description, b.CoverImage,
+              c.CategoryName, c.CategoryID, p.PublisherName, p.PublisherID,
               GROUP_CONCAT(DISTINCT a.Name SEPARATOR ', ') as Authors,
-              COUNT(DISTINCT CASE WHEN bc.Status='available' THEN bc.CopyID END) as AvailableCopies,
+              SUM(CASE WHEN bc.Status='Available' THEN 1 ELSE 0 END) as AvailableCopies,
               COUNT(DISTINCT bc.CopyID) as TotalCopies
        FROM Books b
        LEFT JOIN Categories c ON c.CategoryID = b.CategoryID
        LEFT JOIN Publishers p ON p.PublisherID = b.PublisherID
        LEFT JOIN BookAuthors ba ON ba.BookID = b.BookID
        LEFT JOIN Authors a ON a.AuthorID = ba.AuthorID
-       LEFT JOIN BookCopies bc ON bc.BookID = b.BookID
+       LEFT JOIN BookCopies bc ON bc.BookID = b.BookID AND bc.Status != 'Disposed'
        GROUP BY b.BookID ORDER BY b.Title`
     );
     return ok(res, 'All books', rows);
@@ -265,11 +265,70 @@ router.get('/all-books', auth, async (req, res) => {
 
 // ── FINE MANAGEMENT ───────────────────────────────────────────────────────────
 
+// GET /api/admin/fines/summary
+router.get('/fines/summary', auth, async (req, res) => {
+  try {
+    const [[summary]] = await pool.execute(`
+      SELECT
+        COUNT(DISTINCT f.MemberID) AS MembersBlocked,
+        COALESCE(SUM(f.Amount), 0) AS TotalOutstanding
+      FROM Fines f
+      WHERE f.FineStatus IN ('Unpaid', 'Partial')
+    `);
+    return ok(res, 'Fine summary', summary);
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
+// GET /api/admin/fines/outstanding
+router.get('/fines/outstanding', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.execute('SELECT * FROM OutstandingFinesReport');
+    return ok(res, 'Outstanding fines report', rows);
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
+// GET /api/admin/fines/member/:id/blocked
+router.get('/fines/member/:id/blocked', auth, async (req, res) => {
+  try {
+    const [[result]] = await pool.execute(
+      `SELECT COALESCE(SUM(Amount), 0) AS UnpaidTotal
+       FROM Fines WHERE MemberID = ? AND FineStatus IN ('Unpaid', 'Partial')`,
+      [req.params.id]
+    );
+    const unpaidTotal = Number(result.UnpaidTotal || 0);
+    return ok(res, 'Member block status', { blocked: unpaidTotal > 0, unpaidTotal });
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
+// GET /api/admin/fines/member/:id
+router.get('/fines/member/:id', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT f.FineID, ft.TypeName, f.Amount, f.FineStatus, f.IssuedDate,
+              f.WaiverReason, f.WaivedByStaffID,
+              b.Title, br.DueDate, br.BorrowDate,
+              COALESCE(SUM(p.AmountPaid), 0) AS TotalPaid
+       FROM Fines f
+       JOIN FineTypes ft ON f.TypeID = ft.TypeID
+       LEFT JOIN BorrowingRecords br ON f.BorrowID = br.BorrowID
+       LEFT JOIN BookCopies bc ON br.CopyID = bc.CopyID
+       LEFT JOIN Books b ON bc.BookID = b.BookID
+       LEFT JOIN Payments p ON p.FineID = f.FineID
+       WHERE f.MemberID = ?
+       GROUP BY f.FineID
+       ORDER BY f.IssuedDate DESC`,
+      [req.params.id]
+    );
+    return ok(res, 'Member fines', rows);
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
 // GET /api/admin/fines
 router.get('/fines', auth, async (req, res) => {
   try {
-    const [rows] = await pool.execute(
-      `SELECT f.FineID, f.Amount, f.IssuedDate, f.FineStatus, f.UserID,
+    const { status } = req.query; // optional filter: Unpaid, Partial, Paid, Waived
+    let query = `SELECT f.FineID, f.Amount, f.IssuedDate, f.FineStatus, f.UserID, f.MemberID,
+              f.WaiverReason, f.WaivedByStaffID,
               u.FullName, u.Email,
               ft.TypeName,
               b.Title as BookTitle
@@ -278,18 +337,49 @@ router.get('/fines', auth, async (req, res) => {
        LEFT JOIN FineTypes ft ON ft.TypeID = f.TypeID
        LEFT JOIN BorrowingRecords br ON br.BorrowID = f.BorrowID
        LEFT JOIN BookCopies bc ON bc.CopyID = br.CopyID
-       LEFT JOIN Books b ON b.BookID = bc.BookID
-       ORDER BY f.IssuedDate DESC`
-    );
+       LEFT JOIN Books b ON b.BookID = bc.BookID`;
+    const params = [];
+    if (status) { query += ` WHERE f.FineStatus = ?`; params.push(status); }
+    query += ` ORDER BY f.IssuedDate DESC`;
+    const [rows] = await pool.execute(query, params);
     return ok(res, 'All fines', rows);
   } catch (err) { return fail(res, err.message, 500); }
 });
 
-// PATCH /api/admin/fines/:id/waive
+// GET /api/admin/fines/:id/payments
+router.get('/fines/:id/payments', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT p.PaymentID, p.PaymentDate, p.AmountPaid, p.PaymentMethod, p.TransactionRef,
+              u.FullName AS ReceivedBy
+       FROM Payments p
+       LEFT JOIN Staff s ON s.StaffID = p.ReceivedByStaffID
+       LEFT JOIN Users u ON u.UserID = s.UserID
+       WHERE p.FineID = ?
+       ORDER BY p.PaymentDate DESC`,
+      [req.params.id]
+    );
+    return ok(res, 'Payment history', rows);
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
+// PATCH /api/admin/fines/:id/waive  (enhanced with audit fields)
 router.patch('/fines/:id/waive', auth, async (req, res) => {
   try {
-    await pool.execute("UPDATE Fines SET FineStatus='Waived' WHERE FineID=?", [req.params.id]);
-    return ok(res, 'Fine waived');
+    const { waiverReason } = req.body;
+    if (!waiverReason || !waiverReason.trim()) {
+      return fail(res, 'A waiver reason is required (BR-12)');
+    }
+    // Get the admin's StaffID for audit
+    const [[staff]] = await pool.execute(
+      'SELECT StaffID FROM Staff WHERE UserID = ?', [req.user.userID]
+    );
+    const staffId = staff ? staff.StaffID : null;
+    await pool.execute(
+      `UPDATE Fines SET FineStatus='Waived', WaivedByStaffID=?, WaiverReason=? WHERE FineID=?`,
+      [staffId, waiverReason.trim(), req.params.id]
+    );
+    return ok(res, 'Fine waived successfully');
   } catch (err) { return fail(res, err.message, 500); }
 });
 
@@ -361,11 +451,12 @@ router.get('/borrowing-records', auth, async (req, res) => {
 router.get('/disposal-log', auth, async (req, res) => {
   try {
     const [rows] = await pool.execute(
-      `SELECT dl.*, bc.BookID, b.Title, s.StaffID
+      `SELECT dl.*, bc.BookID, b.Title, s.FullName as StaffName
        FROM BookDisposalLog dl
        LEFT JOIN BookCopies bc ON bc.CopyID = dl.CopyID
        LEFT JOIN Books b ON b.BookID = bc.BookID
-       LEFT JOIN Staff s ON s.StaffID = dl.StaffID
+       LEFT JOIN Staff st ON st.StaffID = dl.StaffID
+       LEFT JOIN Users s ON s.UserID = st.UserID
        ORDER BY dl.DateRemoved DESC`
     );
     return ok(res, 'Disposal log', rows);
@@ -376,7 +467,7 @@ router.get('/disposal-log', auth, async (req, res) => {
 router.get('/damage-reports', auth, async (req, res) => {
   try {
     const [rows] = await pool.execute(
-      `SELECT dr.*, r.ReturnDate, br.BorrowID,
+      `SELECT dr.*, r.ReturnDate, br.BorrowID, bc.CopyID,
               u.FullName as MemberName, b.Title as BookTitle
        FROM DamageReports dr
        LEFT JOIN Returns r ON r.ReturnID = dr.ReturnID
@@ -389,6 +480,40 @@ router.get('/damage-reports', auth, async (req, res) => {
     );
     return ok(res, 'Damage reports', rows);
   } catch (err) { return fail(res, err.message, 500); }
+});
+
+// PATCH /api/admin/dispose/:copyId
+router.patch('/dispose/:copyId', auth, async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    const { reason } = req.body;
+    await conn.beginTransaction();
+
+    await conn.execute("UPDATE BookCopies SET Status='Disposed' WHERE CopyID=?", [req.params.copyId]);
+    
+    // Log disposal
+    const staffId = req.user.StaffID || req.user.staffID || req.user.extensionId || null;
+    await conn.execute(
+      `INSERT INTO BookDisposalLog (CopyID, DateRemoved, Reason, StaffID) VALUES (?, CURDATE(), ?, ?)`,
+      [req.params.copyId, reason || 'Manual Admin Disposal', staffId]
+    );
+
+    // Update Books available copies
+    await conn.execute(`
+      UPDATE Books b
+      SET TotalCopies = (SELECT COUNT(*) FROM BookCopies WHERE BookID = b.BookID),
+          AvailableCopies = (SELECT COUNT(*) FROM BookCopies WHERE BookID = b.BookID AND Status = 'Available')
+      WHERE BookID = (SELECT BookID FROM BookCopies WHERE CopyID = ?)
+    `, [req.params.copyId]);
+
+    await conn.commit();
+    return ok(res, 'Copy disposed successfully');
+  } catch (err) {
+    await conn.rollback();
+    return fail(res, err.message, 500);
+  } finally {
+    conn.release();
+  }
 });
 
 // ── ANALYTICS ─────────────────────────────────────────────────────────────────
@@ -412,6 +537,57 @@ router.get('/analytics', auth, async (req, res) => {
        FROM Books b JOIN Categories c ON c.CategoryID = b.CategoryID GROUP BY c.CategoryID`
     );
     return ok(res, 'Analytics data', { topBooks, trends: trends.reverse(), categoryDistrib });
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
+// ── ADDITIONAL REPORTS & CONFIG ────────────────────────────────────────────────
+
+// GET /api/admin/reports/payment-history
+router.get('/reports/payment-history', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.execute(`
+      SELECT p.PaymentID, p.AmountPaid, p.PaymentMethod, p.PaymentReference, p.PaymentStatus, p.PaymentDate,
+             f.FineID, ft.TypeName as FineType,
+             m.MemberID, m.StudentID, u.FullName as MemberName,
+             s.FullName as ProcessedBy
+      FROM Payments p
+      JOIN Fines f ON f.FineID = p.FineID
+      LEFT JOIN FineTypes ft ON ft.TypeID = f.FineTypeID
+      JOIN Members m ON m.MemberID = p.MemberID
+      JOIN Users u ON u.UserID = m.UserID
+      LEFT JOIN Staff st ON st.StaffID = p.ProcessedByStaffID
+      LEFT JOIN Users s ON s.UserID = st.UserID
+      ORDER BY p.PaymentDate DESC LIMIT 200
+    `);
+    return ok(res, 'Payment History Report', rows);
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
+// GET /api/admin/reports/fines
+router.get('/reports/fines', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.execute(`
+      SELECT f.FineID, f.Amount, f.FineStatus, f.IssuedDate,
+             ft.TypeName as FineType,
+             m.MemberID, m.StudentID, u.FullName as MemberName,
+             COALESCE((SELECT SUM(AmountPaid) FROM Payments WHERE FineID = f.FineID AND PaymentStatus='Completed'), 0) as AmountPaid
+      FROM Fines f
+      LEFT JOIN FineTypes ft ON ft.TypeID = f.FineTypeID
+      JOIN Members m ON m.MemberID = f.MemberID
+      JOIN Users u ON u.UserID = m.UserID
+      ORDER BY f.IssuedDate DESC LIMIT 200
+    `);
+    return ok(res, 'Fines Report', rows);
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
+// PUT /api/admin/members/bulk-limit
+router.put('/members/bulk-limit', auth, async (req, res) => {
+  try {
+    const { maxBooks } = req.body;
+    if (!maxBooks || isNaN(maxBooks)) return fail(res, 'Invalid maxBooks value');
+    await pool.execute('UPDATE Members SET MaxBooksAllowed = ?', [parseInt(maxBooks)]);
+    return ok(res, 'Bulk limits updated successfully');
   } catch (err) { return fail(res, err.message, 500); }
 });
 

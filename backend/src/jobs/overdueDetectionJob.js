@@ -21,18 +21,19 @@ const runOverdueJob = async () => {
       // Update Status
       await conn.query(`UPDATE BorrowingRecords SET Status = 'Overdue' WHERE BorrowID = ?`, [row.BorrowID]);
 
-      // Check if Fines table exists (for Module 4 readiness)
-      // We will try to insert a placeholder if it does, but catch error if it doesn't
       try {
-        const [fineCheck] = await conn.query(`SELECT FineID FROM Fines WHERE BorrowID = ?`, [row.BorrowID]);
+        const [fineCheck] = await conn.query(`SELECT FineID FROM Fines WHERE BorrowID = ? AND TypeID = (SELECT TypeID FROM FineTypes WHERE TypeName LIKE '%Overdue%' LIMIT 1)`, [row.BorrowID]);
         if (fineCheck.length === 0) {
-          await conn.query(`
-            INSERT INTO Fines (MemberID, BorrowID, Amount, Status, Description, IssuedDate)
-            VALUES (?, ?, 5.00, 'Unpaid', 'Initial overdue fine', CURDATE())
-          `, [row.MemberID, row.BorrowID]);
+          const [memberCheck] = await conn.query(`SELECT UserID FROM Members WHERE MemberID = ?`, [row.MemberID]);
+          if (memberCheck.length > 0) {
+            await conn.query(`
+              INSERT INTO Fines (UserID, TypeID, BorrowID, Amount, IssuedDate, FineStatus, MemberID)
+              VALUES (?, (SELECT TypeID FROM FineTypes WHERE TypeName LIKE '%Overdue%' LIMIT 1), ?, COALESCE((SELECT BaseAmount FROM FineTypes WHERE TypeName LIKE '%Overdue%' LIMIT 1), 5.00), CURDATE(), 'Unpaid', ?)
+            `, [memberCheck[0].UserID, row.BorrowID, row.MemberID]);
+          }
         }
       } catch (fineErr) {
-        // Table probably doesn't exist yet, ignore
+        console.error('Fine insertion error:', fineErr.message);
       }
     }
 

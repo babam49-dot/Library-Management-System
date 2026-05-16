@@ -11,6 +11,7 @@ import StaffDashboard from './pages/StaffDashboard'
 import MemberDashboard from './pages/MemberDashboard'
 import Layout from './components/Layout'
 import './styles/tailwind.css'
+import './styles/interactive.css'
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { user, loading } = useAuth()
@@ -29,6 +30,7 @@ import MyBorrowsPage from './pages/MyBorrowsPage'
 import LibrarianDeskPage from './pages/LibrarianDeskPage'
 import ReservationsPage from './pages/ReservationsPage'
 import OverduePage from './pages/OverduePage'
+import BookDetailPage from './pages/BookDetailPage'
 
 createRoot(document.getElementById('root')).render(
   <ThemeProvider>
@@ -49,6 +51,7 @@ createRoot(document.getElementById('root')).render(
             <Route path="/desk" element={<ProtectedRoute allowedRoles={[1, 2]}><LibrarianDeskPage /></ProtectedRoute>} />
             <Route path="/reservations" element={<ProtectedRoute allowedRoles={[1, 2]}><ReservationsPage /></ProtectedRoute>} />
             <Route path="/overdue" element={<ProtectedRoute allowedRoles={[1, 2]}><OverduePage /></ProtectedRoute>} />
+            <Route path="/book/:id" element={<ProtectedRoute allowedRoles={[1, 2, 3]}><BookDetailPage /></ProtectedRoute>} />
             
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

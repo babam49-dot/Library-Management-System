@@ -1,0 +1,112 @@
+/* interactive.css - High interactivity animations for dashboards */
+
+@keyframes fadeInScale {
+  0%   { opacity: 0; transform: scale(0.92) translateY(10px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+  100% { transform: translateY(0px); }
+}
+
+@keyframes spinSlow {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes pulseGlow {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+/* Floating animation for icons/badges */
+.floating {
+  animation: float 4s ease-in-out infinite;
+  display: inline-block;
+}
+
+/* Spin animation for loading states or gear icons */
+.spin-slow {
+  animation: spinSlow 3s linear infinite;
+  display: inline-block;
+}
+
+/* Interactive Cards (Stats, Books) */
+.interactive-card {
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  position: relative;
+  overflow: hidden;
+}
+
+.interactive-card:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  z-index: 5;
+}
+
+.interactive-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0) 100%);
+  transform: skewX(-25deg);
+  transition: all 0.75s ease;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.interactive-card:hover::after {
+  left: 150%;
+}
+
+/* Interactive Buttons */
+.interactive-btn {
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.interactive-btn:hover {
+  transform: translateY(-3px);
+  filter: brightness(1.15);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+}
+
+.interactive-btn:active {
+  transform: translateY(1px) scale(0.95);
+}
+
+/* Pulsing action buttons (Submit, Add) */
+.btn-pulse:hover {
+  animation: pulseGlow 1.5s infinite;
+}
+
+/* Table Rows */
+.table-row {
+  transition: all 0.2s ease;
+}
+
+.table-row:hover {
+  background-color: rgba(59, 130, 246, 0.08) !important;
+  transform: scale(1.01) translateX(4px);
+  box-shadow: -4px 0 0 #3b82f6;
+  position: relative;
+  z-index: 10;
+}
+
+/* Input Fields */
+.interactive-input {
+  transition: all 0.3s ease;
+}
+
+.interactive-input:focus {
+  transform: scale(1.02);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+  border-color: #3b82f6 !important;
+}

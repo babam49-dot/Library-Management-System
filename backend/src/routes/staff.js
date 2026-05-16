@@ -250,4 +250,88 @@ router.patch('/book-copies/:id', auth, async (req, res) => {
   } catch (err) { return fail(res, err.message, 500); }
 });
 
+// GET /api/staff/member-fines/:id
+router.get('/member-fines/:id', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [rows] = await pool.execute(
+      `SELECT f.FineID, f.Amount, f.FineStatus, f.IssuedDate, f.GeneratedDate,
+              ft.TypeName, ft.Description,
+              b.Title AS BookTitle,
+              COALESCE(p.TotalPaid,0) AS TotalPaid,
+              GREATEST(f.Amount - COALESCE(p.TotalPaid,0),0) AS Balance,
+              u.FullName, m.MemberID, m.StudentID
+       FROM Fines f
+       LEFT JOIN FineTypes ft ON ft.TypeID = f.FineTypeID
+       LEFT JOIN BorrowingRecords br ON br.BorrowID = f.BorrowID
+       LEFT JOIN BookCopies bc ON bc.CopyID = br.CopyID
+       LEFT JOIN Books b ON b.BookID = bc.BookID
+       JOIN Members m ON m.MemberID = f.MemberID
+       JOIN Users u ON u.UserID = m.UserID
+       LEFT JOIN (
+         SELECT FineID, SUM(AmountPaid) AS TotalPaid
+         FROM Payments
+         WHERE PaymentStatus = 'Completed'
+         GROUP BY FineID
+       ) p ON p.FineID = f.FineID
+       WHERE (m.MemberID = ? OR m.StudentID = ?) AND f.FineStatus IN ('Unpaid', 'Partial')
+       ORDER BY f.GeneratedDate DESC, f.FineID DESC`,
+      [id, id]
+    );
+    return ok(res, 'Member outstanding fines', rows);
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
+// POST /api/staff/record-payment
+router.post('/record-payment', auth, async (req, res) => {
+  const { fineId, amount, paymentMethod } = req.body;
+  const staffId = req.user.StaffID || req.user.staffID || req.user.extensionId;
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const [[fine]] = await connection.execute(
+      'SELECT FineID, Amount, MemberID FROM Fines WHERE FineID = ? FOR UPDATE',
+      [fineId]
+    );
+    if (!fine) {
+      await connection.rollback();
+      return fail(res, 'Fine not found', 404);
+    }
+
+    const [[paid]] = await connection.execute(
+      "SELECT COALESCE(SUM(AmountPaid),0) AS totalPaid FROM Payments WHERE FineID = ? AND PaymentStatus = 'Completed'",
+      [fineId]
+    );
+
+    const balance = Math.max(Number(fine.Amount || 0) - Number(paid.totalPaid || 0), 0);
+    const payable = Number(amount);
+    
+    if (!payable || payable <= 0 || payable > balance) {
+      await connection.rollback();
+      return fail(res, `Amount must be between 1 and ${balance.toFixed(2)}`);
+    }
+
+    await connection.execute(
+      `INSERT INTO Payments (FineID, MemberID, AmountPaid, PaymentMethod, PaymentReference, PaymentStatus, ProcessedByStaffID)
+       VALUES (?, ?, ?, ?, ?, 'Completed', ?)`,
+      [fineId, fine.MemberID, payable, paymentMethod || 'Cash', `STAFF-${Date.now()}`, staffId]
+    );
+
+    const newTotalPaid = Number(paid.totalPaid || 0) + payable;
+    const newStatus = newTotalPaid >= Number(fine.Amount || 0) ? 'Paid' : 'Partial';
+
+    await connection.execute('UPDATE Fines SET FineStatus = ? WHERE FineID = ?', [newStatus, fineId]);
+
+    await connection.commit();
+    return ok(res, 'Payment recorded successfully', { status: newStatus, balance: balance - payable });
+  } catch (err) {
+    await connection.rollback();
+    return fail(res, err.message, 500);
+  } finally {
+    connection.release();
+  }
+});
+
 module.exports = router;

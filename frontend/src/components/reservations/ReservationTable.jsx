@@ -1,44 +1,36 @@
 import React from 'react';
 import ReservationStatusBadge from '../borrowing/ReservationStatusBadge';
-import { useTheme } from '../../context/ThemeContext';
 
-export default function ReservationTable({ reservations, onCancel, onShowMember }) {
-  const { isDark } = useTheme();
+export default function ReservationTable({ reservations, onCancel, onShowMember, c }) {
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left text-sm whitespace-nowrap">
-        <thead className={`${isDark ? 'bg-gray-800' : 'bg-gray-50'}`}>
-          <tr>
-            <th className="p-3">Res ID</th>
-            <th className="p-3">Member Name</th>
-            <th className="p-3">Book Title</th>
-            <th className="p-3">Copy ID</th>
-            <th className="p-3">Status</th>
-            <th className="p-3 text-center">Priority</th>
-            <th className="p-3">Reserved On</th>
-            <th className="p-3">Deadline</th>
-            <th className="p-3">Actions</th>
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
+        <thead>
+          <tr style={{ background: c ? (c.card === '#fff' ? '#f8fafc' : '#1a2236') : 'rgba(0,0,0,0.02)' }}>
+            {['Res ID', 'Member Name', 'Book Title', 'Copy ID', 'Status', 'Priority', 'Reserved On', 'Deadline', 'Actions'].map(h => (
+              <th key={h} style={{ padding: '12px 16px', fontWeight: 700, color: c ? c.muted : '#64748b', textTransform: 'uppercase', letterSpacing: 1, fontSize: 12 }}>{h}</th>
+            ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+        <tbody>
           {reservations.map(res => (
-            <tr key={res.reservationId} className={`${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50'} ${res.status === 'Ready' ? 'bg-green-50/50 dark:bg-green-900/20' : ''}`}>
-              <td className="p-3 text-gray-500">#{res.reservationId}</td>
-              <td className="p-3 font-bold cursor-pointer hover:text-[#d4af37]" onClick={() => onShowMember && onShowMember(res.memberID)}>
+            <tr key={res.reservationId} className="table-row" style={{ borderTop: `1px solid ${c ? c.border : '#e2e8f0'}`, background: res.status === 'Ready' ? 'rgba(16, 185, 129, 0.05)' : 'transparent' }}>
+              <td style={{ padding: '12px 16px', fontFamily: 'monospace', color: c ? c.muted : '#64748b' }}>#{res.reservationId}</td>
+              <td style={{ padding: '12px 16px', fontWeight: 700, cursor: 'pointer', color: '#3b82f6' }} onClick={() => onShowMember && onShowMember(res.memberID)}>
                 {res.memberName}
               </td>
-              <td className="p-3">{res.bookTitle}</td>
-              <td className="p-3 font-mono">{res.copyId}</td>
-              <td className="p-3"><ReservationStatusBadge status={res.status} /></td>
-              <td className="p-3 text-center font-mono">{res.status === 'Queued' ? res.priority : '-'}</td>
-              <td className="p-3">{new Date(res.reservationDate).toLocaleDateString()}</td>
-              <td className="p-3">{res.pickupDeadline ? new Date(res.pickupDeadline).toLocaleString() : '-'}</td>
-              <td className="p-3 flex gap-2">
+              <td style={{ padding: '12px 16px', color: c ? c.text : 'inherit' }}>{res.bookTitle}</td>
+              <td style={{ padding: '12px 16px', fontFamily: 'monospace', color: c ? c.text : 'inherit' }}>{res.copyId}</td>
+              <td style={{ padding: '12px 16px' }}><ReservationStatusBadge status={res.status} /></td>
+              <td style={{ padding: '12px 16px', textAlign: 'center', fontFamily: 'monospace', color: c ? c.text : 'inherit' }}>{res.status === 'Queued' ? res.priority : '-'}</td>
+              <td style={{ padding: '12px 16px', color: c ? c.text : 'inherit' }}>{new Date(res.reservationDate).toLocaleDateString()}</td>
+              <td style={{ padding: '12px 16px', color: c ? c.text : 'inherit' }}>{res.pickupDeadline ? new Date(res.pickupDeadline).toLocaleString() : '-'}</td>
+              <td style={{ padding: '12px 16px', display: 'flex', gap: 8 }}>
                 {['Queued', 'Ready'].includes(res.status) && (
                   <button 
                     onClick={() => onCancel(res.reservationId)}
-                    className="text-red-500 hover:text-red-700 font-bold"
+                    style={{ background: 'transparent', border: 'none', color: '#ef4444', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}
                   >
                     Cancel
                   </button>
@@ -48,7 +40,7 @@ export default function ReservationTable({ reservations, onCancel, onShowMember 
           ))}
           {reservations.length === 0 && (
             <tr>
-              <td colSpan="9" className="p-4 text-center text-gray-500">No reservations found.</td>
+              <td colSpan="9" style={{ padding: 40, textAlign: 'center', color: c ? c.muted : '#64748b' }}>No reservations found.</td>
             </tr>
           )}
         </tbody>

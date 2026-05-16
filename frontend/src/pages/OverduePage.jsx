@@ -54,48 +54,70 @@ export default function OverduePage() {
   const uniqueMembers = new Set(filteredRecords.map(r => r.memberID)).size;
   const totalEstFines = filteredRecords.reduce((sum, r) => sum + parseFloat(r.estimatedFine || 0), 0);
 
+  const STAFF_NAV_ITEMS = [
+    { key: 'overview', label: 'Circulation Overview', icon: '📊', path: '/staff' },
+    { key: 'members', label: 'Member Approvals', icon: '👤', path: '/staff' },
+    { key: 'browse', label: 'Browse Catalog', icon: '📚', path: '/staff' },
+    { key: 'catalog', label: 'Register Book', icon: '➕', path: '/staff' },
+    { key: 'metadata', label: 'Manage Metadata', icon: '🏷️', path: '/staff' },
+    { key: 'fines', label: 'Fine Payments', icon: '💰', path: '/staff' },
+    { key: 'desk', label: 'Librarian Desk', icon: '🖥️', path: '/desk' },
+    { key: 'reservations', label: 'Reservations', icon: '📋', path: '/reservations' },
+    { key: 'overdue', label: 'Overdue Books', icon: '⚠️', path: '/overdue' },
+    { key: 'profile', label: 'My Profile', icon: '👤', path: '/staff' },
+  ];
+
+  const c = {
+    card: isDark ? '#161b27' : '#fff',
+    border: isDark ? '#1e2d40' : '#e2e8f0',
+    text: isDark ? '#f1f5f9' : '#0f172a',
+    muted: isDark ? '#64748b' : '#64748b',
+    input: isDark ? '#1e2d40' : '#f8fafc',
+  }
+
   return (
-    <DashboardShell title="Overdue Books">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div className={`p-6 rounded-2xl shadow-sm ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
-          <p className="text-gray-500 text-sm font-bold uppercase tracking-wider mb-2">Total Overdue</p>
-          <p className="text-4xl font-bold font-mono text-red-500">{totalOverdue}</p>
+    <DashboardShell role="staff" navItems={STAFF_NAV_ITEMS} activeTab="overdue" tabLabel="Overdue Books">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20, marginBottom: 24 }}>
+        <div className="interactive-card" style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 24 }}>
+          <p style={{ color: c.muted, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Total Overdue</p>
+          <p style={{ fontSize: 36, fontWeight: 800, fontFamily: 'monospace', color: '#ef4444' }}>{totalOverdue}</p>
         </div>
-        <div className={`p-6 rounded-2xl shadow-sm ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
-          <p className="text-gray-500 text-sm font-bold uppercase tracking-wider mb-2">Members Affected</p>
-          <p className="text-4xl font-bold font-mono">{uniqueMembers}</p>
+        <div className="interactive-card" style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 24 }}>
+          <p style={{ color: c.muted, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Members Affected</p>
+          <p style={{ fontSize: 36, fontWeight: 800, fontFamily: 'monospace', color: c.text }}>{uniqueMembers}</p>
         </div>
-        <div className={`p-6 rounded-2xl shadow-sm ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
-          <p className="text-gray-500 text-sm font-bold uppercase tracking-wider mb-2">Est. Total Fines</p>
-          <p className="text-4xl font-bold font-mono text-[#d4af37]">ETB {totalEstFines.toFixed(2)}</p>
+        <div className="interactive-card" style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 24 }}>
+          <p style={{ color: c.muted, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Est. Total Fines</p>
+          <p style={{ fontSize: 36, fontWeight: 800, fontFamily: 'monospace', color: '#f59e0b' }}>ETB {totalEstFines.toFixed(2)}</p>
         </div>
       </div>
 
-      <div className={`p-6 rounded-2xl shadow-sm mb-6 flex flex-wrap gap-4 items-center justify-between ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
-        <div className="flex-1 min-w-[250px]">
+      <div style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 20, marginBottom: 24, display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ flex: 1, minWidth: 250 }}>
           <input 
             type="text" 
             placeholder="Search by Member Name or ID..."
             value={memberFilter}
             onChange={e => setMemberFilter(e.target.value)}
-            className={`w-full p-3 rounded-lg border ${isDark ? 'bg-gray-900 border-gray-700 text-white' : 'bg-gray-50 border-gray-300'} focus:outline-none focus:ring-2 focus:ring-[#d4af37]`}
+            style={{ width: '100%', padding: '12px 16px', borderRadius: 8, border: `1px solid ${c.border}`, background: c.input, color: c.text, fontSize: 14, outline: 'none' }}
           />
         </div>
         <button 
           onClick={handleExportCSV}
           disabled={records.length === 0}
-          className="px-6 py-3 bg-gray-800 text-white dark:bg-gray-700 rounded-lg font-bold hover:bg-gray-900 dark:hover:bg-gray-600 transition-colors flex items-center gap-2 disabled:opacity-50"
+          className="interactive-btn"
+          style={{ padding: '12px 24px', background: isDark ? '#374151' : '#1e293b', color: '#fff', borderRadius: 8, fontWeight: 700, cursor: records.length === 0 ? 'not-allowed' : 'pointer', border: 'none', display: 'flex', alignItems: 'center', gap: 8, opacity: records.length === 0 ? 0.5 : 1 }}
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+          <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
           Export CSV
         </button>
       </div>
 
-      <div className={`rounded-2xl border shadow-sm overflow-hidden ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+      <div style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, overflow: 'hidden' }}>
         {loading ? (
-          <div className="p-10 text-center text-gray-500">Loading...</div>
+          <div style={{ padding: 40, textAlign: 'center', color: c.muted }}>Loading...</div>
         ) : (
-          <OverdueTable records={filteredRecords} />
+          <OverdueTable records={filteredRecords} c={c} />
         )}
       </div>
     </DashboardShell>

@@ -61,7 +61,7 @@ async function getMemberSummary(memberId) {
     activeBorrowCount: Number(borrowed.count || 0),
     reservationCount: Number(reservations.count || 0),
     fineBalance: Number(fines.balance || 0),
-    borrowingBlocked: Number(fines.balance || 0) > Number(process.env.FINE_THRESHOLD || 100)
+    borrowingBlocked: Number(fines.balance || 0) > 0
   };
 }
 
@@ -140,8 +140,8 @@ router.get('/my-reservations', memberOnly, async (req, res) => {
       `SELECT r.ReservationID, r.RequestCode, r.Status, r.Priority, r.ReservationDate, r.PickupDeadline,
               b.BookID, b.Title, b.ISBN, bc.CopyID
        FROM Reservations r
-       JOIN BookCopies bc ON bc.CopyID = r.CopyID
-       JOIN Books b ON b.BookID = bc.BookID
+       LEFT JOIN BookCopies bc ON bc.CopyID = r.CopyID
+       JOIN Books b ON b.BookID = r.BookID
        WHERE r.MemberID = ?
        ORDER BY r.ReservationDate DESC`,
       [getMemberId(req)]
@@ -151,6 +151,97 @@ router.get('/my-reservations', memberOnly, async (req, res) => {
     return fail(res, err.message, 500);
   }
 });
+
+router.post('/reserve', memberOnly, async (req, res) => {
+  const { bookId } = req.body;
+  const memberId = getMemberId(req);
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    // Check fine block
+    const summary = await getMemberSummary(memberId);
+    if (summary.borrowingBlocked) {
+      await connection.rollback();
+      return fail(res, 'You have an unpaid balance. Please settle your fines before reserving.', 403);
+    }
+
+    // Check if member already has this book reserved or borrowed
+    const [existingRes] = await connection.execute(
+      "SELECT * FROM Reservations WHERE MemberID = ? AND BookID = ? AND Status IN ('Queued','Ready')",
+      [memberId, bookId]
+    );
+    if (existingRes.length > 0) {
+      await connection.rollback();
+      return fail(res, 'You already have an active reservation for this book.');
+    }
+
+    const [existingBor] = await connection.execute(
+      "SELECT * FROM BorrowingRecords br JOIN BookCopies bc ON br.CopyID=bc.CopyID WHERE br.MemberID = ? AND bc.BookID = ? AND br.Status IN ('Pending','Borrowed')",
+      [memberId, bookId]
+    );
+    if (existingBor.length > 0) {
+      await connection.rollback();
+      return fail(res, 'You already have this book borrowed or pending pickup.');
+    }
+
+    // Determine next priority
+    const [[priorityRow]] = await connection.execute(
+      "SELECT COALESCE(MAX(Priority), 0) + 1 AS NextPriority FROM Reservations WHERE BookID = ? AND Status = 'Queued'",
+      [bookId]
+    );
+
+    const requestCode = 'RSV-' + Math.floor(1000 + Math.random() * 9000); // Simple code
+
+    await connection.execute(
+      "INSERT INTO Reservations (MemberID, BookID, RequestCode, Status, Priority, ReservationDate) VALUES (?, ?, ?, 'Queued', ?, NOW())",
+      [memberId, bookId, requestCode, priorityRow.NextPriority]
+    );
+
+    await connection.commit();
+    return ok(res, 'Added to waitlist successfully');
+  } catch (err) {
+    await connection.rollback();
+    return fail(res, err.message, 500);
+  } finally {
+    connection.release();
+  }
+});
+
+router.delete('/reservations/:id', memberOnly, async (req, res) => {
+  const { id } = req.params;
+  const memberId = getMemberId(req);
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+    const [reservations] = await connection.execute(
+      "SELECT * FROM Reservations WHERE ReservationID = ? AND MemberID = ? FOR UPDATE",
+      [id, memberId]
+    );
+
+    if (reservations.length === 0) {
+      await connection.rollback();
+      return fail(res, 'Reservation not found or forbidden', 404);
+    }
+
+    if (reservations[0].Status !== 'Queued') {
+      await connection.rollback();
+      return fail(res, 'Only queued reservations can be cancelled');
+    }
+
+    await connection.execute("UPDATE Reservations SET Status = 'Cancelled' WHERE ReservationID = ?", [id]);
+    await connection.commit();
+    return ok(res, 'Reservation cancelled');
+  } catch (err) {
+    await connection.rollback();
+    return fail(res, err.message, 500);
+  } finally {
+    connection.release();
+  }
+});
+
 
 router.get('/my-fines', memberOnly, async (req, res) => {
   try {

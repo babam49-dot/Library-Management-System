@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
 import DashboardShell from '../components/DashboardShell'
+import BookCard from '../components/BookCard'
 import api from '../api/axiosInstance'
 
 const navItems = [
@@ -20,6 +22,7 @@ const tabTitles = {
 
 export default function MemberDashboard() {
   const { user, logout } = useAuth()
+  const { isDark } = useTheme()
   const location = useLocation()
   const navigate = useNavigate()
   const params = new URLSearchParams(location.search)
@@ -118,6 +121,28 @@ export default function MemberDashboard() {
     }
   }
 
+  const joinWaitlist = async (bookId) => {
+    try {
+      await api.post('/member/reserve', { bookId })
+      setNotice('Added to waitlist successfully.')
+      await loadAll()
+      setTab('reservations')
+    } catch (err) {
+      setNotice(err.response?.data?.message || err.message)
+    }
+  }
+
+  const cancelReservation = async (id) => {
+    try {
+      await api.delete(`/member/reservations/${id}`)
+      setNotice('Reservation cancelled.')
+      await loadAll()
+    } catch (err) {
+      setNotice(err.response?.data?.message || err.message)
+    }
+  }
+
+
   const payWithChapa = async (fine, amount) => {
     setPayingFineId(fine.FineID)
     try {
@@ -201,15 +226,17 @@ export default function MemberDashboard() {
           isbn={isbn}
           setIsbn={setIsbn}
           addToCart={addToCart}
+          joinWaitlist={joinWaitlist}
           cart={cart}
           removeFromCart={(copyId) => setCart(prev => prev.filter(item => item.copyId !== copyId))}
           submitBorrowRequest={submitBorrowRequest}
           blocked={dashboard?.borrowingBlocked}
+          isDark={isDark}
         />
       )}
 
       {tab === 'borrows' && <BorrowedTab rows={borrows} />}
-      {tab === 'reservations' && <ReservationsTab rows={reservations} />}
+      {tab === 'reservations' && <ReservationsTab rows={reservations} cancelReservation={cancelReservation} />}
       {tab === 'fines' && (
         <FinesTab
           fines={fines}
@@ -242,10 +269,19 @@ function SummaryStrip({ dashboard, loading }) {
   )
 }
 
-function CatalogTab({ books, categories, category, setCategory, author, setAuthor, isbn, setIsbn, addToCart, cart, removeFromCart, submitBorrowRequest, blocked }) {
+function CatalogTab({ books, categories, category, setCategory, author, setAuthor, isbn, setIsbn, addToCart, joinWaitlist, cart, removeFromCart, submitBorrowRequest, blocked, isDark }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 320px', gap: 18 }}>
       <section>
+        {blocked && (
+          <div className="member-card soft-pulse" style={{ background: '#fef2f2', border: '1px solid #f87171', borderRadius: 14, padding: 16, marginBottom: 16, color: '#991b1b', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 24 }}>⚠️</span>
+            <div>
+              <div style={{ fontSize: 16 }}>Borrowing Blocked</div>
+              <div style={{ fontSize: 13, color: '#b91c1c', fontWeight: 600 }}>You have an outstanding balance. New borrowing requests cannot be processed until your fines are settled.</div>
+            </div>
+          </div>
+        )}
         <div className="member-card" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: 16, marginBottom: 16, display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 12 }}>
           <select value={category} onChange={e => setCategory(e.target.value)} style={filterStyle}>
             <option value="">All categories</option>
@@ -255,9 +291,19 @@ function CatalogTab({ books, categories, category, setCategory, author, setAutho
           <input value={isbn} onChange={e => setIsbn(e.target.value)} placeholder="Filter by ISBN" style={filterStyle} />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 16 }}>
-          {books.map(book => (
-            <BookCard key={book.BookID} book={book} addToCart={addToCart} blocked={blocked} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 18 }}>
+          {books.map((book, i) => (
+            <BookCard
+              key={book.BookID}
+              book={book}
+              isDark={isDark}
+              showActions="member"
+              onBorrow={addToCart}
+              onWaitlist={joinWaitlist}
+              blocked={blocked}
+              index={i}
+              detailLink={true}
+            />
           ))}
           {!books.length && <EmptyState title="No books found" text="Try a different title, author, category, or ISBN." />}
         </div>
@@ -284,43 +330,36 @@ function CatalogTab({ books, categories, category, setCategory, author, setAutho
   )
 }
 
-function BookCard({ book, addToCart, blocked }) {
-  const available = Number(book.AvailableCopies || 0)
-  return (
-    <article className="member-card" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, overflow: 'hidden' }}>
-      <div style={{ minHeight: 118, background: 'linear-gradient(135deg,#1e3a8a,#2563eb)', color: '#fff', padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-        <span style={{ alignSelf: 'flex-start', background: 'rgba(255,255,255,.16)', padding: '5px 9px', borderRadius: 999, fontSize: 12, fontWeight: 800 }}>{book.CategoryName || 'General'}</span>
-        <h3 style={{ margin: '18px 0 0', fontSize: 18, lineHeight: 1.25 }}>{book.Title}</h3>
-      </div>
-      <div style={{ padding: 16 }}>
-        <p style={{ color: '#475569', fontSize: 13, minHeight: 38, margin: 0 }}>By {book.Authors || 'Unknown author'}</p>
-        <div style={{ color: '#64748b', fontSize: 12, marginTop: 10 }}>ISBN: {book.ISBN || 'N/A'} • {book.Language || 'Language N/A'}</div>
-        <div style={{ marginTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ color: available ? '#059669' : '#dc2626', fontWeight: 900 }}>{available} available</span>
-          <button className="member-button" disabled={!available || blocked} onClick={() => addToCart(book)} style={{ border: 0, borderRadius: 10, padding: '9px 12px', color: '#fff', background: available && !blocked ? '#2563eb' : '#94a3b8', cursor: available && !blocked ? 'pointer' : 'not-allowed', fontWeight: 900 }}>
-            Add
-          </button>
-        </div>
-      </div>
-    </article>
-  )
-}
 
 function BorrowedTab({ rows }) {
   return <DataTable rows={rows} empty="No borrowed books yet." columns={[
-    ['Title', r => r.Title],
+    ['Title', r => (
+      <div>
+        <div style={{ fontWeight: 800 }}>{r.Title}</div>
+        {r.Status === 'Overdue' && (
+          <div style={{ color: '#ef4444', fontSize: 12, marginTop: 4 }}>
+            OVERDUE! Accruing fines daily.
+          </div>
+        )}
+      </div>
+    )],
     ['Request Code', r => r.RequestCode],
     ['Status', r => <Badge value={r.Status} />],
     ['Due Date', r => r.DueDate ? new Date(r.DueDate).toLocaleDateString() : '-']
   ]} />
 }
 
-function ReservationsTab({ rows }) {
+function ReservationsTab({ rows, cancelReservation }) {
   return <DataTable rows={rows} empty="No reservations yet." columns={[
     ['Title', r => r.Title],
     ['Code', r => r.RequestCode],
     ['Status', r => <Badge value={r.Status} />],
-    ['Pickup Deadline', r => r.PickupDeadline ? new Date(r.PickupDeadline).toLocaleString() : '-']
+    ['Pickup Deadline', r => r.PickupDeadline ? new Date(r.PickupDeadline).toLocaleString() : '-'],
+    ['Action', r => r.Status === 'Queued' ? (
+      <button onClick={() => cancelReservation(r.ReservationID)} style={{ background: '#fee2e2', color: '#991b1b', border: 'none', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 12 }}>
+        Cancel
+      </button>
+    ) : null]
   ]} />
 }
 

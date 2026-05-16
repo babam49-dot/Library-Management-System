@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { useTheme } from '../context/ThemeContext'
+import BookCard from '../components/BookCard'
 
 function StatCounter({ target, label, suffix = '', floatDelay = '0s' }) {
   const [count, setCount] = useState(0)
@@ -306,27 +307,22 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Books Section: Month, Real Images */}
+      {/* Books Section: Interactive Cards */}
       <section id="books" className="reveal" style={{ padding: '80px 48px 40px', background: isDark ? '#0a0e1a' : '#fff' }}>
         <div style={{ textAlign: 'center', marginBottom: 60 }}>
           <h2 style={{ fontSize: 48, fontWeight: 800 }}>Best borrowed books of the month</h2>
-          <p style={{ color: '#64748b', marginTop: 12 }}>Check out our most popular titles currently in demand.</p>
+          <p style={{ color: '#64748b', marginTop: 12 }}>Hover or click a book to see its full details. Click the cover to view the full page.</p>
         </div>
-        <div style={{ maxWidth: 1400, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 32 }}>
+        <div style={{ maxWidth: 1400, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 28 }}>
           {books.map((b, i) => (
-            <div key={i} className="book-card" style={{ borderRadius: 24, overflow: 'hidden' }}>
-              <Link to="/login" state={{ tab: 'catalog', bookId: b.BookID }} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
-                <div style={{ height: 350, background: '#f1f5f9' }}>
-                  <img src={b.CoverImage || 'https://via.placeholder.com/400x600'} alt={b.Title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                </div>
-                <div style={{ padding: 24 }}>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', marginBottom: 8 }}>{b.CategoryName}</div>
-                  <h4 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{b.Title}</h4>
-                  <div style={{ color: '#64748b', fontSize: 14, marginBottom: 20 }}>{b.Authors}</div>
-                  <div className="btn-gold" style={{ width: '100%', textAlign: 'center', padding: '10px 0' }}>Borrow Now</div>
-                </div>
-              </Link>
-            </div>
+            <BookCard
+              key={b.BookID}
+              book={b}
+              isDark={isDark}
+              showActions="public"
+              index={i}
+              detailLink={true}
+            />
           ))}
         </div>
       </section>

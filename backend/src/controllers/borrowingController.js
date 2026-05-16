@@ -594,3 +594,211 @@ exports.cancelRequest = async (req, res) => {
     if (conn) conn.release();
   }
 };
+
+exports.getSession = async (req, res) => {
+  try {
+    const { code } = req.params;
+    const [rows] = await db.query(`
+      SELECT 
+        br.BorrowID as borrowId, br.RequestCode as requestCode, br.Status as status,
+        br.BorrowDate as borrowDate, br.DueDate as dueDate, br.PickupDeadline as pickupDeadline,
+        b.Title as bookTitle, bc.CopyID as copyId, bc.ShelfLocation as shelfLocation,
+        m.MemberID as memberId, u.FullName as fullName, u.Email as email
+      FROM BorrowingRecords br
+      JOIN BookCopies bc ON br.CopyID = bc.CopyID
+      JOIN Books b ON bc.BookID = b.BookID
+      JOIN Members m ON br.MemberID = m.MemberID
+      JOIN Users u ON m.UserID = u.UserID
+      WHERE br.RequestCode = ?
+    `, [code]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Session not found' });
+    }
+
+    const member = {
+      memberId: rows[0].memberId,
+      fullName: rows[0].fullName,
+      email: rows[0].email
+    };
+
+    res.json({
+      success: true,
+      data: {
+        requestCode: code,
+        member,
+        rows
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+exports.confirmCollection = async (req, res) => {
+  const { code } = req.params;
+  const staffId = req.user.StaffID || req.user.staffID || req.user.extensionId || null;
+  let conn;
+  try {
+    conn = await getConnection();
+    await conn.beginTransaction();
+
+    const [rows] = await conn.query(`
+      SELECT BorrowID, CopyID, MemberID, Status FROM BorrowingRecords 
+      WHERE RequestCode = ? AND Status = 'Pending' FOR UPDATE
+    `, [code]);
+
+    if (rows.length === 0) {
+      await conn.rollback();
+      return res.status(400).json({ success: false, message: 'No pending books to confirm for this request code' });
+    }
+
+    const memberId = rows[0].MemberID;
+    
+    // Check fine block
+    const debtCheck = await validateDebtCheck(memberId, conn);
+    if (!debtCheck.passed) {
+      await conn.rollback();
+      return res.status(403).json(debtCheck);
+    }
+
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 14);
+
+    for (const r of rows) {
+      await conn.query(`
+        UPDATE BorrowingRecords 
+        SET Status = 'Borrowed', DueDate = ?, ProcessedByStaffID = ?
+        WHERE BorrowID = ?
+      `, [dueDate, staffId, r.BorrowID]);
+
+      await conn.query(`UPDATE BookCopies SET Status = 'Borrowed' WHERE CopyID = ?`, [r.CopyID]);
+    }
+
+    await conn.commit();
+    res.json({ success: true, message: 'Pickup confirmed successfully' });
+  } catch (err) {
+    if (conn) await conn.rollback();
+    res.status(500).json({ success: false, error: err.message });
+  } finally {
+    if (conn) conn.release();
+  }
+};
+
+exports.processReturn = async (req, res) => {
+  const { borrowId, conditionOnReturn, notes } = req.body;
+  const staffId = req.user.StaffID || req.user.staffID || req.user.extensionId || null;
+  let conn;
+  try {
+    conn = await getConnection();
+    await conn.beginTransaction();
+
+    const [borrows] = await conn.query(`
+      SELECT * FROM BorrowingRecords WHERE BorrowID = ? FOR UPDATE
+    `, [borrowId]);
+
+    if (borrows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ success: false, message: 'Borrow record not found' });
+    }
+    
+    const borrow = borrows[0];
+    if (borrow.Status === 'Returned') {
+      await conn.rollback();
+      return res.status(400).json({ success: false, message: 'Already returned' });
+    }
+
+    const [retResult] = await conn.query(`
+      INSERT INTO Returns (BorrowID, ReturnDate, ConditionNote, StaffID) VALUES (?, NOW(), ?, ?)
+    `, [borrowId, conditionOnReturn || 'Good', staffId]);
+    const returnId = retResult.insertId;
+
+    await conn.query(`UPDATE BorrowingRecords SET Status = 'Returned', ReturnDate = NOW() WHERE BorrowID = ?`, [borrowId]);
+
+    let nextMemberNotified = false;
+
+    if (conditionOnReturn === 'Good') {
+      await conn.query(`UPDATE BookCopies SET Status = 'Available' WHERE CopyID = ?`, [borrow.CopyID]);
+    } else if (conditionOnReturn === 'Minor Damage' || conditionOnReturn === 'Minor') {
+      await conn.query(`INSERT INTO DamageReports (ReturnID, CopyID, Description, Severity, AssessmentDate, StaffID) VALUES (?, ?, ?, 'Minor', CURDATE(), ?)`, [returnId, borrow.CopyID, notes || '', staffId]);
+      await conn.query(`INSERT INTO Fines (UserID, TypeID, BorrowID, Amount, IssuedDate, FineStatus, MemberID) VALUES ((SELECT UserID FROM Members WHERE MemberID = ?), (SELECT TypeID FROM FineTypes WHERE TypeName LIKE '%Damage%' LIMIT 1), ?, COALESCE((SELECT BaseAmount FROM FineTypes WHERE TypeName LIKE '%Damage%' LIMIT 1), 50), CURDATE(), 'Unpaid', ?)`, [borrow.MemberID, borrowId, borrow.MemberID]);
+      await conn.query(`UPDATE BookCopies SET Status = 'Available' WHERE CopyID = ?`, [borrow.CopyID]); 
+    } else if (conditionOnReturn === 'Major Damage' || conditionOnReturn === 'Major') {
+      await conn.query(`INSERT INTO DamageReports (ReturnID, CopyID, Description, Severity, AssessmentDate, StaffID) VALUES (?, ?, ?, 'Major', CURDATE(), ?)`, [returnId, borrow.CopyID, notes || '', staffId]);
+      await conn.query(`INSERT INTO Fines (UserID, TypeID, BorrowID, Amount, IssuedDate, FineStatus, MemberID) VALUES ((SELECT UserID FROM Members WHERE MemberID = ?), (SELECT TypeID FROM FineTypes WHERE TypeName LIKE '%Damage%' LIMIT 1), ?, COALESCE((SELECT BaseAmount * 2 FROM FineTypes WHERE TypeName LIKE '%Damage%' LIMIT 1), 100), CURDATE(), 'Unpaid', ?)`, [borrow.MemberID, borrowId, borrow.MemberID]);
+      await conn.query(`UPDATE BookCopies SET Status = 'Damaged' WHERE CopyID = ?`, [borrow.CopyID]);
+    } else if (conditionOnReturn === 'Total Loss') {
+      await conn.query(`INSERT INTO DamageReports (ReturnID, CopyID, Description, Severity, AssessmentDate, StaffID) VALUES (?, ?, ?, 'Total Loss', CURDATE(), ?)`, [returnId, borrow.CopyID, notes || '', staffId]);
+      await conn.query(`INSERT INTO Fines (UserID, TypeID, BorrowID, Amount, IssuedDate, FineStatus, MemberID) VALUES ((SELECT UserID FROM Members WHERE MemberID = ?), (SELECT TypeID FROM FineTypes WHERE TypeName LIKE '%Loss%' LIMIT 1), ?, COALESCE((SELECT BaseAmount FROM FineTypes WHERE TypeName LIKE '%Loss%' LIMIT 1), 500), CURDATE(), 'Unpaid', ?)`, [borrow.MemberID, borrowId, borrow.MemberID]);
+      await conn.query(`INSERT INTO BookDisposalLog (CopyID, Reason, DateRemoved, StaffID) VALUES (?, 'Beyond Repair', CURDATE(), ?)`, [borrow.CopyID, staffId]);
+      await conn.query(`UPDATE BookCopies SET Status = 'Disposed' WHERE CopyID = ?`, [borrow.CopyID]);
+    }
+
+    if (conditionOnReturn === 'Good' || conditionOnReturn === 'Minor Damage' || conditionOnReturn === 'Minor') {
+      const [resRows] = await conn.query(`
+        SELECT ReservationID, MemberID, RequestCode FROM Reservations
+        WHERE BookID = (SELECT BookID FROM BookCopies WHERE CopyID = ?) AND Status = 'Queued'
+        ORDER BY Priority ASC, ReservationDate ASC LIMIT 1 FOR UPDATE
+      `, [borrow.CopyID]);
+
+      if (resRows.length > 0) {
+        const nextRes = resRows[0];
+        await conn.query(`
+          INSERT INTO BorrowingRecords (MemberID, CopyID, RequestCode, BorrowDate, Status, PickupDeadline)
+          VALUES (?, ?, ?, CURDATE(), 'Pending', DATE_ADD(NOW(), INTERVAL 24 HOUR))
+        `, [nextRes.MemberID, borrow.CopyID, nextRes.RequestCode]);
+        await conn.query(`UPDATE BookCopies SET Status = 'Reserved_on_Shelf' WHERE CopyID = ?`, [borrow.CopyID]);
+        await conn.query(`UPDATE Reservations SET Status = 'Ready', PickupDeadline = DATE_ADD(NOW(), INTERVAL 24 HOUR) WHERE ReservationID = ?`, [nextRes.ReservationID]);
+        nextMemberNotified = true;
+      }
+    }
+
+    await conn.commit();
+    res.json({ success: true, message: 'Return processed', nextMemberNotified });
+  } catch (err) {
+    if (conn) await conn.rollback();
+    res.status(500).json({ success: false, error: err.message });
+  } finally {
+    if (conn) conn.release();
+  }
+};
+
+exports.getOverdue = async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT br.BorrowID as borrowId, br.RequestCode as requestCode, br.DueDate as dueDate,
+             u.FullName as fullName, m.StudentID as studentID, m.MemberID as memberID,
+             b.Title as bookTitle,
+             DATEDIFF(CURDATE(), br.DueDate) as daysOverdue,
+             (SELECT SUM(Amount) FROM Fines WHERE BorrowID = br.BorrowID) as estimatedFine
+      FROM BorrowingRecords br
+      JOIN Members m ON m.MemberID = br.MemberID
+      JOIN Users u ON u.UserID = m.UserID
+      JOIN BookCopies bc ON bc.CopyID = br.CopyID
+      JOIN Books b ON b.BookID = bc.BookID
+      WHERE br.Status = 'Overdue'
+      ORDER BY daysOverdue DESC
+    `);
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.getSessions = async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT br.BorrowID as id, br.RequestCode as code, br.Status as status, br.RequestDate as requestDate,
+             u.FullName as memberName, b.Title as bookTitle, bc.CopyID as copyId
+      FROM BorrowingRecords br
+      JOIN Members m ON m.MemberID = br.MemberID
+      JOIN Users u ON u.UserID = m.UserID
+      JOIN BookCopies bc ON bc.CopyID = br.CopyID
+      JOIN Books b ON b.BookID = bc.BookID
+      ORDER BY br.RequestDate DESC LIMIT 100
+    `);
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};

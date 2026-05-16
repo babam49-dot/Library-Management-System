@@ -26,11 +26,19 @@ export default function LibrarianDeskPage() {
   // Return specific state per row
   const [returnState, setReturnState] = useState({});
 
+  const c = {
+    bg: isDark ? '#0a0e1a' : '#f1f5f9',
+    card: isDark ? '#161b27' : '#fff',
+    border: isDark ? '#1e2d40' : '#e2e8f0',
+    text: isDark ? '#f1f5f9' : '#0f172a',
+    muted: isDark ? '#64748b' : '#64748b',
+    input: isDark ? '#1e2d40' : '#f8fafc',
+  };
+
   const handleLookup = async (code) => {
     try {
       const data = await lookupSession(code);
       if (tab === 'return') {
-        // Initialize return state for borrowed/overdue rows
         const initial = {};
         data.rows.forEach(r => {
           if (['Borrowed', 'Overdue'].includes(r.status)) {
@@ -67,7 +75,6 @@ export default function LibrarianDeskPage() {
         notes: state.notes
       });
       alert(res.message + (res.nextMemberNotified ? ' (Next member in queue notified!)' : ''));
-      // Refresh session data
       handleLookup(lookupCode);
     } catch (e) {
       alert('Failed to process return: ' + e);
@@ -95,37 +102,31 @@ export default function LibrarianDeskPage() {
 
   return (
     <DashboardShell role="staff" navItems={STAFF_NAV_ITEMS} activeTab="desk" tabLabel="Librarian Desk">
-      <div className="flex border-b mb-6 dark:border-gray-700">
+      <div style={{ display:'flex', borderBottom:`1px solid ${c.border}`, marginBottom: 24 }}>
         <button
           onClick={() => { setTab('pickup'); clearSession(); }}
-          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${
-            tab === 'pickup' 
-              ? 'border-[#d4af37] text-[#d4af37]' 
-              : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-          }`}
+          style={{ padding:'12px 24px', fontWeight:600, borderBottom:`2px solid ${tab === 'pickup' ? '#d4af37' : 'transparent'}`, color: tab === 'pickup' ? '#d4af37' : c.muted, background:'transparent', borderTop:'none', borderLeft:'none', borderRight:'none', cursor:'pointer', fontSize:15 }}
         >
           Process Pickup
         </button>
         <button
           onClick={() => { setTab('return'); clearSession(); }}
-          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${
-            tab === 'return' 
-              ? 'border-[#d4af37] text-[#d4af37]' 
-              : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-          }`}
+          style={{ padding:'12px 24px', fontWeight:600, borderBottom:`2px solid ${tab === 'return' ? '#d4af37' : 'transparent'}`, color: tab === 'return' ? '#d4af37' : c.muted, background:'transparent', borderTop:'none', borderLeft:'none', borderRight:'none', cursor:'pointer', fontSize:15 }}
         >
           Process Return
         </button>
       </div>
 
-      <div className="max-w-4xl mx-auto">
-        <DeskLookupBar 
-          onLookup={handleLookup} 
-          isLoading={isLookupLoading} 
-        />
+      <div style={{ maxWidth: 800, margin: '0 auto' }}>
+        <div style={{ marginBottom: 24 }}>
+          <DeskLookupBar 
+            onLookup={handleLookup} 
+            isLoading={isLookupLoading} 
+          />
+        </div>
 
         {lookupError && (
-          <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-xl border border-red-300">
+          <div style={{ marginBottom: 24, padding: 16, background: '#fee2e2', color: '#991b1b', borderRadius: 12, border: '1px solid #fca5a5' }}>
             {lookupError}
           </div>
         )}
@@ -134,53 +135,62 @@ export default function LibrarianDeskPage() {
           <SessionCard 
             sessionData={sessionData} 
             onConfirm={handleConfirmPickup}
-            isConfirming={isLookupLoading} // reuse loading state
+            isConfirming={isLookupLoading}
           />
         )}
 
         {sessionData && tab === 'return' && (
-          <div className={`rounded-2xl shadow-lg border overflow-hidden ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-            <div className={`p-6 border-b ${isDark ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-gray-50'}`}>
-              <h2 className="text-xl font-bold font-serif">Return Books - Session {sessionData.requestCode}</h2>
-              <p className="text-gray-500 text-sm">Member: {sessionData.member.fullName}</p>
+          <div style={{ background: c.card, borderRadius: 16, border: `1px solid ${c.border}`, overflow: 'hidden' }}>
+            <div style={{ padding: 24, borderBottom: `1px solid ${c.border}`, background: isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc' }}>
+              <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: c.text }}>Return Books - Session {sessionData.requestCode}</h2>
+              <p style={{ margin: '4px 0 0', color: c.muted, fontSize: 14 }}>Member: {sessionData.member.fullName}</p>
             </div>
             
-            <div className="divide-y divide-gray-200 dark:divide-gray-700">
-              {sessionData.rows.filter(r => ['Borrowed', 'Overdue', 'Returned'].includes(r.status)).map(row => {
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {sessionData.rows.filter(r => ['Borrowed', 'Overdue', 'Returned'].includes(r.status)).map((row, idx, arr) => {
                 const isReturned = row.status === 'Returned';
                 const state = returnState[row.borrowId] || { condition: '', notes: '' };
+                const isLast = idx === arr.length - 1;
 
                 return (
-                  <div key={row.borrowId} className="p-6 flex flex-col lg:flex-row gap-6 items-start lg:items-center">
-                    <div className="flex-1">
-                      <h3 className="font-bold text-lg mb-1">{row.bookTitle}</h3>
-                      <div className="text-sm text-gray-500 font-mono space-x-4">
+                  <div key={row.borrowId} style={{ padding: 24, display: 'flex', gap: 24, alignItems: 'center', borderBottom: isLast ? 'none' : `1px solid ${c.border}`, flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: 250 }}>
+                      <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 700, color: c.text }}>{row.bookTitle}</h3>
+                      <div style={{ fontSize: 13, color: c.muted, display: 'flex', gap: 16 }}>
                         <span>Copy: {row.copyId}</span>
                         <span>Due: {new Date(row.dueDate).toLocaleDateString()}</span>
-                        {row.status === 'Overdue' && <span className="text-red-500 font-bold ml-2">OVERDUE</span>}
-                        {isReturned && <span className="text-green-500 font-bold ml-2">RETURNED ✓</span>}
+                        {row.status === 'Overdue' && <span style={{ color: '#ef4444', fontWeight: 700 }}>OVERDUE</span>}
+                        {isReturned && <span style={{ color: '#10b981', fontWeight: 700 }}>RETURNED ✓</span>}
                       </div>
                     </div>
 
                     {!isReturned && (
-                      <div className="w-full lg:w-1/2 flex flex-col sm:flex-row gap-3">
-                        <div className="flex-1 space-y-2">
-                          <ReturnConditionSelect 
+                      <div style={{ display: 'flex', gap: 12, flex: 1, minWidth: 300, alignItems: 'center' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
+                          <select 
                             value={state.condition}
-                            onChange={(val) => updateReturnState(row.borrowId, 'condition', val)}
-                          />
+                            onChange={(e) => updateReturnState(row.borrowId, 'condition', e.target.value)}
+                            style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: `1px solid ${c.border}`, background: c.input, color: c.text, outline: 'none' }}
+                          >
+                            <option value="">-- Select Condition --</option>
+                            <option value="Good">Good</option>
+                            <option value="Minor Damage">Minor Damage</option>
+                            <option value="Major Damage">Major Damage</option>
+                            <option value="Total Loss">Total Loss</option>
+                          </select>
                           <input 
                             type="text" 
                             placeholder="Optional notes..."
                             value={state.notes}
                             onChange={(e) => updateReturnState(row.borrowId, 'notes', e.target.value)}
-                            className={`w-full p-2 rounded border text-sm ${isDark ? 'bg-gray-900 border-gray-700 text-white' : 'bg-white border-gray-300'} focus:ring-2 focus:ring-[#d4af37] outline-none`}
+                            style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: `1px solid ${c.border}`, background: c.input, color: c.text, outline: 'none' }}
                           />
                         </div>
                         <button 
                           onClick={() => handleProcessReturn(row.borrowId)}
                           disabled={isReturnLoading || !state.condition}
-                          className="px-6 py-2 bg-green-600 text-white rounded font-bold hover:bg-green-700 disabled:opacity-50 h-fit"
+                          className="interactive-btn"
+                          style={{ padding: '10px 20px', borderRadius: 8, border: 'none', background: !state.condition ? c.muted : '#10b981', color: '#fff', fontWeight: 700, cursor: !state.condition ? 'not-allowed' : 'pointer' }}
                         >
                           Process
                         </button>
@@ -190,7 +200,7 @@ export default function LibrarianDeskPage() {
                 );
               })}
               {sessionData.rows.filter(r => ['Borrowed', 'Overdue', 'Returned'].includes(r.status)).length === 0 && (
-                <div className="p-6 text-center text-gray-500">No borrowed books found in this session.</div>
+                <div style={{ padding: 40, textAlign: 'center', color: c.muted }}>No borrowed books found in this session.</div>
               )}
             </div>
           </div>
@@ -199,3 +209,4 @@ export default function LibrarianDeskPage() {
     </DashboardShell>
   );
 }
+
