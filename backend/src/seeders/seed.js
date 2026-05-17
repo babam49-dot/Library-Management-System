@@ -1,4 +1,4 @@
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const { sequelize, Roles, FineTypes, Publishers, Categories, Authors, Users, Members, Staff, Books, BookAuthors, BookCopies } = require('../models');
 
 async function seed() {

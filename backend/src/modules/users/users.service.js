@@ -1,5 +1,5 @@
 const pool = require('../../db');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../../../.env') });
@@ -35,10 +35,12 @@ const login = async (email, password) => {
     throw { status: 401, message: "Invalid credentials" };
   }
 
-  // Step 5: Check Status
   const normalizedStatus = String(user.Status || '').toLowerCase();
   if (normalizedStatus === 'suspended' || normalizedStatus === 'inactive') {
     throw { status: 401, message: "Account is not active" };
+  }
+  if (normalizedStatus === 'pending') {
+    throw { status: 401, message: "Account is pending admin approval" };
   }
   if (normalizedStatus !== 'active') {
     throw { status: 403, message: "Account is not active" };
@@ -156,6 +158,63 @@ const createUser = async (userData, creatorRole) => {
   }
 };
 
+const registerPublicUser = async (userData) => {
+  const Email = userData.Email || userData.email;
+  const Password = userData.Password || userData.password;
+  const FullName = userData.FullName || `${userData.firstName || ''} ${userData.lastName || ''}`.trim();
+  const RoleID = userData.RoleID;
+  const extensionData = userData;
+
+  if (!RoleID) throw { status: 400, message: "RoleID is required" };
+  if (!Email || !Password || !FullName) throw { status: 400, message: "Missing required fields" };
+
+  const [roles] = await pool.execute('SELECT RoleName FROM Roles WHERE RoleID = ?', [RoleID]);
+  if (roles.length === 0) throw { status: 400, message: "Invalid RoleID" };
+  const roleName = roles[0].RoleName;
+
+  const [existingEmail] = await pool.execute('SELECT UserID FROM Users WHERE Email = ?', [Email]);
+  if (existingEmail.length > 0) throw { status: 409, message: "Email already exists" };
+
+  if (roleName === 'Member') {
+    if (!extensionData.universityId) throw { status: 400, message: "University ID is required for members" };
+    const [existingStudent] = await pool.execute('SELECT MemberID FROM Members WHERE StudentID = ?', [extensionData.universityId]);
+    if (existingStudent.length > 0) throw { status: 409, message: "University ID already exists" };
+  }
+
+  const hashedPassword = await bcrypt.hash(Password, SALT_ROUNDS);
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [userResult] = await connection.execute(
+      'INSERT INTO Users (Email, Password, FullName, RoleID, Status) VALUES (?, ?, ?, ?, ?)',
+      [Email, hashedPassword, FullName, RoleID, 'Pending']
+    );
+    const userId = userResult.insertId;
+
+    if (roleName === 'Member') {
+      await connection.execute(
+        'INSERT INTO Members (UserID, StudentID, Department, MaxBooksAllowed) VALUES (?, ?, ?, ?)',
+        [userId, extensionData.universityId, extensionData.department || null, 5]
+      );
+    } else if (roleName === 'Staff' || roleName === 'Admin') {
+      await connection.execute(
+        'INSERT INTO Staff (UserID, JobTitle, EmploymentDate) VALUES (?, ?, ?)',
+        [userId, extensionData.jobTitle, new Date()]
+      );
+    }
+
+    await connection.commit();
+    return { UserID: userId };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+};
+
 const updateUser = async (userId, updateData) => {
   const { FullName, Email } = updateData;
   
@@ -172,7 +231,7 @@ const updateUser = async (userId, updateData) => {
 
 const updateStatus = async (userId, status) => {
   // Rule 7: Status change only, no deletion
-  const allowed = ['Active', 'Suspended', 'Inactive'];
+  const allowed = ['Active', 'Suspended', 'Inactive', 'Pending'];
   if (!allowed.includes(status)) throw { status: 400, message: "Invalid status value" };
 
   await pool.execute('UPDATE Users SET Status = ? WHERE UserID = ?', [status, userId]);
@@ -319,6 +378,7 @@ const isMemberEligibleToBorrow = async (memberId, requestedBooks = 1) => {
 
 module.exports = {
   login,
+  registerPublicUser,
   createUser,
   updateUser,
   updateStatus,

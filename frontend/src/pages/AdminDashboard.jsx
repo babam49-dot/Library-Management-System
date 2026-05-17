@@ -56,6 +56,7 @@ export default function AdminDashboard() {
     { key: 'overview', label: 'Overview', icon: '📊' },
     { key: 'create-user', label: 'Create User', icon: '➕' },
     { key: 'pending-staff', label: 'Pending Staff', icon: '⏳' },
+    { key: 'pending-members', label: 'Pending Members', icon: '👤' },
     { key: 'all-staff', label: 'All Staff', icon: '🗂️' },
     { key: 'members', label: 'Members', icon: '🎓' },
     { key: 'all-users', label: 'All Users', icon: '👥' },
@@ -80,6 +81,7 @@ export default function AdminDashboard() {
     setLoading(true); setSearch('')
     const map = {
       'pending-staff': '/users',
+      'pending-members': '/users',
       'all-staff': '/users',
       'members': '/users',
       'all-users': '/admin/all-users',
@@ -108,6 +110,7 @@ export default function AdminDashboard() {
 
         // Apply filtering based on tab
         if (t === 'pending-staff') results = results.filter(u => u.RoleName === 'Staff' && (u.Status === 'Pending' || u.Status === 'pending'));
+        else if (t === 'pending-members') results = results.filter(u => u.RoleName === 'Member' && (u.Status === 'Pending' || u.Status === 'pending'));
         else if (t === 'all-staff') results = results.filter(u => (u.RoleName === 'Staff' || u.RoleName === 'Admin') && u.Status !== 'Pending' && u.Status !== 'pending');
         else if (t === 'members') results = results.filter(u => u.RoleName === 'Member');
         
@@ -225,6 +228,7 @@ export default function AdminDashboard() {
 
     const cols = {
       'pending-staff': ['Name','Email','Job Title','Phone','Actions'],
+      'pending-members': ['Name','Email','University ID','Department','Actions'],
       'all-staff': ['Name','Email','Job Title','Status','Joined','Actions'],
       'members': ['Name','Email','Dept','Max Books','Status','Actions'],
       'all-users': ['Name','Email','Role','Status','Actions'],
@@ -250,6 +254,18 @@ export default function AdminDashboard() {
           <Td>
             <Btn color='#10b981' onClick={() => act('patch',`/admin/users/${row.UserID}/status`,{status:'Active'},'Staff approved!')}>Approve</Btn>
             <Btn color='#ef4444' onClick={() => { if(window.confirm('Reject?')) act('patch',`/admin/users/${row.UserID}/status`,{status:'Rejected'},'Staff rejected.') }}>Reject</Btn>
+          </Td>
+        </tr>
+      )
+      if (tab === 'pending-members') return (
+        <tr key={i} className="table-row">
+          <Td><strong style={{color:c.text}}>{row.FullName}</strong></Td>
+          <Td>{row.Email}</Td>
+          <Td>{row.StudentID || '—'}</Td>
+          <Td>{row.Department || '—'}</Td>
+          <Td>
+            <Btn color='#10b981' onClick={() => act('patch',`/admin/users/${row.UserID}/status`,{status:'Active'},'Member approved! They can now log in.')}>Approve</Btn>
+            <Btn color='#ef4444' onClick={() => { if(window.confirm(`Reject ${row.FullName}'s application?`)) act('patch',`/admin/users/${row.UserID}/status`,{status:'Rejected'},'Member rejected.') }}>Reject</Btn>
           </Td>
         </tr>
       )
@@ -902,6 +918,9 @@ export default function AdminDashboard() {
               {t.label}
               {t.key === 'pending-staff' && stats?.pendingStaff > 0 && (
                 <span style={{ marginLeft:'auto', background:'#f59e0b', color:'#fff', fontSize:11, padding:'2px 8px', borderRadius:20, fontWeight:700 }}>{stats.pendingStaff}</span>
+              )}
+              {t.key === 'pending-members' && stats?.pendingMembers > 0 && (
+                <span style={{ marginLeft:'auto', background:'#ec4899', color:'#fff', fontSize:11, padding:'2px 8px', borderRadius:20, fontWeight:700 }}>{stats.pendingMembers}</span>
               )}
             </button>
           ))}

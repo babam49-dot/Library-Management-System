@@ -24,25 +24,37 @@ export function AuthProvider({ children }) {
   }, [])
 
   const login = async ({ email, password }) => {
-    const res = await axios.post(`${API}/auth/login`, { email, password })
-    if (!res.data.success) throw new Error(res.data.message)
-    const { token, user: u } = res.data.data
-    localStorage.setItem('lms_token', token)
-    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
-    setUser(u)
-    return u
+    try {
+      const res = await axios.post(`${API}/auth/login`, { email, password })
+      if (!res.data.success) throw new Error(res.data.message)
+      const { token, user: u } = res.data.data
+      localStorage.setItem('lms_token', token)
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+      setUser(u)
+      return u
+    } catch (err) {
+      throw new Error(err.response?.data?.message || err.message)
+    }
   }
 
   const registerStaff = async (data) => {
-    const res = await axios.post(`${API}/users`, { ...data, RoleID: 2 })
-    if (!res.data.success) throw new Error(res.data.message)
-    return res.data.message
+    try {
+      const res = await axios.post(`${API}/auth/register`, { ...data, RoleID: 2 })
+      if (!res.data.success) throw new Error(res.data.message)
+      return res.data.message
+    } catch (err) {
+      throw new Error(err.response?.data?.message || err.message)
+    }
   }
 
   const registerMember = async (data) => {
-    const res = await axios.post(`${API}/users`, { ...data, RoleID: 3 })
-    if (!res.data.success) throw new Error(res.data.message)
-    return res.data.message
+    try {
+      const res = await axios.post(`${API}/auth/register`, { ...data, RoleID: 3 })
+      if (!res.data.success) throw new Error(res.data.message)
+      return res.data.message
+    } catch (err) {
+      throw new Error(err.response?.data?.message || err.message)
+    }
   }
 
   const logout = () => {

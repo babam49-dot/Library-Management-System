@@ -33,7 +33,12 @@ export default function SignIn() {
       else if (u.RoleID === 2) navigate('/staff')
       else navigate('/member', { state: location.state })
     } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Login failed')
+      const msg = err.response?.data?.message || err.message || 'Login failed'
+      if (msg.toLowerCase().includes('pending')) {
+        navigate('/pending')
+      } else {
+        setError(msg)
+      }
     } finally { setLoading(false) }
   }
 
@@ -92,7 +97,14 @@ export default function SignIn() {
 
           <h3 style={{ fontFamily:"'Playfair Display',serif", fontSize:26, fontWeight:700, color: isDark?'#fff':'#0f172a', margin:'0 0 28px' }}>Sign In</h3>
 
+          {location.state?.pendingNotice && (
+            <div style={{ padding:'14px 18px', background:'rgba(16,185,129,0.1)', border:'1px solid rgba(16,185,129,0.3)', borderRadius:12, marginBottom:20, color:'#10b981', fontSize:14, fontWeight:600 }}>
+              ✅ Account created successfully! Please sign in to check your approval status.
+            </div>
+          )}
+
           {error && <div style={{ padding:'12px 16px', background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:10, color:'#ef4444', fontSize:14, marginBottom:20 }}>⚠️ {error}</div>}
+
 
           <form onSubmit={submit} style={{ display:'flex', flexDirection:'column', gap:18 }}>
             <div>

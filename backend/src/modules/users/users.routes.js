@@ -5,6 +5,7 @@ const { authenticateToken } = require('../../middleware/auth.middleware');
 const { requireRole } = require('../../middleware/rbac.middleware');
 
 // --- AUTH ROUTES ---
+router.post('/auth/register', controller.registerPublic);
 router.post('/auth/login', controller.login);
 router.post('/auth/logout', authenticateToken, controller.logout);
 router.get('/auth/me', authenticateToken, controller.getMe);

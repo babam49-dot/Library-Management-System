@@ -41,6 +41,19 @@ const createUser = async (req, res) => {
   }
 };
 
+const registerPublic = async (req, res) => {
+  try {
+    // Public registration does not require a creatorRole and sets status to 'Pending'
+    const result = await userService.registerPublicUser(req.body);
+    res.status(201).json({ success: true, message: "Account created and pending admin approval", data: result });
+  } catch (error) {
+    res.status(error.status || 500).json({
+      success: false,
+      message: error.message || "Registration failed"
+    });
+  }
+};
+
 const updateUser = async (req, res) => {
   try {
     await userService.updateUser(req.params.id, req.body);
@@ -140,6 +153,7 @@ const getAllRoles = async (req, res) => {
 module.exports = {
   login,
   logout,
+  registerPublic,
   createUser,
   updateUser,
   updateStatus,

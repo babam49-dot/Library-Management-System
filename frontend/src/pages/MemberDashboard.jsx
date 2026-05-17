@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
+import { useCart } from '../context/CartContext'
 import DashboardShell from '../components/DashboardShell'
 import BookCard from '../components/BookCard'
 import api from '../api/axiosInstance'
@@ -23,6 +24,7 @@ const tabTitles = {
 export default function MemberDashboard() {
   const { user, logout } = useAuth()
   const { isDark } = useTheme()
+  const { cart, addToCart, removeFromCart, clearCart } = useCart()
   const location = useLocation()
   const navigate = useNavigate()
   const params = new URLSearchParams(location.search)
@@ -35,7 +37,6 @@ export default function MemberDashboard() {
   const [borrows, setBorrows] = useState([])
   const [reservations, setReservations] = useState([])
   const [fines, setFines] = useState([])
-  const [cart, setCart] = useState([])
   const [category, setCategory] = useState('')
   const [author, setAuthor] = useState('')
   const [isbn, setIsbn] = useState('')
@@ -93,27 +94,26 @@ export default function MemberDashboard() {
 
   const cartCopyIds = cart.map(item => item.copyId)
 
-  const addToCart = (book) => {
+  const handleAddToCart = (book) => {
     const copyId = String(book.AvailableCopyIds || '').split(',').filter(Boolean)[0]
     if (!copyId) return setNotice('No available copy for this book right now.')
     if (cartCopyIds.includes(Number(copyId))) return setNotice('That book is already in your request cart.')
-
-    setCart(prev => [...prev, {
+    addToCart({
       bookId: book.BookID,
       copyId: Number(copyId),
       title: book.Title,
       authors: book.Authors,
       category: book.CategoryName
-    }])
-    setNotice(`${book.Title} added to your borrow cart.`)
+    })
+    setNotice(`✅ "${book.Title}" added to your borrow cart.`)
   }
 
   const submitBorrowRequest = async () => {
     if (!cart.length) return setNotice('Add at least one available book first.')
     try {
       const response = await api.post('/borrowing/request', { copyIds: cart.map(item => item.copyId) })
-      setNotice(response.data.data?.message || 'Borrow request submitted.')
-      setCart([])
+      setNotice(response.data.data?.message || 'Borrow request submitted! Check My Borrowed Books.')
+      clearCart()
       await loadAll()
       setTab('borrows')
     } catch (err) {
@@ -225,10 +225,10 @@ export default function MemberDashboard() {
           setAuthor={setAuthor}
           isbn={isbn}
           setIsbn={setIsbn}
-          addToCart={addToCart}
+          addToCart={handleAddToCart}
           joinWaitlist={joinWaitlist}
           cart={cart}
-          removeFromCart={(copyId) => setCart(prev => prev.filter(item => item.copyId !== copyId))}
+          removeFromCart={removeFromCart}
           submitBorrowRequest={submitBorrowRequest}
           blocked={dashboard?.borrowingBlocked}
           isDark={isDark}

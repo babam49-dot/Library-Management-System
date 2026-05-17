@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
+import { useCart } from '../context/CartContext'
 import axios from 'axios'
 
 const API = 'http://localhost:4000/api'
@@ -12,9 +13,11 @@ export default function BookDetailPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const { isDark } = useTheme()
+  const { addToCart, isInCart, cart } = useCart()
   const [book, setBook] = useState(null)
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState('')
+  const [cartAdded, setCartAdded] = useState(false)
 
   const c = {
     bg: isDark ? '#0a0e1a' : '#f1f5f9',
@@ -28,11 +31,15 @@ export default function BookDetailPage() {
     const fetchBook = async () => {
       setLoading(true)
       try {
-        const endpoint = user?.RoleID === 3 ? '/member/books' : '/admin/all-books'
         if (user?.RoleID === 3) {
           const r = await axios.get(`${API}/member/books`, h())
           const found = (r.data.data || []).find(b => String(b.BookID) === String(id))
-          if (found) setBook({ ...found, copies: [] })
+          if (found) {
+            setBook({ ...found, copies: [] })
+            // Check if already in cart
+            const firstCopyId = String(found.AvailableCopyIds || '').split(',').filter(Boolean)[0]
+            if (firstCopyId && isInCart(Number(firstCopyId))) setCartAdded(true)
+          }
           else setToast('Book not found')
         } else {
           const r = await axios.get(`${API}/books/${id}`, h())
@@ -45,6 +52,28 @@ export default function BookDetailPage() {
   }, [id, user])
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3500) }
+
+  const handleBorrow = () => {
+    if (!book) return
+    const copyId = String(book.AvailableCopyIds || '').split(',').filter(Boolean)[0]
+    if (!copyId) return showToast('No available copies right now. Join the waitlist!')
+
+    const copyIdNum = Number(copyId)
+    if (isInCart(copyIdNum)) {
+      showToast('📚 Already in your cart! Go to Member Dashboard to submit.')
+      return
+    }
+
+    addToCart({
+      bookId: book.BookID,
+      copyId: copyIdNum,
+      title: book.Title,
+      authors: book.Authors,
+      category: book.CategoryName
+    })
+    setCartAdded(true)
+    showToast(`✅ "${book.Title}" added to your borrow cart!`)
+  }
 
   const coverSrc = book?.CoverImage
     ? (book.CoverImage.startsWith('http') ? book.CoverImage : `http://localhost:4000${book.CoverImage}`)
@@ -84,13 +113,17 @@ export default function BookDetailPage() {
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
         @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes bounceIn { 0%{transform:scale(0.8);opacity:0} 70%{transform:scale(1.05)} 100%{transform:scale(1);opacity:1} }
         .detail-card { animation: fadeUp 0.4s ease both; }
         .copy-row { transition: background 0.2s; }
         .copy-row:hover { background: ${isDark ? 'rgba(59,130,246,0.08)' : 'rgba(59,130,246,0.04)'}; }
+        .cart-btn { transition: all 0.2s ease; }
+        .cart-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(37,99,235,0.4); }
+        .cart-btn:active:not(:disabled) { transform: translateY(0); }
       `}</style>
 
       {toast && (
-        <div style={{ position: 'fixed', bottom: 24, right: 24, background: '#1e293b', color: '#fff', padding: '14px 24px', borderRadius: 12, zIndex: 9999, fontSize: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.4)', borderLeft: '4px solid #f59e0b', fontWeight: 600 }}>
+        <div style={{ position: 'fixed', bottom: 24, right: 24, background: '#1e293b', color: '#fff', padding: '14px 24px', borderRadius: 12, zIndex: 9999, fontSize: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.4)', borderLeft: '4px solid #f59e0b', fontWeight: 600, animation: 'bounceIn 0.3s ease' }}>
           {toast}
         </div>
       )}
@@ -124,6 +157,18 @@ export default function BookDetailPage() {
               </div>
               <div style={{ fontSize: 13, color: c.muted }}>of {book.TotalCopies ?? 0} copies available</div>
             </div>
+
+            {/* Cart status for members */}
+            {user?.RoleID === 3 && cart.length > 0 && (
+              <div
+                onClick={() => navigate('/member?tab=catalog')}
+                style={{ marginTop: 12, background: 'linear-gradient(135deg,#0f172a,#1e293b)', border: '1px solid rgba(59,130,246,0.4)', borderRadius: 14, padding: '14px 16px', cursor: 'pointer', transition: 'all 0.2s' }}
+              >
+                <div style={{ color: '#94a3b8', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 }}>🛒 Borrow Cart</div>
+                <div style={{ color: '#fff', fontWeight: 800, fontSize: 15 }}>{cart.length} book{cart.length > 1 ? 's' : ''} ready to submit</div>
+                <div style={{ color: '#3b82f6', fontSize: 12, marginTop: 4 }}>Click to go to your dashboard →</div>
+              </div>
+            )}
           </div>
 
           {/* Right: Info */}
@@ -166,20 +211,45 @@ export default function BookDetailPage() {
                 </div>
               )}
 
-              {/* Action Buttons */}
+              {/* Member Actions */}
               {user?.RoleID === 3 && (
-                <div style={{ display: 'flex', gap: 12 }}>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                   {Number(book.AvailableCopies) > 0 ? (
-                    <button onClick={() => navigate('/member?tab=catalog')} style={{ flex: 1, padding: '14px', background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 16, cursor: 'pointer', boxShadow: '0 4px 20px rgba(37,99,235,0.35)' }}>
-                      📖 Borrow this Book
-                    </button>
+                    <>
+                      {cartAdded ? (
+                        <button
+                          onClick={() => navigate('/member?tab=catalog')}
+                          className="cart-btn"
+                          style={{ flex: 1, minWidth: 200, padding: '14px', background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 15, cursor: 'pointer', boxShadow: '0 4px 20px rgba(16,185,129,0.35)' }}
+                        >
+                          ✅ In Cart — Go to Dashboard →
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleBorrow}
+                          className="cart-btn"
+                          style={{ flex: 1, minWidth: 200, padding: '14px', background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 16, cursor: 'pointer', boxShadow: '0 4px 20px rgba(37,99,235,0.35)' }}
+                        >
+                          🛒 Add to Borrow Cart
+                        </button>
+                      )}
+                    </>
                   ) : (
-                    <button onClick={() => navigate('/member?tab=catalog')} style={{ flex: 1, padding: '14px', background: 'linear-gradient(135deg,#d97706,#b45309)', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 16, cursor: 'pointer' }}>
+                    <button
+                      onClick={() => navigate('/member?tab=catalog')}
+                      className="cart-btn"
+                      style={{ flex: 1, padding: '14px', background: 'linear-gradient(135deg,#d97706,#b45309)', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 16, cursor: 'pointer' }}
+                    >
                       🕒 Join Waitlist
                     </button>
                   )}
+                  <button onClick={() => navigate(-1)} style={{ padding: '14px 20px', background: 'transparent', color: c.muted, border: `1px solid ${c.border}`, borderRadius: 12, fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
+                    ← Back
+                  </button>
                 </div>
               )}
+
+              {/* Admin / Staff Actions */}
               {(user?.RoleID === 1 || user?.RoleID === 2) && (
                 <div style={{ display: 'flex', gap: 12 }}>
                   <button onClick={() => navigate(user.RoleID === 1 ? '/admin' : '/staff', { state: { editBook: book } })} style={{ flex: 1, padding: '14px', background: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>

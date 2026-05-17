@@ -13,7 +13,6 @@ export default function SignUp() {
   const [selectedRole, setSelectedRole] = useState(3)
   const [formData, setFormData] = useState({ firstName:'', lastName:'', email:'', password:'', phone:'', universityId:'', department:'', jobTitle:'' })
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
   const { registerStaff, registerMember } = useAuth()
   const { isDark } = useTheme()
@@ -23,13 +22,15 @@ export default function SignUp() {
   const handle = (e) => setFormData({ ...formData, [e.target.name]: e.target.value })
 
   const submit = async (e) => {
-    e.preventDefault(); setError(''); setSuccess(''); setLoading(true)
+    e.preventDefault(); setError(''); setLoading(true)
     try {
-      const msg = selectedRole === 2 ? await registerStaff(formData) : await registerMember(formData)
-      setSuccess(msg)
-      setTimeout(() => navigate('/login'), 3000)
-    } catch (err) { setError(err.message || 'Registration failed') }
-    finally { setLoading(false) }
+      await (selectedRole === 2 ? registerStaff(formData) : registerMember(formData))
+      // ✅ Immediately redirect to sign-in, no delay
+      navigate('/login', { state: { pendingNotice: true } })
+    } catch (err) {
+      // Show email-already-in-use and other errors inline on the form
+      setError(err.response?.data?.message || err.message || 'Registration failed. Please try again.')
+    } finally { setLoading(false) }
   }
 
   const inputStyle = {
@@ -86,15 +87,7 @@ export default function SignUp() {
         {/* Card */}
         <div style={{ background: isDark?'rgba(255,255,255,0.04)':'rgba(255,255,255,0.9)', backdropFilter:'blur(20px)', borderRadius:24, border: isDark?'1px solid rgba(255,255,255,0.08)':'1px solid rgba(0,0,0,0.08)', padding:'32px 36px', boxShadow:'0 20px 60px rgba(0,0,0,0.15)' }}>
 
-          {success ? (
-            <div style={{ textAlign:'center', padding:'32px 0' }}>
-              <div style={{ fontSize:56, marginBottom:16 }}>🎉</div>
-              <h3 style={{ color: isDark?'#fff':'#0f172a', fontSize:22, fontWeight:700, marginBottom:8 }}>You're registered!</h3>
-              <p style={{ color: isDark?'#64748b':'#475569', fontSize:15 }}>{success}</p>
-              <p style={{ color:'#10b981', fontSize:13, marginTop:12 }}>Redirecting to login...</p>
-            </div>
-          ) : (
-            <form onSubmit={submit}>
+          <form onSubmit={submit}>
               {error && <div style={{ padding:'12px 16px', background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:10, color:'#ef4444', fontSize:14, marginBottom:20 }}>⚠️ {error}</div>}
 
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>

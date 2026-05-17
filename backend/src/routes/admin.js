@@ -161,7 +161,7 @@ router.put('/users/:id', auth, async (req, res) => {
   } catch (err) { return fail(res, err.message, 500); }
 });
 
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 // POST /api/admin/users/member
 router.post('/users/member', auth, async (req, res) => {
@@ -360,6 +360,28 @@ router.get('/fines/:id/payments', auth, async (req, res) => {
       [req.params.id]
     );
     return ok(res, 'Payment history', rows);
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
+// POST /api/admin/fines  (issue a manual fine)
+router.post('/fines', auth, async (req, res) => {
+  try {
+    const { memberID, typeID, amount, reason } = req.body;
+    if (!memberID || !amount) return fail(res, 'memberID and amount are required');
+
+    // Resolve UserID from MemberID
+    const [[member]] = await pool.execute(
+      'SELECT UserID FROM Members WHERE MemberID = ?', [memberID]
+    );
+    if (!member) return fail(res, 'Member not found', 404);
+
+    const [result] = await pool.execute(
+      `INSERT INTO Fines (UserID, MemberID, TypeID, Amount, IssuedDate, FineStatus)
+       VALUES (?, ?, ?, ?, CURDATE(), 'Unpaid')`,
+      [member.UserID, memberID, typeID || null, amount]
+    );
+
+    return ok(res, 'Fine issued successfully', { FineID: result.insertId });
   } catch (err) { return fail(res, err.message, 500); }
 });
 
