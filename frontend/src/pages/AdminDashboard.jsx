@@ -6,6 +6,7 @@ import DarkModeToggle from '../components/DarkModeToggle'
 import DashboardShell from '../components/DashboardShell'
 import BookCard from '../components/BookCard'
 import axios from 'axios'
+import Barcode from 'react-barcode'
 
 const API = 'http://localhost:4000/api'
 const fmt = (d) => d ? new Date(d).toLocaleDateString() : '—'
@@ -38,6 +39,18 @@ export default function AdminDashboard() {
   const [members, setMembers] = useState([])
   const [addFineTypeModal, setAddFineTypeModal] = useState(false)
   const [viewImageModal, setViewImageModal] = useState(null)
+  const [barcodesModal, setBarcodesModal] = useState(null)
+  const [bookCopies, setBookCopies] = useState([])
+
+  const openBarcodes = async (book) => {
+    try {
+      const res = await axios.get(`${API}/catalog/books/${book.BookID}/copies`, h())
+      setBookCopies(res.data.data || [])
+      setBarcodesModal(book)
+    } catch (e) {
+      showToast('Error fetching copies')
+    }
+  }
 
   const c = {
     bg: isDark ? '#0a0e1a' : '#f1f5f9',
@@ -426,6 +439,7 @@ export default function AdminDashboard() {
               showActions="admin"
               onEdit={(b) => setModal({type:'edit-book', item:b})}
               onDelete={(b) => { if(window.confirm('Delete book and all copies?')) act('delete',`/catalog/books/${b.BookID}`,{},'Book deleted.') }}
+              onBarcodes={openBarcodes}
               index={i}
               detailLink={true}
             />
@@ -814,6 +828,54 @@ export default function AdminDashboard() {
                 <button type="submit" style={{ flex:1, padding:11, borderRadius:10, border:'none', background:'linear-gradient(135deg,#3b82f6,#1d4ed8)', color:'#fff', fontWeight:700, cursor:'pointer' }}>Save Changes</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Barcodes Modal */}
+      {barcodesModal && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:9200, display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(6px)', padding:24 }}>
+          <div style={{ background:c.card, borderRadius:24, padding:36, width:'100%', maxWidth:720, maxHeight:'90vh', overflowY:'auto', border:`1px solid ${c.border}`, boxShadow:'0 40px 100px rgba(0,0,0,0.6)', animation:'fadeInScale 0.25s ease' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:28 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+                <div style={{ width:50, height:50, borderRadius:14, background:'linear-gradient(135deg,#10b981,#059669)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, boxShadow:'0 4px 16px rgba(16,185,129,0.4)' }}>🏷️</div>
+                <div>
+                  <h2 style={{ color:c.text, margin:0, fontSize:22, fontWeight:800 }}>Barcodes: {barcodesModal.Title}</h2>
+                  <p style={{ color:c.muted, margin:0, fontSize:13 }}>Printable labels for physical copies</p>
+                </div>
+              </div>
+              <button onClick={() => setBarcodesModal(null)} style={{ background:'transparent', border:'none', color:c.muted, fontSize:24, cursor:'pointer', lineHeight:1 }}>✕</button>
+            </div>
+            
+            <div id="print-barcode-area" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 20 }}>
+              {bookCopies.map(copy => (
+                <div key={copy.CopyID} style={{ background: '#fff', border: `1px solid ${c.border}`, padding: 16, borderRadius: 12, textAlign: 'center' }}>
+                  <Barcode value={copy.BarcodeNumber} format="CODE128" width={1.5} height={50} fontSize={12} background="#ffffff" lineColor="#000000" />
+                  <div style={{ marginTop: 8, fontSize: 12, color: '#64748b', fontWeight: 600 }}>Shelf: {copy.ShelfLocation || 'Unassigned'}</div>
+                </div>
+              ))}
+              {bookCopies.length === 0 && (
+                <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 20, color: c.muted }}>No physical copies registered.</div>
+              )}
+            </div>
+
+            <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button type="button" onClick={() => setBarcodesModal(null)} style={{ padding: '10px 16px', borderRadius: 10, border: `1px solid ${c.border}`, background: 'transparent', color: c.muted, cursor: 'pointer', fontWeight: 600 }}>Close</button>
+              <button 
+                onClick={() => {
+                  const printWin = window.open('', '', 'width=800,height=600');
+                  printWin.document.write('<html><head><title>Print Barcodes</title></head><body style="font-family: sans-serif; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; padding: 20px;">');
+                  printWin.document.write(document.getElementById('print-barcode-area').innerHTML);
+                  printWin.document.write('</body></html>');
+                  printWin.document.close();
+                  printWin.focus();
+                  setTimeout(() => { printWin.print(); printWin.close(); }, 250);
+                }}
+                disabled={bookCopies.length === 0}
+                style={{ padding: '10px 20px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', color: '#fff', fontWeight: 700, cursor: bookCopies.length === 0 ? 'not-allowed' : 'pointer' }}>
+                🖨️ Print Labels
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -343,4 +343,59 @@ router.post('/record-payment', auth, async (req, res) => {
   }
 });
 
+// GET /api/staff/all-borrowings — full history of all members (staff view)
+router.get('/all-borrowings', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT br.BorrowID, br.RequestCode, br.BorrowDate, br.DueDate, br.ReturnDate, br.Status,
+              b.Title AS BookTitle, b.ISBN, b.CoverImage,
+              bc.CopyID, bc.ShelfLocation, bc.BarcodeNumber,
+              u.FullName AS MemberName, u.Email AS MemberEmail,
+              m.StudentID, m.Department,
+              us2.FullName AS ProcessedBy
+       FROM BorrowingRecords br
+       JOIN Members m ON m.MemberID = br.MemberID
+       JOIN Users u ON u.UserID = m.UserID
+       JOIN BookCopies bc ON bc.CopyID = br.CopyID
+       JOIN Books b ON b.BookID = bc.BookID
+       LEFT JOIN Staff st ON st.StaffID = br.ProcessedByStaffID
+       LEFT JOIN Users us2 ON us2.UserID = st.UserID
+       ORDER BY br.BorrowDate DESC LIMIT 500`
+    );
+    return ok(res, 'All borrowing records', rows);
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
+// GET /api/staff/all-reservations — full reservation list for staff management
+router.get('/all-reservations', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT r.ResID, r.ReservationID, r.RequestCode, r.Status, r.Priority, r.ReservationDate, r.PickupDeadline,
+              b.BookID, b.Title AS BookTitle, b.ISBN, b.CoverImage,
+              u.FullName AS MemberName, u.Email AS MemberEmail,
+              m.StudentID, m.Department,
+              bc.CopyID, bc.ShelfLocation
+       FROM Reservations r
+       JOIN Members m ON m.MemberID = r.MemberID
+       JOIN Users u ON u.UserID = m.UserID
+       JOIN Books b ON b.BookID = r.BookID
+       LEFT JOIN BookCopies bc ON bc.CopyID = r.CopyID
+       ORDER BY r.ReservationDate DESC LIMIT 500`
+    );
+    return ok(res, 'All reservations', rows);
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
+// PATCH /api/staff/all-reservations/:id — update reservation status
+router.patch('/all-reservations/:id', auth, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const allowed = ['Queued','Ready','Fulfilled','Cancelled'];
+    if (!allowed.includes(status)) return fail(res, 'Invalid status');
+    await pool.execute('UPDATE Reservations SET Status=? WHERE ResID=? OR ReservationID=?', [status, req.params.id, req.params.id]);
+    return ok(res, 'Reservation updated');
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
 module.exports = router;
+

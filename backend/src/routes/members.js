@@ -56,12 +56,34 @@ async function getMemberSummary(memberId) {
     [memberId]
   );
 
+  // Count active overdue records (books not yet returned past due date)
+  const [[overdueRow]] = await pool.execute(
+    "SELECT COUNT(*) AS count FROM BorrowingRecords WHERE MemberID = ? AND Status = 'Overdue'",
+    [memberId]
+  );
+  const overdueCount = Number(overdueRow.count || 0);
+  const fineBalance  = Number(fines.balance || 0);
+
+  // Count unpaid damage/loss fines specifically for UI messaging
+  const [[damageFines]] = await pool.execute(
+    `SELECT COALESCE(SUM(f.Amount - COALESCE(p.TotalPaid,0)),0) AS balance
+     FROM Fines f
+     LEFT JOIN FineTypes ft ON ft.TypeID = f.FineTypeID
+     LEFT JOIN (SELECT FineID, SUM(AmountPaid) AS TotalPaid FROM Payments WHERE PaymentStatus='Completed' GROUP BY FineID) p ON p.FineID = f.FineID
+     WHERE f.MemberID = ? AND f.FineStatus IN ('Unpaid','Partial')
+       AND (ft.TypeName LIKE '%Damage%' OR ft.TypeName LIKE '%Loss%' OR ft.TypeName LIKE '%Lost%')`,
+    [memberId]
+  );
+
   return {
     profile: member,
     activeBorrowCount: Number(borrowed.count || 0),
     reservationCount: Number(reservations.count || 0),
-    fineBalance: Number(fines.balance || 0),
-    borrowingBlocked: Number(fines.balance || 0) > 0
+    fineBalance,
+    overdueCount,
+    damageOrLossFineBalance: Number(damageFines.balance || 0),
+    // Blocked if ANY unpaid fine (overdue, damage, lost) OR any active overdue book
+    borrowingBlocked: fineBalance > 0 || overdueCount > 0
   };
 }
 
@@ -186,21 +208,44 @@ router.post('/reserve', memberOnly, async (req, res) => {
       return fail(res, 'You already have this book borrowed or pending pickup.');
     }
 
-    // Determine next priority
-    const [[priorityRow]] = await connection.execute(
-      "SELECT COALESCE(MAX(Priority), 0) + 1 AS NextPriority FROM Reservations WHERE BookID = ? AND Status = 'Queued'",
+    // Determine if any copy is available
+    const [availableCopies] = await connection.execute(
+      "SELECT CopyID FROM BookCopies WHERE BookID = ? AND Status = 'Available' LIMIT 1 FOR UPDATE",
       [bookId]
     );
 
     const requestCode = 'RSV-' + Math.floor(1000 + Math.random() * 9000); // Simple code
 
-    await connection.execute(
-      "INSERT INTO Reservations (MemberID, BookID, RequestCode, Status, Priority, ReservationDate) VALUES (?, ?, ?, 'Queued', ?, NOW())",
-      [memberId, bookId, requestCode, priorityRow.NextPriority]
-    );
+    if (availableCopies.length > 0) {
+      // Immediate 30-minute hold
+      const copyId = availableCopies[0].CopyID;
+      await connection.execute(
+        "UPDATE BookCopies SET Status = 'Reserved_on_Shelf' WHERE CopyID = ?",
+        [copyId]
+      );
+      
+      await connection.execute(
+        "INSERT INTO Reservations (MemberID, BookID, CopyID, RequestCode, Status, Priority, ReservationDate, PickupDeadline) VALUES (?, ?, ?, ?, 'Ready', 0, NOW(), DATE_ADD(NOW(), INTERVAL 30 MINUTE))",
+        [memberId, bookId, copyId, requestCode]
+      );
+      
+      await connection.commit();
+      return ok(res, 'Reserved! You have 30 minutes to pick it up.', { immediate: true });
+    } else {
+      // Determine next priority for waitlist
+      const [[priorityRow]] = await connection.execute(
+        "SELECT COALESCE(MAX(Priority), 0) + 1 AS NextPriority FROM Reservations WHERE BookID = ? AND Status = 'Queued'",
+        [bookId]
+      );
 
-    await connection.commit();
-    return ok(res, 'Added to waitlist successfully');
+      await connection.execute(
+        "INSERT INTO Reservations (MemberID, BookID, RequestCode, Status, Priority, ReservationDate) VALUES (?, ?, ?, 'Queued', ?, NOW())",
+        [memberId, bookId, requestCode, priorityRow.NextPriority]
+      );
+
+      await connection.commit();
+      return ok(res, 'Added to waitlist successfully', { immediate: false });
+    }
   } catch (err) {
     await connection.rollback();
     return fail(res, err.message, 500);

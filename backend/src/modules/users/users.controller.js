@@ -1,9 +1,10 @@
 const userService = require('./users.service');
+const webauthnService = require('./webauthn.service');
 
 const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
-    const result = await userService.login(email, password);
+    const { email, password, identifier, loginType } = req.body;
+    const result = await userService.login({ email, password, identifier, loginType });
     res.json({ success: true, data: result });
   } catch (error) {
     res.status(error.status || 500).json({
@@ -150,6 +151,44 @@ const getAllRoles = async (req, res) => {
   }
 };
 
+const beginRegistration = async (req, res) => {
+  try {
+    const options = await webauthnService.beginRegistration(req.user.UserID);
+    res.json({ success: true, data: options });
+  } catch (err) {
+    res.status(err.status || 500).json({ success: false, message: err.message });
+  }
+};
+
+const completeRegistration = async (req, res) => {
+  try {
+    const result = await webauthnService.completeRegistration(req.user.UserID, req.body);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(err.status || 500).json({ success: false, message: err.message });
+  }
+};
+
+const beginLogin = async (req, res) => {
+  try {
+    const { identifier, loginType } = req.body;
+    const result = await webauthnService.beginLogin(identifier, loginType);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(err.status || 500).json({ success: false, message: err.message });
+  }
+};
+
+const completeLogin = async (req, res) => {
+  try {
+    const { userId, response } = req.body;
+    const result = await webauthnService.completeLogin(userId, response);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(err.status || 500).json({ success: false, message: err.message });
+  }
+};
+
 module.exports = {
   login,
   logout,
@@ -164,5 +203,9 @@ module.exports = {
   getMemberProfile,
   updateMaxBooks,
   getStaffProfile,
-  getAllRoles
+  getAllRoles,
+  beginRegistration,
+  completeRegistration,
+  beginLogin,
+  completeLogin
 };

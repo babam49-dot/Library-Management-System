@@ -10,16 +10,30 @@ const SALT_ROUNDS = 10;
  * AUTH SERVICE
  */
 
-const login = async (email, password) => {
-  if (!email || !password) {
-    throw { status: 400, message: "Email and password are required" };
+const login = async ({ email, password, identifier, loginType }) => {
+  if (!password || (!email && !identifier)) {
+    throw { status: 400, message: "Identifier/Email and password are required" };
   }
 
-  // Step 1: Query Users table by email
-  const [users] = await pool.execute(
-    'SELECT u.*, r.RoleName FROM Users u JOIN Roles r ON u.RoleID = r.RoleID WHERE u.Email = ?',
-    [email]
-  );
+  let users = [];
+
+  // Step 1: Query based on loginType or fallback to email
+  if (loginType === 'student') {
+    [users] = await pool.execute(
+      'SELECT u.*, r.RoleName FROM Users u JOIN Roles r ON u.RoleID = r.RoleID JOIN Members m ON m.UserID = u.UserID WHERE m.StudentID = ?',
+      [identifier]
+    );
+  } else if (loginType === 'staff') {
+    [users] = await pool.execute(
+      'SELECT u.*, r.RoleName FROM Users u JOIN Roles r ON u.RoleID = r.RoleID JOIN Staff s ON s.UserID = u.UserID WHERE s.StaffIdentifier = ?',
+      [identifier]
+    );
+  } else {
+    [users] = await pool.execute(
+      'SELECT u.*, r.RoleName FROM Users u JOIN Roles r ON u.RoleID = r.RoleID WHERE u.Email = ?',
+      [email || identifier]
+    );
+  }
 
   const user = users[0];
 

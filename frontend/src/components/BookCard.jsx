@@ -19,10 +19,10 @@ import { useNavigate } from 'react-router-dom'
 export default function BookCard({
   book,
   isDark = false,
-  onBorrow,
   onWaitlist,
   onEdit,
   onDelete,
+  onBarcodes,
   showActions = 'readonly',
   blocked = false,
   detailLink = true,
@@ -149,6 +149,9 @@ export default function BookCard({
               <>
                 <button className="bk-action-btn" onClick={() => onEdit && onEdit(book)} style={{ flex: 1, background: 'rgba(59,130,246,0.12)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 10, padding: '8px 12px', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
                   ✏️ Edit
+                </button>
+                <button className="bk-action-btn" onClick={() => onBarcodes && onBarcodes(book)} style={{ background: 'rgba(16,185,129,0.12)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 10, padding: '8px 12px', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+                  🏷️ Barcodes
                 </button>
                 {showActions === 'admin' && (
                   <button className="bk-action-btn" onClick={() => onDelete && onDelete(book)} style={{ background: 'rgba(239,68,68,0.12)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '8px 12px', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>

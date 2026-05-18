@@ -390,17 +390,21 @@ async function createCopy(bookId, { BarcodeNumber, ShelfLocation }) {
   if (!book || !book.IsActive)
     throw err(404, `Book ${bookId} not found or is inactive.`);
 
-  if (BarcodeNumber) {
-    const [[dup]] = await pool.execute(
-      'SELECT CopyID FROM BookCopies WHERE BarcodeNumber = ?', [BarcodeNumber]
-    );
-    if (dup) throw err(409, `BarcodeNumber "${BarcodeNumber}" already exists.`);
+  let actualBarcode = BarcodeNumber;
+  if (!actualBarcode) {
+    const random4 = Math.floor(1000 + Math.random() * 9000);
+    actualBarcode = `LIB-${bookId}-${Date.now().toString().slice(-4)}-${random4}`;
   }
+
+  const [[dup]] = await pool.execute(
+    'SELECT CopyID FROM BookCopies WHERE BarcodeNumber = ?', [actualBarcode]
+  );
+  if (dup) throw err(409, `BarcodeNumber "${actualBarcode}" already exists.`);
 
   const [result] = await pool.execute(
     `INSERT INTO BookCopies (BookID, BarcodeNumber, Status, ShelfLocation)
      VALUES (?, ?, 'Available', ?)`,
-    [bookId, BarcodeNumber || null, ShelfLocation || null]
+    [bookId, actualBarcode, ShelfLocation || null]
   );
   const [[row]] = await pool.execute('SELECT * FROM BookCopies WHERE CopyID = ?', [result.insertId]);
   return row;

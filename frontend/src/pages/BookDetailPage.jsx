@@ -75,6 +75,23 @@ export default function BookDetailPage() {
     showToast(`✅ "${book.Title}" added to your borrow cart!`)
   }
 
+  const handleReserve = async () => {
+    if (!book) return
+    try {
+      const res = await axios.post(`${API}/member/reserve`, { bookId: book.BookID }, h())
+      if (res.data.success) {
+        if (res.data.data && res.data.data.immediate) {
+          showToast(`📌 Reserved! You have 30 minutes to pick it up.`)
+          setBook(b => ({ ...b, AvailableCopies: Math.max(0, b.AvailableCopies - 1) }))
+        } else {
+          showToast(`🕒 Added to waitlist!`)
+        }
+      }
+    } catch (e) {
+      showToast('❌ ' + (e.response?.data?.message || e.message))
+    }
+  }
+
   const coverSrc = book?.CoverImage
     ? (book.CoverImage.startsWith('http') ? book.CoverImage : `http://localhost:4000${book.CoverImage}`)
     : null
@@ -220,23 +237,30 @@ export default function BookDetailPage() {
                         <button
                           onClick={() => navigate('/member?tab=catalog')}
                           className="cart-btn"
-                          style={{ flex: 1, minWidth: 200, padding: '14px', background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 15, cursor: 'pointer', boxShadow: '0 4px 20px rgba(16,185,129,0.35)' }}
+                          style={{ flex: 1, minWidth: 150, padding: '14px', background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 15, cursor: 'pointer', boxShadow: '0 4px 20px rgba(16,185,129,0.35)' }}
                         >
-                          ✅ In Cart — Go to Dashboard →
+                          ✅ In Cart
                         </button>
                       ) : (
                         <button
                           onClick={handleBorrow}
                           className="cart-btn"
-                          style={{ flex: 1, minWidth: 200, padding: '14px', background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 16, cursor: 'pointer', boxShadow: '0 4px 20px rgba(37,99,235,0.35)' }}
+                          style={{ flex: 1, minWidth: 150, padding: '14px', background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 15, cursor: 'pointer', boxShadow: '0 4px 20px rgba(37,99,235,0.35)' }}
                         >
-                          🛒 Add to Borrow Cart
+                          🛒 Add to Cart
                         </button>
                       )}
+                      <button
+                        onClick={handleReserve}
+                        className="cart-btn"
+                        style={{ flex: 1, minWidth: 150, padding: '14px', background: 'linear-gradient(135deg,#8b5cf6,#6d28d9)', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 15, cursor: 'pointer', boxShadow: '0 4px 20px rgba(139,92,246,0.35)' }}
+                      >
+                        📌 Reserve (30m)
+                      </button>
                     </>
                   ) : (
                     <button
-                      onClick={() => navigate('/member?tab=catalog')}
+                      onClick={handleReserve}
                       className="cart-btn"
                       style={{ flex: 1, padding: '14px', background: 'linear-gradient(135deg,#d97706,#b45309)', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 16, cursor: 'pointer' }}
                     >

@@ -23,9 +23,9 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  const login = async ({ email, password }) => {
+  const login = async ({ email, password, identifier, loginType }) => {
     try {
-      const res = await axios.post(`${API}/auth/login`, { email, password })
+      const res = await axios.post(`${API}/auth/login`, { email, password, identifier, loginType })
       if (!res.data.success) throw new Error(res.data.message)
       const { token, user: u } = res.data.data
       localStorage.setItem('lms_token', token)

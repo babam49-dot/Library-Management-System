@@ -28,6 +28,7 @@ app.use('/api/jobs', require('./src/routes/jobs'));
 // Start Cron Jobs
 require('./src/jobs/pickupExpirationJob');
 require('./src/jobs/overdueDetectionJob');
+require('./src/jobs/reservationExpiryJob');
 
 
 // ─── Module 1: Catalog ───────────────────────────────────────────────────────

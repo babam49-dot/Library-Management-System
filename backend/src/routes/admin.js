@@ -621,4 +621,39 @@ router.put('/members/bulk-limit', auth, async (req, res) => {
   } catch (err) { return fail(res, err.message, 500); }
 });
 
+// GET /api/admin/all-reservations
+router.get('/all-reservations', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT r.ResID, r.ReservationID, r.RequestCode, r.Status, r.Priority,
+              r.ReservationDate, r.PickupDeadline,
+              b.BookID, b.Title AS BookTitle, b.ISBN, b.CoverImage,
+              u.FullName AS MemberName, u.Email AS MemberEmail,
+              m.StudentID, m.Department,
+              bc.CopyID, bc.ShelfLocation
+       FROM Reservations r
+       JOIN Members m ON m.MemberID = r.MemberID
+       JOIN Users u ON u.UserID = m.UserID
+       JOIN Books b ON b.BookID = r.BookID
+       LEFT JOIN BookCopies bc ON bc.CopyID = r.CopyID
+       ORDER BY r.ReservationDate DESC LIMIT 500`
+    );
+    return ok(res, 'All reservations', rows);
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
+// PATCH /api/admin/all-reservations/:id
+router.patch('/all-reservations/:id', auth, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const allowed = ['Queued','Ready','Fulfilled','Cancelled'];
+    if (!allowed.includes(status)) return fail(res, 'Invalid status');
+    await pool.execute(
+      'UPDATE Reservations SET Status=? WHERE ResID=? OR ReservationID=?',
+      [status, req.params.id, req.params.id]
+    );
+    return ok(res, 'Reservation status updated');
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
 module.exports = router;

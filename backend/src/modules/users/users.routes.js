@@ -9,6 +9,10 @@ router.post('/auth/register', controller.registerPublic);
 router.post('/auth/login', controller.login);
 router.post('/auth/logout', authenticateToken, controller.logout);
 router.get('/auth/me', authenticateToken, controller.getMe);
+router.post('/auth/webauthn/login/begin', controller.beginLogin);
+router.post('/auth/webauthn/login/complete', controller.completeLogin);
+router.post('/auth/webauthn/register/begin', authenticateToken, controller.beginRegistration);
+router.post('/auth/webauthn/register/complete', authenticateToken, controller.completeRegistration);
 
 // --- USERS ROUTES ---
 router.post('/users', authenticateToken, requireRole('Admin'), controller.createUser);
