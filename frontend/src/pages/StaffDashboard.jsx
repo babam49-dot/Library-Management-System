@@ -32,7 +32,7 @@ export default function StaffDashboard() {
 
   // Action States
   const [issueForm, setIssueForm] = useState({ memberId: '', copyId: '' })
-  const [returnForm, setReturnForm] = useState({ borrowId: '', condition: 'Good' })
+  const [returnForm, setReturnForm] = useState({ borrowId: '', condition: 'Good', imageBase64: '' })
   const [actionMsg, setActionMsg] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [allBooks, setAllBooks] = useState([])
@@ -148,13 +148,23 @@ export default function StaffDashboard() {
     }
   }
 
+  const handleReturnImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setReturnForm({ ...returnForm, imageBase64: ev.target.result });
+    };
+    reader.readAsDataURL(file);
+  }
+
   const handleReturn = async (e) => {
     e.preventDefault()
     setActionMsg('')
     try {
       const res = await axios.post(`${API}/staff/return`, returnForm, getHeaders())
       setActionMsg(res.data.data.fineCreated ? 'Returned. Fine applied.' : 'Returned successfully!')
-      setReturnForm({ borrowId: '', condition: 'Good' })
+      setReturnForm({ borrowId: '', condition: 'Good', imageBase64: '' })
       fetchData()
     } catch (err) {
       setActionMsg('Error: ' + (err.response?.data?.message || err.message))
@@ -467,10 +477,17 @@ export default function StaffDashboard() {
                 <label style={lblStyle}>Condition on Return</label>
                 <select value={returnForm.condition} onChange={e => setReturnForm({...returnForm, condition: e.target.value})} style={dynInputStyle}>
                   <option value="Good">Good</option>
-                  <option value="Damaged">Damaged — fine will be applied</option>
-                  <option value="Lost">Lost — fine will be applied</option>
+                  <option value="Damaged">Damaged — requires photo proof</option>
+                  <option value="Lost">Lost — requires report</option>
                 </select>
               </div>
+              {(returnForm.condition === 'Damaged' || returnForm.condition === 'Lost') && (
+                <div>
+                  <label style={lblStyle}>{returnForm.condition === 'Lost' ? 'Proof / Document (Optional)' : 'Upload Damage Photo (Required)'}</label>
+                  <input type="file" accept="image/*" onChange={handleReturnImageUpload} required={returnForm.condition === 'Damaged'} style={{ ...dynInputStyle, padding: '8px 12px' }} />
+                  {returnForm.imageBase64 && <div style={{ marginTop: 8, fontSize: 12, color: '#10b981' }}>✓ Image attached</div>}
+                </div>
+              )}
               <button type="submit" style={{ background: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', color: '#fff', border: 'none', padding: '12px', borderRadius: 10, fontWeight: 700, cursor: 'pointer', boxShadow:'0 4px 16px rgba(59,130,246,0.25)' }}>Process Return →</button>
             </form>
             {actionMsg && <div style={{ marginTop: 16, padding: 12, background: actionMsg.startsWith('Error') ? 'rgba(239,68,68,0.1)' : 'rgba(59,130,246,0.1)', color: actionMsg.startsWith('Error') ? '#ef4444' : '#60a5fa', borderRadius: 10, fontSize: 14 }}>{actionMsg}</div>}

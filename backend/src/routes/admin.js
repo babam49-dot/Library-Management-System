@@ -498,7 +498,7 @@ router.get('/damage-reports', auth, async (req, res) => {
   try {
     const [rows] = await pool.execute(
       `SELECT dr.*, r.ReturnDate, br.BorrowID, bc.CopyID,
-              u.FullName as MemberName, b.Title as BookTitle
+              u.FullName as MemberName, u.UserID as MemberUserID, b.Title as BookTitle
        FROM DamageReports dr
        LEFT JOIN Returns r ON r.ReturnID = dr.ReturnID
        LEFT JOIN BorrowingRecords br ON br.BorrowID = r.BorrowID

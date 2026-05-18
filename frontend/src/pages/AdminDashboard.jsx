@@ -9,7 +9,7 @@ import axios from 'axios'
 
 const API = 'http://localhost:4000/api'
 const fmt = (d) => d ? new Date(d).toLocaleDateString() : '—'
-const fmtCurrency = (n) => `$${Number(n||0).toFixed(2)}`
+const fmtCurrency = (n) => `${Number(n||0).toFixed(2)} ETB`
 const statusColor = (s) => ({ active:'#10b981', pending:'#f59e0b', rejected:'#ef4444', suspended:'#6b7280', inactive:'#ef4444', Active:'#10b981', Pending:'#f59e0b', Rejected:'#ef4444', Suspended:'#6b7280', Inactive:'#ef4444', Unpaid:'#ef4444', Partial:'#f59e0b', Paid:'#10b981', Waived:'#8b5cf6', Overdue:'#ef4444', Borrowed:'#3b82f6', Returned:'#10b981' }[s] || '#94a3b8')
 
 export default function AdminDashboard() {
@@ -33,10 +33,11 @@ export default function AdminDashboard() {
   const [addBookModal, setAddBookModal] = useState(false)
   const [authors, setAuthors] = useState([])
   const [addBookLoading, setAddBookLoading] = useState(false)
-  const [issueFineModal, setIssueFineModal] = useState(false)
+  const [issueFineModal, setIssueFineModal] = useState(null)
   const [fineTypes, setFineTypes] = useState([])
   const [members, setMembers] = useState([])
   const [addFineTypeModal, setAddFineTypeModal] = useState(false)
+  const [viewImageModal, setViewImageModal] = useState(null)
 
   const c = {
     bg: isDark ? '#0a0e1a' : '#f1f5f9',
@@ -199,7 +200,7 @@ export default function AdminDashboard() {
             <div style={{ fontSize:32, alignSelf:'center' }}>⚠️</div>
             <div style={{ flex:1 }}>
               <div style={{ fontWeight:700, color:'#ef4444', fontSize:15, marginBottom:4 }}>Outstanding Fines Alert</div>
-              <div style={{ color:c.muted, fontSize:13 }}>{finesSummary.MembersBlocked} members blocked · Total outstanding: <strong style={{color:'#ef4444'}}>${Number(finesSummary.TotalOutstanding||0).toFixed(2)}</strong></div>
+              <div style={{ color:c.muted, fontSize:13 }}>{finesSummary.MembersBlocked} members blocked · Total outstanding: <strong style={{color:'#ef4444'}}>{fmtCurrency(finesSummary.TotalOutstanding||0)}</strong></div>
             </div>
             <button className="interactive-btn" style={{ background:'#ef4444', color:'#fff', border:'none', padding:'10px 18px', borderRadius:8, fontWeight:600, cursor:'pointer', alignSelf:'center', whiteSpace:'nowrap' }}>View Fines →</button>
           </div>
@@ -355,7 +356,7 @@ export default function AdminDashboard() {
       if (tab === 'fine-types') return (
         <tr key={i} className="table-row">
           <Td><strong style={{color:c.text}}>{row.TypeName}</strong></Td>
-          <Td>${row.BaseAmount}/day</Td>
+          <Td>{fmtCurrency(row.BaseAmount)}/day</Td>
           <Td>{row.Description || '—'}</Td>
           <Td><Btn color='#ef4444' onClick={() => { if(window.confirm('Delete fine type?')) act('delete',`/admin/fine-types/${row.TypeID}`,{},'Deleted.') }}>Delete</Btn></Td>
         </tr>
@@ -368,6 +369,8 @@ export default function AdminDashboard() {
           <Td><Badge v={row.Severity} /></Td>
           <Td>{fmt(row.AssessmentDate)}</Td>
           <Td>
+            {row.ImageBase64 && <Btn color='#8b5cf6' onClick={() => setViewImageModal(row.ImageBase64)}>View Photo</Btn>}
+            {row.MemberUserID && <Btn color='#3b82f6' onClick={() => setIssueFineModal({ userId: row.MemberUserID, memberName: row.MemberName, borrowId: row.BorrowID, bookTitle: row.BookTitle })}>Issue Fine</Btn>}
             {row.CopyID && <Btn color='#ef4444' onClick={() => { if(window.confirm('Dispose of this copy permanently?')) act('patch', `/admin/dispose/${row.CopyID}`, { reason: 'Damaged' }, 'Copy disposed.') }}>Dispose</Btn>}
           </Td>
         </tr>
@@ -1021,7 +1024,10 @@ function CreateUserTab({ c, act }) {
         ) : (
           <>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+              <Input label="Staff ID" name="staffId" icon="🆔" required placeholder="e.g. LIB-001" />
               <Input label="Job Title" name="jobTitle" icon="👔" required placeholder="e.g. Librarian" />
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
               <div style={{ marginBottom: 16 }}>
                 <label style={{ display:'block', fontSize:12, color:c.muted, marginBottom:6, fontWeight:700, textTransform:'uppercase', letterSpacing:0.5 }}>System Role *</label>
                 <select name="roleName" style={{ width:'100%', padding:'12px 16px', borderRadius:10, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, outline:'none' }}>
@@ -1029,8 +1035,8 @@ function CreateUserTab({ c, act }) {
                   <option value="Admin">Administrator</option>
                 </select>
               </div>
+              <Input label="Salary (ETB)" name="salary" type="number" icon="💵" defaultValue={0} />
             </div>
-            <Input label="Salary (ETB)" name="salary" type="number" icon="💵" defaultValue={0} />
           </>
         )}
 

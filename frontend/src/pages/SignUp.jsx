@@ -11,7 +11,7 @@ const ROLES = [
 
 export default function SignUp() {
   const [selectedRole, setSelectedRole] = useState(3)
-  const [formData, setFormData] = useState({ firstName:'', lastName:'', email:'', password:'', phone:'', universityId:'', department:'', jobTitle:'' })
+  const [formData, setFormData] = useState({ firstName:'', lastName:'', email:'', password:'', phone:'', universityId:'', department:'', jobTitle:'', staffId:'' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { registerStaff, registerMember } = useAuth()
@@ -131,9 +131,15 @@ export default function SignUp() {
               )}
 
               {selectedRole === 2 && (
-                <div style={{ marginBottom:16, padding:16, borderRadius:14, background: isDark?'rgba(16,185,129,0.08)':'rgba(16,185,129,0.06)', border:'1px dashed rgba(16,185,129,0.3)' }}>
-                  <label style={labelStyle}>Job Title *</label>
-                  <input className="su-input" style={inputStyle} type="text" name="jobTitle" value={formData.jobTitle} onChange={handle} required placeholder="e.g. Circulation Assistant" />
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16, padding:16, borderRadius:14, background: isDark?'rgba(16,185,129,0.08)':'rgba(16,185,129,0.06)', border:'1px dashed rgba(16,185,129,0.3)' }}>
+                  <div>
+                    <label style={labelStyle}>Staff ID *</label>
+                    <input className="su-input" style={inputStyle} type="text" name="staffId" value={formData.staffId} onChange={handle} required placeholder="e.g. LIB-9021" />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Job Title *</label>
+                    <input className="su-input" style={inputStyle} type="text" name="jobTitle" value={formData.jobTitle} onChange={handle} required placeholder="e.g. Circulation Assistant" />
+                  </div>
                 </div>
               )}
 
