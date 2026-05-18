@@ -105,7 +105,7 @@ router.post('/borrow', auth, async (req, res) => {
 // POST /api/staff/return
 router.post('/return', auth, async (req, res) => {
   try {
-    const { borrowId, condition } = req.body;
+    const { borrowId, condition, imageBase64 } = req.body;
     if (!borrowId) return fail(res, 'borrowId is required');
 
     const [borrows] = await pool.execute("SELECT * FROM BorrowingRecords WHERE BorrowID=?", [borrowId]);
@@ -120,8 +120,17 @@ router.post('/return', auth, async (req, res) => {
       "INSERT INTO Returns (BorrowID, ReturnDate, ConditionNote, StaffID) VALUES (?,NOW(),?,?)",
       [borrowId, condition || 'Good', staffId]
     );
+    const returnId = retResult.insertId;
+
+    if (condition === 'Damaged' || condition === 'Lost') {
+      await pool.execute(
+        "INSERT INTO DamageReports (ReturnID, Description, Severity, ImageBase64, AssessmentDate, StaffID) VALUES (?,?,?,?,NOW(),?)",
+        [returnId, `Item marked as ${condition} during return.`, 'High', imageBase64 || null, staffId]
+      );
+    }
+
     await pool.execute("UPDATE BorrowingRecords SET Status='returned' WHERE BorrowID=?", [borrowId]);
-    await pool.execute("UPDATE BookCopies SET Status='available' WHERE CopyID=?", [borrow.CopyID]);
+    await pool.execute("UPDATE BookCopies SET Status=? WHERE CopyID=?", [condition === 'Lost' ? 'lost' : 'available', borrow.CopyID]);
 
     // Update pending reservation if copy now available
     const [bookRes] = await pool.execute("SELECT BookID FROM BookCopies WHERE CopyID=?", [borrow.CopyID]);

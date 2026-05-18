@@ -197,11 +197,19 @@ router.post('/users/member', auth, async (req, res) => {
 // POST /api/admin/users/staff
 router.post('/users/staff', auth, async (req, res) => {
   try {
-    const { email, password, fullName, phone, jobTitle, salary, roleName } = req.body;
-    if (!email || !password || !fullName || !jobTitle) return fail(res, 'Email, password, full name, and job title are required');
+    const { email, password, fullName, phone, jobTitle, salary, roleName, staffId } = req.body;
+    if (!email || !password || !fullName || !jobTitle || !staffId) return fail(res, 'Email, password, full name, job title, and Staff ID are required');
     
-    const [existing] = await pool.execute('SELECT UserID FROM Users WHERE Email = ?', [email]);
-    if (existing.length > 0) return fail(res, 'Email already registered', 409);
+    const [existing] = await pool.execute('SELECT UserID, Status FROM Users WHERE Email = ?', [email]);
+    if (existing.length > 0) {
+      if (existing[0].Status === 'Pending' || existing[0].Status === 'pending') {
+        return fail(res, 'This member is already in pending state', 409);
+      }
+      return fail(res, 'Email already registered', 409);
+    }
+
+    const [existingStaff] = await pool.execute('SELECT StaffID FROM Staff WHERE StaffIdentifier = ?', [staffId]);
+    if (existingStaff.length > 0) return fail(res, 'Staff ID already exists', 409);
 
     const roleId = roleName === 'Admin' ? 1 : 2;
     const hashed = await bcrypt.hash(password, 10);
@@ -218,8 +226,8 @@ router.post('/users/staff', auth, async (req, res) => {
 
     const [[{ sid }]] = await pool.execute('SELECT COALESCE(MAX(StaffID), 0) + 1 AS sid FROM Staff');
     await pool.execute(
-      'INSERT INTO Staff (StaffID, UserID, JobTitle, EmploymentDate, Salary) VALUES (?,?,?,?,?)',
-      [sid, nid, jobTitle, new Date(), salary || 0]
+      'INSERT INTO Staff (StaffID, UserID, StaffIdentifier, JobTitle, EmploymentDate, Salary) VALUES (?,?,?,?,?,?)',
+      [sid, nid, staffId, jobTitle, new Date(), salary || 0]
     );
 
     return ok(res, 'Staff account created');

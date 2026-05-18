@@ -111,14 +111,42 @@ const createUser = async (userData, creatorRole) => {
   }
 
   // Rule 2: Email must be unique
-  const [existingEmail] = await pool.execute('SELECT UserID FROM Users WHERE Email = ?', [Email]);
-  if (existingEmail.length > 0) throw { status: 409, message: "Email already exists" };
+  const [existingEmail] = await pool.execute('SELECT UserID, Status FROM Users WHERE Email = ?', [Email]);
+  if (existingEmail.length > 0) {
+    if (existingEmail[0].Status === 'Pending' || existingEmail[0].Status === 'pending') {
+      throw { status: 409, message: "This member is already in pending state" };
+    }
+    throw { status: 409, message: "Email already exists" };
+  }
 
   // Check unique StudentID for members
   if (roleName === 'Member') {
     if (!extensionData.StudentID) throw { status: 400, message: "StudentID is required for members" };
-    const [existingStudent] = await pool.execute('SELECT MemberID FROM Members WHERE StudentID = ?', [extensionData.StudentID]);
-    if (existingStudent.length > 0) throw { status: 409, message: "StudentID already exists" };
+    const [existingStudent] = await pool.execute(
+      'SELECT m.MemberID, u.Status FROM Members m JOIN Users u ON m.UserID = u.UserID WHERE m.StudentID = ?', 
+      [extensionData.StudentID]
+    );
+    if (existingStudent.length > 0) {
+      if (existingStudent[0].Status === 'Pending' || existingStudent[0].Status === 'pending') {
+        throw { status: 409, message: "This member is already in pending state" };
+      }
+      throw { status: 409, message: "StudentID already exists" };
+    }
+  }
+
+  // Check unique StaffIdentifier for staff
+  if (roleName === 'Staff' || roleName === 'Admin') {
+    if (!extensionData.StaffIdentifier) throw { status: 400, message: "Staff ID is required for staff members" };
+    const [existingStaff] = await pool.execute(
+      'SELECT s.StaffID, u.Status FROM Staff s JOIN Users u ON s.UserID = u.UserID WHERE s.StaffIdentifier = ?', 
+      [extensionData.StaffIdentifier]
+    );
+    if (existingStaff.length > 0) {
+      if (existingStaff[0].Status === 'Pending' || existingStaff[0].Status === 'pending') {
+        throw { status: 409, message: "This staff member is already in pending state" };
+      }
+      throw { status: 409, message: "Staff ID already exists" };
+    }
   }
 
   // Rule 1: Hash password
@@ -143,8 +171,8 @@ const createUser = async (userData, creatorRole) => {
       );
     } else if (roleName === 'Staff' || roleName === 'Admin') {
       await connection.execute(
-        'INSERT INTO Staff (UserID, JobTitle, EmploymentDate, Salary) VALUES (?, ?, ?, ?)',
-        [userId, extensionData.JobTitle, extensionData.EmploymentDate, extensionData.Salary || null]
+        'INSERT INTO Staff (UserID, StaffIdentifier, JobTitle, EmploymentDate, Salary) VALUES (?, ?, ?, ?, ?)',
+        [userId, extensionData.StaffIdentifier, extensionData.JobTitle, extensionData.EmploymentDate || null, extensionData.Salary || null]
       );
     }
 
@@ -172,13 +200,40 @@ const registerPublicUser = async (userData) => {
   if (roles.length === 0) throw { status: 400, message: "Invalid RoleID" };
   const roleName = roles[0].RoleName;
 
-  const [existingEmail] = await pool.execute('SELECT UserID FROM Users WHERE Email = ?', [Email]);
-  if (existingEmail.length > 0) throw { status: 409, message: "Email already exists" };
+  const [existingEmail] = await pool.execute('SELECT UserID, Status FROM Users WHERE Email = ?', [Email]);
+  if (existingEmail.length > 0) {
+    if (existingEmail[0].Status === 'Pending' || existingEmail[0].Status === 'pending') {
+      throw { status: 409, message: "This member is already in pending state" };
+    }
+    throw { status: 409, message: "Email already exists" };
+  }
 
   if (roleName === 'Member') {
     if (!extensionData.universityId) throw { status: 400, message: "University ID is required for members" };
-    const [existingStudent] = await pool.execute('SELECT MemberID FROM Members WHERE StudentID = ?', [extensionData.universityId]);
-    if (existingStudent.length > 0) throw { status: 409, message: "University ID already exists" };
+    const [existingStudent] = await pool.execute(
+      'SELECT m.MemberID, u.Status FROM Members m JOIN Users u ON m.UserID = u.UserID WHERE m.StudentID = ?', 
+      [extensionData.universityId]
+    );
+    if (existingStudent.length > 0) {
+      if (existingStudent[0].Status === 'Pending' || existingStudent[0].Status === 'pending') {
+        throw { status: 409, message: "This member is already in pending state" };
+      }
+      throw { status: 409, message: "University ID already exists" };
+    }
+  }
+
+  if (roleName === 'Staff' || roleName === 'Admin') {
+    if (!extensionData.staffId) throw { status: 400, message: "Staff ID is required for staff members" };
+    const [existingStaff] = await pool.execute(
+      'SELECT s.StaffID, u.Status FROM Staff s JOIN Users u ON s.UserID = u.UserID WHERE s.StaffIdentifier = ?', 
+      [extensionData.staffId]
+    );
+    if (existingStaff.length > 0) {
+      if (existingStaff[0].Status === 'Pending' || existingStaff[0].Status === 'pending') {
+        throw { status: 409, message: "This staff member is already in pending state" };
+      }
+      throw { status: 409, message: "Staff ID already exists" };
+    }
   }
 
   const hashedPassword = await bcrypt.hash(Password, SALT_ROUNDS);
@@ -200,8 +255,8 @@ const registerPublicUser = async (userData) => {
       );
     } else if (roleName === 'Staff' || roleName === 'Admin') {
       await connection.execute(
-        'INSERT INTO Staff (UserID, JobTitle, EmploymentDate) VALUES (?, ?, ?)',
-        [userId, extensionData.jobTitle, new Date()]
+        'INSERT INTO Staff (UserID, StaffIdentifier, JobTitle, EmploymentDate) VALUES (?, ?, ?, ?)',
+        [userId, extensionData.staffId, extensionData.jobTitle, new Date()]
       );
     }
 

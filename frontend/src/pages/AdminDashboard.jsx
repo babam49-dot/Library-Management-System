@@ -526,7 +526,7 @@ export default function AdminDashboard() {
                   <label style={{ display:'block', fontSize:12, fontWeight:700, color:c.muted, marginBottom:6, textTransform:'uppercase', letterSpacing:0.5 }}>Fine Type</label>
                   <select name="typeID" required style={{ width:'100%', padding:'11px 14px', borderRadius:10, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, outline:'none' }}>
                     <option value="">— Select Type —</option>
-                    {fineTypes.map(ft => <option key={ft.TypeID} value={ft.TypeID}>{ft.TypeName} (${ft.BaseAmount}/day)</option>)}
+                    {fineTypes.map(ft => <option key={ft.TypeID} value={ft.TypeID}>{ft.TypeName} (ETB {ft.BaseAmount})</option>)}
                   </select>
                 </div>
                 <div>
@@ -577,8 +577,8 @@ export default function AdminDashboard() {
                   <input name="typeName" required placeholder="e.g. Overdue, Damage, Lost Book" style={{ width:'100%', padding:'11px 14px', borderRadius:10, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, outline:'none', boxSizing:'border-box' }} />
                 </div>
                 <div>
-                  <label style={{ display:'block', fontSize:12, fontWeight:700, color:c.muted, marginBottom:6, textTransform:'uppercase', letterSpacing:0.5 }}>Base Amount per Day (ETB) *</label>
-                  <input name="baseAmount" type="number" min="1" required placeholder="e.g. 5" style={{ width:'100%', padding:'11px 14px', borderRadius:10, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, outline:'none', boxSizing:'border-box' }} />
+                  <label style={{ display:'block', fontSize:12, fontWeight:700, color:c.muted, marginBottom:6, textTransform:'uppercase', letterSpacing:0.5 }}>Base Amount (ETB) *</label>
+                  <input name="baseAmount" type="number" min="1" required placeholder="e.g. 5 or 150" style={{ width:'100%', padding:'11px 14px', borderRadius:10, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, outline:'none', boxSizing:'border-box' }} />
                 </div>
                 <div>
                   <label style={{ display:'block', fontSize:12, fontWeight:700, color:c.muted, marginBottom:6, textTransform:'uppercase', letterSpacing:0.5 }}>Description</label>
@@ -954,63 +954,88 @@ function CreateUserTab({ c, act }) {
     setLoading(false);
   }
 
-  const Input = ({ label, name, type="text", required=false, ...props }) => (
+  const Input = ({ label, name, type="text", required=false, icon, ...props }) => (
     <div style={{ marginBottom: 16 }}>
-      <label style={{ display:'block', fontSize:12, color:c.muted, marginBottom:6, fontWeight:600 }}>{label} {required&&'*'}</label>
-      <input name={name} type={type} required={required} style={{ width:'100%', padding:'12px 16px', borderRadius:10, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, boxSizing:'border-box', outline:'none' }} {...props} />
+      <label style={{ display:'block', fontSize:12, color:c.muted, marginBottom:6, fontWeight:700, textTransform:'uppercase', letterSpacing:0.5 }}>{label} {required&&'*'}</label>
+      <div style={{ position:'relative' }}>
+        {icon && <span style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', fontSize:16, color:c.muted }}>{icon}</span>}
+        <input 
+          name={name} type={type} required={required} 
+          style={{ width:'100%', padding:`12px 16px 12px ${icon ? '42px' : '16px'}`, borderRadius:10, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, boxSizing:'border-box', outline:'none', transition:'all 0.2s', boxShadow:'inset 0 2px 4px rgba(0,0,0,0.02)' }} 
+          onFocus={(e) => { e.target.style.borderColor = '#3b82f6'; e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.1)' }}
+          onBlur={(e) => { e.target.style.borderColor = c.border; e.target.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.02)' }}
+          {...props} 
+        />
+      </div>
     </div>
   )
 
   return (
-    <div style={{ background: c.card, borderRadius: 16, border: `1px solid ${c.border}`, padding: 32, maxWidth: 600, margin: '0 auto' }}>
-      <h2 style={{ margin: '0 0 24px', color: c.text, fontSize: 24, fontWeight: 800 }}>Provision New User</h2>
+    <div style={{ background: c.card, borderRadius: 20, border: `1px solid ${c.border}`, padding: 36, maxWidth: 640, margin: '0 auto', boxShadow:'0 20px 40px rgba(0,0,0,0.05)', position:'relative', overflow:'hidden' }}>
       
-      <div style={{ display: 'flex', gap: 12, marginBottom: 24, background: c.input, padding: 6, borderRadius: 12 }}>
+      {/* Background Decor */}
+      <div style={{ position:'absolute', top:-100, right:-100, width:300, height:300, background:'radial-gradient(circle, rgba(59,130,246,0.1) 0%, rgba(0,0,0,0) 70%)', borderRadius:'50%', pointerEvents:'none' }} />
+
+      <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom: 28 }}>
+        <div style={{ width:48, height:48, borderRadius:14, background:'linear-gradient(135deg,#3b82f6,#1d4ed8)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, boxShadow:'0 4px 16px rgba(59,130,246,0.4)' }}>
+          ➕
+        </div>
+        <div>
+          <h2 style={{ margin: 0, color: c.text, fontSize: 22, fontWeight: 800 }}>Provision New User</h2>
+          <p style={{ margin:0, color:c.muted, fontSize:14 }}>Manually register a member or staff account</p>
+        </div>
+      </div>
+      
+      <div style={{ display: 'flex', gap: 12, marginBottom: 28, background: c.input, padding: 6, borderRadius: 14 }}>
         {['Member', 'Staff'].map(t => (
-          <button key={t} type="button" onClick={() => setType(t)} style={{ flex:1, padding:'10px', borderRadius:8, border:'none', background: type === t ? c.card : 'transparent', color: type === t ? '#3b82f6' : c.muted, fontWeight:600, cursor:'pointer', boxShadow: type===t ? '0 2px 10px rgba(0,0,0,0.1)' : 'none', transition:'all 0.2s' }}>
-            {t} Account
+          <button key={t} type="button" onClick={() => setType(t)} style={{ flex:1, padding:'12px', borderRadius:10, border:'none', background: type === t ? c.card : 'transparent', color: type === t ? '#3b82f6' : c.muted, fontWeight:700, cursor:'pointer', boxShadow: type===t ? '0 4px 12px rgba(0,0,0,0.08)' : 'none', transition:'all 0.2s', fontSize:14 }}>
+            {t === 'Member' ? '🎓' : '🗂️'} {t} Account
           </button>
         ))}
       </div>
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} style={{ position:'relative', zIndex:1 }}>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-          <Input label="Full Name" name="fullName" required />
-          <Input label="Email Address" name="email" type="email" required />
+          <Input label="Full Name" name="fullName" icon="👤" required placeholder="John Doe" />
+          <Input label="Email Address" name="email" type="email" icon="✉️" required placeholder="john@example.com" />
         </div>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-          <Input label="Temporary Password" name="password" type="password" required />
-          <Input label="Phone Number" name="phone" />
+          <Input label="Temporary Password" name="password" type="password" icon="🔒" required placeholder="Enter password" />
+          <Input label="Phone Number" name="phone" icon="📞" placeholder="Optional" />
         </div>
 
-        <div style={{ height:1, background:c.border, margin:'16px 0 24px' }} />
+        <div style={{ display:'flex', alignItems:'center', margin:'20px 0' }}>
+          <div style={{ flex:1, height:1, background:c.border }} />
+          <span style={{ padding:'0 12px', color:c.muted, fontSize:12, fontWeight:700, textTransform:'uppercase', letterSpacing:1 }}>{type} Details</span>
+          <div style={{ flex:1, height:1, background:c.border }} />
+        </div>
         
         {type === 'Member' ? (
           <>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-              <Input label="Student / Member ID" name="studentId" required />
-              <Input label="Department" name="department" />
+              <Input label="Student / Member ID" name="studentId" icon="🆔" required placeholder="e.g. STU-123" />
+              <Input label="Department" name="department" icon="🏛️" placeholder="e.g. Computer Science" />
             </div>
-            <Input label="Max Books Allowed" name="maxBooksAllowed" type="number" defaultValue={5} />
+            <Input label="Max Books Allowed" name="maxBooksAllowed" type="number" icon="📚" defaultValue={5} />
           </>
         ) : (
           <>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-              <Input label="Job Title" name="jobTitle" required />
+              <Input label="Job Title" name="jobTitle" icon="👔" required placeholder="e.g. Librarian" />
               <div style={{ marginBottom: 16 }}>
-                <label style={{ display:'block', fontSize:12, color:c.muted, marginBottom:6, fontWeight:600 }}>System Role *</label>
+                <label style={{ display:'block', fontSize:12, color:c.muted, marginBottom:6, fontWeight:700, textTransform:'uppercase', letterSpacing:0.5 }}>System Role *</label>
                 <select name="roleName" style={{ width:'100%', padding:'12px 16px', borderRadius:10, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, outline:'none' }}>
                   <option value="Staff">Library Staff</option>
                   <option value="Admin">Administrator</option>
                 </select>
               </div>
             </div>
-            <Input label="Salary" name="salary" type="number" defaultValue={0} />
+            <Input label="Salary (ETB)" name="salary" type="number" icon="💵" defaultValue={0} />
           </>
         )}
 
-        <button type="submit" disabled={loading} style={{ width:'100%', padding:14, borderRadius:10, border:'none', background:'linear-gradient(135deg,#3b82f6,#1d4ed8)', color:'#fff', fontWeight:700, fontSize:15, cursor:loading?'not-allowed':'pointer', marginTop:16 }}>
-          {loading ? 'Creating Account...' : `Create ${type} Account`}
+        <button type="submit" disabled={loading} className="interactive-btn btn-pulse" style={{ width:'100%', padding:16, borderRadius:12, border:'none', background:'linear-gradient(135deg,#3b82f6,#1d4ed8)', color:'#fff', fontWeight:800, fontSize:16, cursor:loading?'not-allowed':'pointer', marginTop:24, boxShadow:'0 8px 24px rgba(59,130,246,0.3)' }}>
+          {loading ? 'Processing...' : `✨ Provision ${type} Account`}
         </button>
       </form>
     </div>
