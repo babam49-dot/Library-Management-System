@@ -81,7 +81,7 @@ router.post('/borrow', auth, async (req, res) => {
       return fail(res, `Member has reached max books allowed (${member.MaxBooksAllowed})`);
 
     const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 14);
+    dueDate.setDate(dueDate.getDate() + 7);
 
     const [result] = await pool.execute(
       "INSERT INTO BorrowingRecords (MemberID, CopyID, BorrowDate, DueDate, Status) VALUES (?,?,NOW(),?,'borrowed')",

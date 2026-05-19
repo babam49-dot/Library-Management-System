@@ -198,7 +198,7 @@ exports.getSession = async (req, res) => {
 
 exports.confirmCollection = async (req, res) => {
   const { code } = req.params;
-  const { borrowIds, loanPeriodDays = 14 } = req.body;
+  const { borrowIds, loanPeriodDays = 7 } = req.body;
   const staffId = req.user.StaffID || req.user.staffID || req.user.extensionId;
 
   if (!borrowIds || !Array.isArray(borrowIds) || borrowIds.length === 0) {
@@ -663,7 +663,7 @@ exports.confirmCollection = async (req, res) => {
     }
 
     const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 14);
+    dueDate.setDate(dueDate.getDate() + 7);
 
     for (const r of rows) {
       await conn.query(`
