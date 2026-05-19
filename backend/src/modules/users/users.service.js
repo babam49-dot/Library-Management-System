@@ -19,14 +19,22 @@ const login = async ({ email, password, identifier, loginType }) => {
 
   // Step 1: Query based on loginType or fallback to email
   if (loginType === 'student') {
+    // Try Student ID first, then email
     [users] = await pool.execute(
-      'SELECT u.*, r.RoleName FROM Users u JOIN Roles r ON u.RoleID = r.RoleID JOIN Members m ON m.UserID = u.UserID WHERE m.StudentID = ?',
-      [identifier]
+      `SELECT u.*, r.RoleName FROM Users u 
+       JOIN Roles r ON u.RoleID = r.RoleID 
+       JOIN Members m ON m.UserID = u.UserID 
+       WHERE m.StudentID = ? OR u.Email = ?`,
+      [identifier, identifier]
     );
   } else if (loginType === 'staff') {
+    // Try Staff ID first, then email
     [users] = await pool.execute(
-      'SELECT u.*, r.RoleName FROM Users u JOIN Roles r ON u.RoleID = r.RoleID JOIN Staff s ON s.UserID = u.UserID WHERE s.StaffIdentifier = ?',
-      [identifier]
+      `SELECT u.*, r.RoleName FROM Users u 
+       JOIN Roles r ON u.RoleID = r.RoleID 
+       JOIN Staff s ON s.UserID = u.UserID 
+       WHERE s.StaffIdentifier = ? OR u.Email = ?`,
+      [identifier, identifier]
     );
   } else {
     [users] = await pool.execute(

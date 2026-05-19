@@ -29,6 +29,7 @@ app.use('/api/jobs', require('./src/routes/jobs'));
 require('./src/jobs/pickupExpirationJob');
 require('./src/jobs/overdueDetectionJob');
 require('./src/jobs/reservationExpiryJob');
+require('./src/jobs/overdueSuspensionJob');
 
 
 // ─── Module 1: Catalog ───────────────────────────────────────────────────────

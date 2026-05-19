@@ -67,9 +67,19 @@ const completeRegistration = async (userId, response) => {
   const { verified, registrationInfo } = verification;
 
   if (verified && registrationInfo) {
-    const { credentialID, credentialPublicKey, counter } = registrationInfo;
-    
-    // Convert Buffer to base64 for DB storage
+    // Support both old (@simplewebauthn/server <10) and new (>=10) field names
+    const credentialID = registrationInfo.credential?.id
+      ?? registrationInfo.credentialID;
+    const credentialPublicKey = registrationInfo.credential?.publicKey
+      ?? registrationInfo.credentialPublicKey;
+    const counter = registrationInfo.credential?.counter
+      ?? registrationInfo.counter ?? 0;
+
+    if (!credentialID || !credentialPublicKey) {
+      throw { status: 500, message: 'Registration response missing credential data' };
+    }
+
+    // Convert to base64 for DB storage
     const credIdBase64 = Buffer.from(credentialID).toString('base64');
     const pubKeyBase64 = Buffer.from(credentialPublicKey).toString('base64');
 

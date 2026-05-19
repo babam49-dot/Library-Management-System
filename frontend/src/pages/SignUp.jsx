@@ -1,8 +1,45 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import DarkModeToggle from '../components/DarkModeToggle'
+
+function ParticleCanvas({ isDark, color }) {
+  const canvasRef = useRef(null)
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    let animId
+    const particles = []
+    const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight }
+    resize()
+    window.addEventListener('resize', resize)
+    const rgb = isDark ? '99,102,241' : color === '#10b981' ? '16,185,129' : '59,130,246'
+    for (let i = 0; i < 55; i++) {
+      particles.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, r: Math.random() * 2 + 1, dx: (Math.random() - 0.5) * 0.4, dy: (Math.random() - 0.5) * 0.4, opacity: Math.random() * 0.45 + 0.1 })
+    }
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      particles.forEach(p => {
+        p.x += p.dx; p.y += p.dy
+        if (p.x < 0 || p.x > canvas.width) p.dx *= -1
+        if (p.y < 0 || p.y > canvas.height) p.dy *= -1
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(${rgb},${p.opacity})`; ctx.fill()
+      })
+      for (let i = 0; i < particles.length; i++) for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x, dy = particles[i].y - particles[j].y
+        const dist = Math.sqrt(dx * dx + dy * dy)
+        if (dist < 120) { ctx.beginPath(); ctx.moveTo(particles[i].x, particles[i].y); ctx.lineTo(particles[j].x, particles[j].y); ctx.strokeStyle = `rgba(${rgb},${0.1 * (1 - dist / 120)})`; ctx.lineWidth = 1; ctx.stroke() }
+      }
+      animId = requestAnimationFrame(draw)
+    }
+    draw()
+    return () => { cancelAnimationFrame(animId); window.removeEventListener('resize', resize) }
+  }, [isDark, color])
+  return <canvas ref={canvasRef} style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none' }} />
+}
 
 const ROLES = [
   { id: 3, label: 'Student Member', sub: 'Borrow & reserve books', icon: '🎓', color: '#3b82f6' },
@@ -43,7 +80,7 @@ export default function SignUp() {
   const labelStyle = { display: 'block', fontSize: 12, fontWeight: 600, color: isDark ? '#94a3b8' : '#475569', marginBottom: 6 }
 
   return (
-    <div style={{ minHeight: '100vh', background: isDark ? '#0a0e1a' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Inter',sans-serif", position: 'relative', overflow: 'hidden', padding: '40px 16px' }}>
+    <div style={{ minHeight: '100vh', background: isDark ? 'linear-gradient(135deg,#0a0e1a 0%,#0f1729 50%,#0a0e1a 100%)' : 'linear-gradient(135deg,#dbeafe 0%,#e0f2fe 40%,#f0f9ff 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Inter',sans-serif", position: 'relative', overflow: 'hidden', padding: '40px 16px' }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,700;1,700&display=swap');
         @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-20px)}}
@@ -53,11 +90,12 @@ export default function SignUp() {
         .su-input:focus{border-color:${role.color}!important;box-shadow:0 0 0 3px ${role.color}22}
       `}</style>
 
-      {/* Blobs */}
-      <div style={{ position: 'fixed', top: '-15%', left: '-10%', width: 500, height: 500, background: isDark ? 'rgba(245,158,11,0.07)' : 'rgba(245,158,11,0.1)', borderRadius: '50%', filter: 'blur(80px)', animation: 'float 8s ease-in-out infinite', pointerEvents: 'none' }} />
-      <div style={{ position: 'fixed', bottom: '-10%', right: '-5%', width: 450, height: 450, background: isDark ? `${role.color}12` : `${role.color}18`, borderRadius: '50%', filter: 'blur(80px)', animation: 'floatR 10s ease-in-out infinite', pointerEvents: 'none' }} />
-      <div style={{ position: 'fixed', top: '50%', left: '30%', width: 300, height: 300, background: isDark ? 'rgba(139,92,246,0.05)' : 'rgba(139,92,246,0.08)', borderRadius: '50%', filter: 'blur(70px)', animation: 'float 14s ease-in-out infinite reverse', pointerEvents: 'none' }} />
+      <ParticleCanvas isDark={isDark} color={role.color} />
 
+      {/* Blobs */}
+      <div style={{ position: 'fixed', top: '-15%', left: '-10%', width: 500, height: 500, background: isDark ? 'rgba(245,158,11,0.07)' : 'rgba(245,158,11,0.1)', borderRadius: '50%', filter: 'blur(80px)', animation: 'float 8s ease-in-out infinite', pointerEvents: 'none', zIndex: 1 }} />
+      <div style={{ position: 'fixed', bottom: '-10%', right: '-5%', width: 450, height: 450, background: isDark ? `${role.color}12` : `${role.color}22`, borderRadius: '50%', filter: 'blur(80px)', animation: 'floatR 10s ease-in-out infinite', pointerEvents: 'none', zIndex: 1 }} />
+      <div style={{ position: 'fixed', top: '50%', left: '30%', width: 300, height: 300, background: isDark ? 'rgba(139,92,246,0.05)' : 'rgba(139,92,246,0.08)', borderRadius: '50%', filter: 'blur(70px)', animation: 'float 14s ease-in-out infinite reverse', pointerEvents: 'none', zIndex: 1 }} />
 
 
       <div className="signup-anim" style={{ width: '100%', maxWidth: 640, position: 'relative', zIndex: 10 }}>
@@ -85,7 +123,7 @@ export default function SignUp() {
         </div>
 
         {/* Card */}
-        <div style={{ background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.9)', backdropFilter: 'blur(20px)', borderRadius: 24, border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.08)', padding: '32px 36px', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+        <div style={{ background: isDark ? 'rgba(15,23,42,0.85)' : 'rgba(255,255,255,0.88)', backdropFilter: 'blur(24px)', borderRadius: 24, border: isDark ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(255,255,255,0.9)', padding: '32px 36px', boxShadow: isDark ? '0 32px 80px rgba(0,0,0,0.5)' : '0 32px 80px rgba(59,130,246,0.12)' }}>
 
           <form onSubmit={submit}>
             {error && <div style={{ padding: '12px 16px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, color: '#ef4444', fontSize: 14, marginBottom: 20 }}>⚠️ {error}</div>}

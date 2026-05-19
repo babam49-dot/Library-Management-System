@@ -19,6 +19,8 @@ import { useNavigate } from 'react-router-dom'
 export default function BookCard({
   book,
   isDark = false,
+  onBorrow,
+  onReserve,
   onWaitlist,
   onEdit,
   onDelete,
@@ -132,15 +134,28 @@ export default function BookCard({
           <div style={{ display: 'flex', gap: 8, marginTop: 'auto', paddingTop: 12, flexWrap: 'wrap' }}>
             {showActions === 'member' && (
               <>
-                {available > 0
-                  ? <button className="bk-action-btn" disabled={blocked} onClick={() => onBorrow && onBorrow(book)} style={{ flex: 1, background: blocked ? '#94a3b8' : 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 12px', fontWeight: 800, cursor: blocked ? 'not-allowed' : 'pointer', fontSize: 13 }}>
-                      Add to Cart
+                {available > 0 ? (
+                  <div style={{ display: 'flex', gap: 6, flex: 1 }}>
+                    <button className="bk-action-btn" disabled={blocked}
+                      onClick={() => onBorrow && onBorrow(book)}
+                      style={{ flex: 1, background: blocked ? '#94a3b8' : 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 8px', fontWeight: 800, cursor: blocked ? 'not-allowed' : 'pointer', fontSize: 12 }}>
+                      🛒 Cart
                     </button>
-                  : <button className="bk-action-btn" disabled={blocked} onClick={() => onWaitlist && onWaitlist(book)} style={{ flex: 1, background: blocked ? '#94a3b8' : 'linear-gradient(135deg,#d97706,#b45309)', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 12px', fontWeight: 800, cursor: blocked ? 'not-allowed' : 'pointer', fontSize: 13 }}>
-                      Join Waitlist
+                    <button className="bk-action-btn" disabled={blocked}
+                      onClick={() => onReserve && onReserve(book)}
+                      style={{ flex: 1, background: blocked ? '#94a3b8' : 'linear-gradient(135deg,#7c3aed,#6d28d9)', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 8px', fontWeight: 800, cursor: blocked ? 'not-allowed' : 'pointer', fontSize: 12 }}>
+                      🕒 Reserve
                     </button>
-                }
-                <button className="bk-action-btn" onClick={() => setPopup(true)} style={{ background: isDark ? 'rgba(255,255,255,0.08)' : '#f1f5f9', color: text, border: 'none', borderRadius: 10, padding: '9px 14px', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+                  </div>
+                ) : (
+                  <button className="bk-action-btn" disabled={blocked}
+                    onClick={() => onWaitlist && onWaitlist(book)}
+                    style={{ flex: 1, background: blocked ? '#94a3b8' : 'linear-gradient(135deg,#d97706,#b45309)', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 12px', fontWeight: 800, cursor: blocked ? 'not-allowed' : 'pointer', fontSize: 13 }}>
+                    ⏳ Join Waitlist
+                  </button>
+                )}
+                <button className="bk-action-btn" onClick={() => setPopup(true)}
+                  style={{ background: isDark ? 'rgba(255,255,255,0.08)' : '#f1f5f9', color: text, border: 'none', borderRadius: 10, padding: '9px 14px', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
                   ℹ️
                 </button>
               </>

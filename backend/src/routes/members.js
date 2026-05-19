@@ -287,6 +287,38 @@ router.delete('/reservations/:id', memberOnly, async (req, res) => {
   }
 });
 
+// Retract a pending borrow request (student cancels before staff approves)
+router.delete('/borrows/:id/retract', memberOnly, async (req, res) => {
+  const { id } = req.params;
+  const memberId = getMemberId(req);
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const [[borrow]] = await conn.execute(
+      "SELECT * FROM BorrowingRecords WHERE BorrowID = ? AND MemberID = ? AND Status = 'Pending' FOR UPDATE",
+      [id, memberId]
+    );
+
+    if (!borrow) {
+      await conn.rollback();
+      return fail(res, 'Pending borrow not found or cannot be retracted.', 404);
+    }
+
+    // Release the copy back to Available
+    await conn.execute("UPDATE BookCopies SET Status = 'Available' WHERE CopyID = ?", [borrow.CopyID]);
+    // Mark the borrow record as Cancelled
+    await conn.execute("UPDATE BorrowingRecords SET Status = 'Cancelled' WHERE BorrowID = ?", [id]);
+
+    await conn.commit();
+    return ok(res, 'Borrow request retracted. Book is available again.');
+  } catch (err) {
+    await conn.rollback();
+    return fail(res, err.message, 500);
+  } finally {
+    conn.release();
+  }
+});
 
 router.get('/my-fines', memberOnly, async (req, res) => {
   try {

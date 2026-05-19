@@ -9,11 +9,11 @@ import api from '../api/axiosInstance'
 
 import { startRegistration } from '@simplewebauthn/browser'
 
-const navItems = [
+const makeNavItems = (pendingBorrows, pendingFines, pendingReservations) => [
   { key: 'catalog',      label: 'Browse Catalog',    icon: '📚' },
-  { key: 'borrows',      label: 'My Borrowings',     icon: '📖' },
-  { key: 'reservations', label: 'My Reservations',   icon: '🕒' },
-  { key: 'fines',        label: 'My Fines',          icon: '💳' },
+  { key: 'borrows',      label: 'My Borrowings',     icon: '📖', badge: pendingBorrows },
+  { key: 'reservations', label: 'My Reservations',   icon: '🕒', badge: pendingReservations },
+  { key: 'fines',        label: 'My Fines',          icon: '💳', badge: pendingFines > 0 ? 1 : 0 },
   { key: 'profile',      label: 'My Profile',        icon: '👤' },
 ]
 
@@ -48,6 +48,11 @@ export default function MemberDashboard() {
   const [loading, setLoading] = useState(true)
   const [notice, setNotice] = useState('')
   const [payingFineId, setPayingFineId] = useState(null)
+
+  const pendingBorrows = borrows.filter(b => b.Status === 'Pending').length
+  const pendingReservations = reservations.filter(r => r.Status === 'Queued' || r.Status === 'Ready').length
+  const pendingFines = fines.filter(f => f.FineStatus !== 'Paid' && Number(f.Balance) > 0).length
+  const navItems = makeNavItems(pendingBorrows, pendingFines, pendingReservations)
 
   useEffect(() => { loadAll() }, [])
 
@@ -120,6 +125,15 @@ export default function MemberDashboard() {
       await api.delete(`/member/reservations/${id}`)
       setNotice('Reservation cancelled.'); await loadAll()
     } catch (err) { setNotice(err.response?.data?.message || err.message) }
+  }
+
+  const retractBorrow = async (borrowId) => {
+    if (!window.confirm('Retract this pending borrow request? The book will go back to available.')) return
+    try {
+      await api.delete(`/member/borrows/${borrowId}/retract`)
+      setNotice('✅ Request retracted. Book is now available again.')
+      await loadAll()
+    } catch (err) { setNotice('Error: ' + (err.response?.data?.message || err.message)) }
   }
 
   const payWithChapa = async (fine, amount) => {
@@ -259,7 +273,9 @@ export default function MemberDashboard() {
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(250px,1fr))', gap:18 }}>
               {filteredBooks.map((book, i) => (
                 <BookCard key={book.BookID} book={book} isDark={isDark} showActions="member"
-                  onBorrow={handleAddToCart} onWaitlist={() => joinWaitlist(book.BookID)}
+                  onBorrow={handleAddToCart}
+                  onReserve={() => joinWaitlist(book.BookID)}
+                  onWaitlist={() => joinWaitlist(book.BookID)}
                   blocked={blocked} index={i} detailLink={true} />
               ))}
               {!filteredBooks.length && (
@@ -303,24 +319,33 @@ export default function MemberDashboard() {
               <div className="m-card" style={{ background:c.card, border:`1px solid ${c.border}`, borderRadius:16, overflow:'hidden' }}>
                 <table style={{ width:'100%', borderCollapse:'collapse' }}>
                   <thead style={{ background:isDark?'#1a2236':'#f8fafc' }}>
-                    <tr>{['Book','Request Code','Borrowed','Due Date','Return Date','Status'].map(h =>
+                    <tr>{['Book','Request Code','Borrowed','Due Date','Return Date','Status','Action'].map(h =>
                       <th key={h} style={{ padding:'12px 16px', textAlign:'left', fontSize:11, fontWeight:800, color:c.muted, textTransform:'uppercase', letterSpacing:.6 }}>{h}</th>)}</tr>
                   </thead>
                   <tbody>
                     {borrows.map((r, i) => {
                       const isOD = r.Status === 'Overdue'
-                      const isRet = r.Status === 'Returned'
+                      const isPending = r.Status === 'Pending'
                       return (
-                        <tr key={r.BorrowID || i} style={{ borderTop:`1px solid ${c.border}` }}>
+                        <tr key={r.BorrowID || i} style={{ borderTop:`1px solid ${c.border}`, background: isPending ? (isDark?'rgba(245,158,11,0.07)':'#fffbeb') : 'transparent' }}>
                           <td style={{ padding:'12px 16px', fontWeight:700, color:c.text }}>
                             <div>{r.Title}</div>
                             {isOD && <div style={{ color:'#ef4444', fontSize:11, marginTop:2 }}>⚠ OVERDUE — fines accruing</div>}
+                            {isPending && <div style={{ color:'#d97706', fontSize:11, marginTop:2 }}>⏳ Awaiting staff approval at the desk</div>}
                           </td>
                           <td style={{ padding:'12px 16px', fontFamily:'monospace', color:'#3b82f6', fontSize:13 }}>{r.RequestCode || '—'}</td>
                           <td style={{ padding:'12px 16px', color:c.muted, fontSize:13 }}>{fmt(r.BorrowDate)}</td>
                           <td style={{ padding:'12px 16px', color: isOD?'#ef4444':c.muted, fontWeight: isOD?800:400, fontSize:13 }}>{fmt(r.DueDate)}</td>
                           <td style={{ padding:'12px 16px', color:c.muted, fontSize:13 }}>{fmt(r.ReturnDate)}</td>
                           <td style={{ padding:'12px 16px' }}><StatusBadge v={r.Status} /></td>
+                          <td style={{ padding:'12px 16px' }}>
+                            {isPending && (
+                              <button onClick={() => retractBorrow(r.BorrowID)}
+                                style={{ background:'#fee2e2', color:'#991b1b', border:'none', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontWeight:700, fontSize:12, whiteSpace:'nowrap' }}>
+                                ✕ Retract
+                              </button>
+                            )}
+                          </td>
                         </tr>
                       )
                     })}
@@ -392,39 +417,26 @@ export default function MemberDashboard() {
 
       {/* PROFILE */}
       {tab === 'profile' && (
-        <div style={{ maxWidth: 600 }}>
-          <h3 style={{ color: c.text, marginBottom: 16 }}>My Profile</h3>
+        <div style={{ maxWidth: 600, margin: '0 auto' }}>
+          <div className="m-card" style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 28, marginBottom: 20, textAlign: 'center' }}>
+            <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'linear-gradient(135deg,#3b82f6,#8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30, margin: '0 auto 16px', boxShadow: '0 8px 24px rgba(59,130,246,0.3)' }}>👤</div>
+            <h2 style={{ margin: '0 0 4px', color: c.text, fontSize: 22, fontWeight: 800 }}>{user?.FullName}</h2>
+            <p style={{ margin: '0 0 16px', color: c.muted, fontSize: 14 }}>{user?.Email}</p>
+            <StatusBadge v={user?.Status} />
+          </div>
+
           <div className="m-card" style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 24, marginBottom: 20 }}>
-            <h4 style={{ margin: '0 0 16px', color: c.text }}>Account Security</h4>
+            <h4 style={{ margin: '0 0 16px', color: c.text }}>🔐 Account Security</h4>
             <p style={{ color: c.muted, fontSize: 14, marginBottom: 20, lineHeight: 1.6 }}>
-              Register your PC's fingerprint scanner or Windows Hello to enable passwordless sign-in for future visits.
+              Register your PC's fingerprint scanner or Windows Hello to enable passwordless sign-in.
             </p>
             <button 
               onClick={registerFingerprint}
               className="m-btn"
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 20px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #8b5cf6, #6d28d9)', color: '#fff', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 12px rgba(139,92,246,0.3)' }}
-            >
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 20px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #8b5cf6, #6d28d9)', color: '#fff', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 12px rgba(139,92,246,0.3)' }}>
               <span style={{ fontSize: 20 }}>🔐</span>
-              Register Fingerprint
+              Register Fingerprint / Windows Hello
             </button>
-          </div>
-          
-          <div className="m-card" style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 24 }}>
-            <h4 style={{ margin: '0 0 16px', color: c.text }}>Account Details</h4>
-            <div style={{ display: 'grid', gap: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: `1px solid ${c.border}`, paddingBottom: 8 }}>
-                <span style={{ color: c.muted, fontSize: 14 }}>Full Name</span>
-                <strong style={{ color: c.text, fontSize: 14 }}>{user?.FullName}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: `1px solid ${c.border}`, paddingBottom: 8 }}>
-                <span style={{ color: c.muted, fontSize: 14 }}>Email</span>
-                <strong style={{ color: c.text, fontSize: 14 }}>{user?.Email}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 8 }}>
-                <span style={{ color: c.muted, fontSize: 14 }}>Account Status</span>
-                <StatusBadge v={user?.Status} />
-              </div>
-            </div>
           </div>
         </div>
       )}
