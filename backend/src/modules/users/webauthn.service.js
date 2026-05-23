@@ -96,17 +96,27 @@ const completeRegistration = async (userId, response) => {
 };
 
 const beginLogin = async (identifier, loginType) => {
-  // Find the user
+  // Find the user by primary identifier type, then fall back to email
   let users = [];
+
   if (loginType === 'student') {
+    // Try StudentID first, then email
     [users] = await pool.execute(
       'SELECT u.* FROM Users u JOIN Members m ON m.UserID = u.UserID WHERE m.StudentID = ?', [identifier]
     );
+    if (users.length === 0) {
+      [users] = await pool.execute('SELECT * FROM Users WHERE Email = ?', [identifier]);
+    }
   } else if (loginType === 'staff') {
+    // Try StaffIdentifier first, then email
     [users] = await pool.execute(
       'SELECT u.* FROM Users u JOIN Staff s ON s.UserID = u.UserID WHERE s.StaffIdentifier = ?', [identifier]
     );
+    if (users.length === 0) {
+      [users] = await pool.execute('SELECT * FROM Users WHERE Email = ?', [identifier]);
+    }
   } else {
+    // Default: email lookup
     [users] = await pool.execute('SELECT * FROM Users WHERE Email = ?', [identifier]);
   }
 

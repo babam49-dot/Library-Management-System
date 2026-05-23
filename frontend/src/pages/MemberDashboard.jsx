@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
@@ -6,8 +6,10 @@ import { useCart } from '../context/CartContext'
 import DashboardShell from '../components/DashboardShell'
 import BookCard from '../components/BookCard'
 import api from '../api/axiosInstance'
+import BubblePopup from '../components/BubblePopup'
 
-import { startRegistration } from '@simplewebauthn/browser'
+import { io } from 'socket.io-client'
+import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
 
 const makeNavItems = (pendingBorrows, pendingFines, pendingReservations) => [
   { key: 'catalog',      label: 'Browse Catalog',    icon: '📚' },
@@ -47,7 +49,31 @@ export default function MemberDashboard() {
   const [category, setCategory] = useState('')
   const [loading, setLoading] = useState(true)
   const [notice, setNotice] = useState('')
+  const [cartMsg, setCartMsg] = useState('')
+  const noticeTimerRef = useRef(null)
+
+  // Auto-dismiss floating toast after 4 seconds
+  const showNotice = (msg) => {
+    setNotice(msg)
+    if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current)
+    noticeTimerRef.current = setTimeout(() => setNotice(''), 4000)
+  }
   const [payingFineId, setPayingFineId] = useState(null)
+  const [receiptData, setReceiptData] = useState(null)
+
+  const [profilePhone, setProfilePhone] = useState('')
+  const [currentPw, setCurrentPw] = useState('')
+  const [newPw, setNewPw] = useState('')
+  const [confirmNewPw, setConfirmNewPw] = useState('')
+  const [profileNotice, setProfileNotice] = useState({ text: '', type: '' })
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [showProfilePw, setShowProfilePw] = useState(false)
+
+  useEffect(() => {
+    if (user?.Phone) {
+      setProfilePhone(user.Phone)
+    }
+  }, [user])
 
   const pendingBorrows = borrows.filter(b => b.Status === 'Pending').length
   const pendingReservations = reservations.filter(r => r.Status === 'Queued' || r.Status === 'Ready').length
@@ -60,6 +86,33 @@ export default function MemberDashboard() {
     const txRef = params.get('tx_ref')
     if (txRef) verifyChapa(txRef)
   }, [location.search])
+
+  useEffect(() => {
+    if (!user?.UserID) return
+    const socket = io('http://localhost:4000', {
+      auth: { token: localStorage.getItem('lms_token') }
+    })
+
+    socket.on('connect', () => {
+      console.log('Connected to socket server')
+      socket.emit('join', `member:${user.UserID}`)
+    })
+
+    socket.on('reservation:updated', () => {
+      console.log('Reservation updated event received. Reloading...')
+      loadAll()
+    })
+
+    socket.on('queue:promoted', (data) => {
+      console.log('Queue promoted event received:', data)
+      setNotice(`🎉 Dynamic Update: You have been promoted in the waitlist for a book! It is now Ready for pickup.`)
+      loadAll()
+    })
+
+    return () => {
+      socket.disconnect()
+    }
+  }, [user])
 
   const loadAll = async () => {
     setLoading(true)
@@ -105,12 +158,13 @@ export default function MemberDashboard() {
   }
 
   const submitBorrowRequest = async () => {
-    if (!cart.length) return setNotice('Add at least one book first.')
+    if (!cart.length) return setCartMsg('Add at least one book first.')
+    setCartMsg('')
     try {
       const res = await api.post('/borrowing/request', { copyIds: cart.map(i => i.copyId) })
-      setNotice(res.data.data?.message || 'Request submitted! Show the code at the desk.')
+      showNotice(res.data.data?.message || 'Request submitted! Show the code at the desk.')
       clearCart(); await loadAll(); setTab('borrows')
-    } catch (err) { setNotice(err.response?.data?.message || err.message) }
+    } catch (err) { setCartMsg(err.response?.data?.message || err.message) }
   }
 
   const joinWaitlist = async (bookId) => {
@@ -147,11 +201,13 @@ export default function MemberDashboard() {
     finally { setPayingFineId(null) }
   }
 
-  const recordMockPayment = async (fine, amount) => {
+  const recordMockPayment = async (fine, amount, phone) => {
     setPayingFineId(fine.FineID)
     try {
-      await api.post('/member/payments/mock', { fineId: fine.FineID, amount })
-      setNotice('Payment recorded.'); await loadAll()
+      const res = await api.post('/member/payments/mock', { fineId: fine.FineID, amount, phone })
+      setNotice('✅ Payment successful!')
+      if (res.data.data?.receipt) setReceiptData(res.data.data.receipt)
+      await loadAll()
     } catch (err) { setNotice(err.response?.data?.message || err.message) }
     finally { setPayingFineId(null) }
   }
@@ -179,6 +235,65 @@ export default function MemberDashboard() {
     } catch (err) {
       console.error(err);
       setNotice('Registration failed: ' + (err.message || 'Unknown error'));
+    }
+  }
+
+  const saveProfile = async (e) => {
+    e.preventDefault()
+    setProfileNotice({ text: '', type: '' })
+
+    if (newPw && newPw !== confirmNewPw) {
+      setProfileNotice({ text: '❌ New passwords do not match.', type: 'error' })
+      return
+    }
+
+    setSavingProfile(true)
+    try {
+      // Step A: Check if registered fingerprint credentials exist
+      const checkRes = await api.get('/member/has-fingerprint')
+      const { hasFingerprint } = checkRes.data.data
+
+      if (!hasFingerprint) {
+        setProfileNotice({
+          text: '❌ You are not registered. Please use the sensor to join/register first by clicking the button below.',
+          type: 'error'
+        })
+        setSavingProfile(false)
+        return
+      }
+
+      // Step B: Authenticate via WebAuthn
+      setProfileNotice({ text: '🔑 Please touch your fingerprint sensor to authorize changes...', type: 'info' })
+      const beginRes = await api.post('/auth/webauthn/login/begin', { identifier: user.Email, loginType: 'student' })
+      const { options, userId } = beginRes.data.data
+
+      const attResp = await startAuthentication({ optionsJSON: options })
+      const verifyRes = await api.post('/auth/webauthn/login/complete', { userId, response: attResp })
+
+      if (!verifyRes.data.success) {
+        throw new Error('Biometric verification failed.')
+      }
+
+      // Step C: Save details
+      setProfileNotice({ text: '💾 Saving profile changes...', type: 'info' })
+      await api.put('/member/profile', {
+        phone: profilePhone,
+        password: newPw || null,
+        currentPassword: currentPw || null
+      })
+
+      setProfileNotice({ text: '✅ Profile updated successfully!', type: 'success' })
+      setCurrentPw('')
+      setNewPw('')
+      setConfirmNewPw('')
+    } catch (err) {
+      console.error(err)
+      setProfileNotice({
+        text: '❌ Error: ' + (err.response?.data?.message || err.message || 'Verification cancelled.'),
+        type: 'error'
+      })
+    } finally {
+      setSavingProfile(false)
     }
   }
 
@@ -219,10 +334,36 @@ export default function MemberDashboard() {
         .m-btn:hover:not(:disabled) { transform:translateY(-1px); filter:brightness(1.05); }
       `}</style>
 
-      {/* Notice */}
+      {/* Floating Bottom Toast */}
       {notice && (
-        <div className="m-card" onClick={() => setNotice('')} style={{ marginBottom:16, padding:'12px 18px', borderRadius:12, border:`1px solid rgba(37,99,235,.25)`, background:isDark?'rgba(37,99,235,.12)':'#eff6ff', color:'#1e3a8a', fontWeight:700, cursor:'pointer' }}>
-          {notice} <span style={{ float:'right', opacity:.5 }}>✕</span>
+        <div
+          onClick={() => setNotice('')}
+          style={{
+            position: 'fixed',
+            bottom: 36,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 99999,
+            background: isDark ? 'linear-gradient(135deg,#1e293b,#0f172a)' : 'linear-gradient(135deg,#1e3a8a,#1d4ed8)',
+            color: '#fff',
+            padding: '13px 28px',
+            borderRadius: 50,
+            fontWeight: 700,
+            fontSize: 14,
+            boxShadow: '0 16px 48px rgba(37,99,235,0.35)',
+            border: '1.5px solid rgba(99,102,241,0.4)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            whiteSpace: 'nowrap',
+            maxWidth: '90vw',
+            animation: 'cardIn .3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+          }}
+        >
+          <span style={{ fontSize: 16 }}>ℹ️</span>
+          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{notice}</span>
+          <span style={{ opacity: 0.7, marginLeft: 8, fontSize: 16 }}>✕</span>
         </div>
       )}
 
@@ -259,12 +400,12 @@ export default function MemberDashboard() {
             {/* Category pills */}
             <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:16 }}>
               <button onClick={() => setCategory('')} className="m-btn"
-                style={{ padding:'7px 16px', borderRadius:20, border:'none', fontWeight:700, fontSize:13, cursor:'pointer', background: !category ? '#3b82f6' : isDark?'rgba(255,255,255,.08)':'#e2e8f0', color: !category ? '#fff' : c.muted }}>
+                style={{ padding:'5px 12px', borderRadius:20, border:'none', fontWeight:700, fontSize:12, cursor:'pointer', background: !category ? '#3b82f6' : isDark?'rgba(255,255,255,.08)':'#e2e8f0', color: !category ? '#fff' : c.muted }}>
                 All
               </button>
               {categories.map(cat => (
                 <button key={cat} onClick={() => setCategory(cat)} className="m-btn"
-                  style={{ padding:'7px 16px', borderRadius:20, border:'none', fontWeight:700, fontSize:13, cursor:'pointer', background: category===cat ? '#3b82f6' : isDark?'rgba(255,255,255,.08)':'#e2e8f0', color: category===cat ? '#fff' : c.muted }}>
+                  style={{ padding:'5px 12px', borderRadius:20, border:'none', fontWeight:700, fontSize:12, cursor:'pointer', background: category===cat ? '#3b82f6' : isDark?'rgba(255,255,255,.08)':'#e2e8f0', color: category===cat ? '#fff' : c.muted }}>
                   {cat}
                 </button>
               ))}
@@ -301,10 +442,13 @@ export default function MemberDashboard() {
               ))}
               {!cart.length && <div style={{ color:'#94a3b8', fontSize:13 }}>Your cart is empty.</div>}
             </div>
-            <button className="m-btn" onClick={submitBorrowRequest} disabled={!cart.length || blocked}
-              style={{ width:'100%', border:0, borderRadius:11, padding:13, color:'#fff', fontWeight:900, fontSize:14, cursor:(!cart.length||blocked)?'not-allowed':'pointer', background: blocked?'#64748b':'linear-gradient(135deg,#2563eb,#1d4ed8)' }}>
-              {blocked ? '🔒 Borrowing Suspended' : cart.length ? `Submit ${cart.length} Book(s)` : 'Submit Request'}
-            </button>
+            <div style={{ position: 'relative' }}>
+              <button className="m-btn" onClick={submitBorrowRequest} disabled={!cart.length || blocked}
+                style={{ width:'100%', border:0, borderRadius:11, padding: 10, color:'#fff', fontWeight:900, fontSize:13, cursor:(!cart.length||blocked)?'not-allowed':'pointer', background: blocked?'#64748b':'linear-gradient(135deg,#2563eb,#1d4ed8)' }}>
+                {blocked ? '🔒 Borrowing Suspended' : cart.length ? `Submit ${cart.length} Book(s)` : 'Submit Request'}
+              </button>
+              <BubblePopup msg={cartMsg} onClear={() => setCartMsg('')} />
+            </div>
           </aside>
         </div>
       )}
@@ -367,8 +511,8 @@ export default function MemberDashboard() {
               <div className="m-card" style={{ background:c.card, border:`1px solid ${c.border}`, borderRadius:16, overflow:'hidden' }}>
                 <table style={{ width:'100%', borderCollapse:'collapse' }}>
                   <thead style={{ background:isDark?'#1a2236':'#f8fafc' }}>
-                    <tr>{['Book','Code','Status','Priority','Pickup Deadline','Action'].map(h =>
-                      <th key={h} style={{ padding:'12px 16px', textAlign:'left', fontSize:11, fontWeight:800, color:c.muted, textTransform:'uppercase', letterSpacing:.6 }}>{h}</th>)}</tr>
+                    <tr>{['Book','Code','Status','Waitlist Info','Pickup Deadline','Action'].map(h =>
+                       <th key={h} style={{ padding:'12px 16px', textAlign:'left', fontSize:11, fontWeight:800, color:c.muted, textTransform:'uppercase', letterSpacing:.6 }}>{h}</th>)}</tr>
                   </thead>
                   <tbody>
                     {reservations.map((r, i) => (
@@ -376,13 +520,26 @@ export default function MemberDashboard() {
                         <td style={{ padding:'12px 16px', fontWeight:700, color:c.text }}>{r.Title}</td>
                         <td style={{ padding:'12px 16px', fontFamily:'monospace', color:'#3b82f6', fontSize:13 }}>{r.RequestCode || '—'}</td>
                         <td style={{ padding:'12px 16px' }}><StatusBadge v={r.Status} /></td>
-                        <td style={{ padding:'12px 16px', color:c.muted, fontSize:13 }}>#{r.Priority || 1}</td>
+                        <td style={{ padding:'12px 16px', color:c.muted, fontSize:13 }}>
+                          {r.Status === 'Queued' ? (
+                            <span style={{ fontWeight: 700, color: '#d97706' }}>
+                              #{r.StudentsAhead + 1} in queue ({r.StudentsAhead} ahead)
+                            </span>
+                          ) : r.Status === 'Ready' ? (
+                            <span style={{ fontWeight: 800, color: '#059669' }}>
+                              Ready for Pickup!
+                            </span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
                         <td style={{ padding:'12px 16px', color:c.muted, fontSize:13 }}>{fmtDT(r.PickupDeadline)}</td>
                         <td style={{ padding:'12px 16px' }}>
-                          {r.Status === 'Queued' && (
+                          {['Queued', 'Ready'].includes(r.Status) && (
                             <button onClick={() => cancelReservation(r.ReservationID || r.ResID)}
-                              style={{ background:'#fee2e2', color:'#991b1b', border:'none', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontWeight:700, fontSize:12 }}>
-                              Cancel
+                              className="m-btn"
+                              style={{ background:'#fee2e2', color:'#991b1b', border:'none', padding:'8px 14px', borderRadius:8, cursor:'pointer', fontWeight:800, fontSize:12 }}>
+                              ✕ Retract
                             </button>
                           )}
                         </td>
@@ -415,27 +572,122 @@ export default function MemberDashboard() {
         </div>
       )}
 
+      {/* Payment Receipt Modal */}
+      {receiptData && <PaymentReceiptModal receipt={receiptData} onClose={() => setReceiptData(null)} isDark={isDark} />}
+
       {/* PROFILE */}
       {tab === 'profile' && (
-        <div style={{ maxWidth: 600, margin: '0 auto' }}>
-          <div className="m-card" style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 28, marginBottom: 20, textAlign: 'center' }}>
-            <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'linear-gradient(135deg,#3b82f6,#8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30, margin: '0 auto 16px', boxShadow: '0 8px 24px rgba(59,130,246,0.3)' }}>👤</div>
-            <h2 style={{ margin: '0 0 4px', color: c.text, fontSize: 22, fontWeight: 800 }}>{user?.FullName}</h2>
-            <p style={{ margin: '0 0 16px', color: c.muted, fontSize: 14 }}>{user?.Email}</p>
+        <div style={{ maxWidth: 650, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Header Card */}
+          <div className="m-card" style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 20, padding: 32, textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 6, background: 'linear-gradient(90deg, #3b82f6, #8b5cf6)' }} />
+            <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'linear-gradient(135deg,#3b82f6,#8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36, margin: '0 auto 16px', boxShadow: '0 8px 24px rgba(59,130,246,0.25)', color: '#fff' }}>👤</div>
+            <h2 style={{ margin: '0 0 6px', color: c.text, fontSize: 24, fontWeight: 900, letterSpacing: '-0.02em' }}>{user?.FullName}</h2>
+            <p style={{ margin: '0 0 16px', color: c.muted, fontSize: 14, fontWeight: 500 }}>{user?.Email}</p>
             <StatusBadge v={user?.Status} />
           </div>
 
-          <div className="m-card" style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 24, marginBottom: 20 }}>
-            <h4 style={{ margin: '0 0 16px', color: c.text }}>🔐 Account Security</h4>
-            <p style={{ color: c.muted, fontSize: 14, marginBottom: 20, lineHeight: 1.6 }}>
-              Register your PC's fingerprint scanner or Windows Hello to enable passwordless sign-in.
+          {/* Inline Profile Alert Notification */}
+          {profileNotice.text && (
+            <div className="m-card" style={{
+              padding: '14px 20px',
+              borderRadius: 14,
+              border: `1px solid ${profileNotice.type === 'error' ? 'rgba(239,68,68,0.25)' : profileNotice.type === 'success' ? 'rgba(16,185,129,0.25)' : 'rgba(59,130,246,0.25)'}`,
+              background: profileNotice.type === 'error' ? (isDark ? 'rgba(239,68,68,0.1)' : '#fef2f2') : profileNotice.type === 'success' ? (isDark ? 'rgba(16,185,129,0.1)' : '#ecfdf5') : (isDark ? 'rgba(59,130,246,0.1)' : '#eff6ff'),
+              color: profileNotice.type === 'error' ? '#dc2626' : profileNotice.type === 'success' ? '#10b981' : '#2563eb',
+              fontWeight: 700,
+              fontSize: 14,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10
+            }}>
+              <span>{profileNotice.type === 'error' ? '⚠' : profileNotice.type === 'success' ? '✓' : 'ℹ'}</span>
+              <span style={{ flex: 1 }}>{profileNotice.text}</span>
+              <button onClick={() => setProfileNotice({ text: '', type: '' })} style={{ background: 'none', border: 0, color: 'inherit', fontWeight: 900, cursor: 'pointer', fontSize: 16 }}>✕</button>
+            </div>
+          )}
+
+          {/* Edit Profile Form */}
+          <form onSubmit={saveProfile} className="m-card" style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 20, padding: 28, display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <h3 style={{ margin: 0, color: c.text, fontSize: 18, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>📝 Update Contact & Security Info</h3>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: 12, fontWeight: 800, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.6 }}>Phone Number</label>
+              <input 
+                type="tel" 
+                value={profilePhone} 
+                onChange={e => setProfilePhone(e.target.value)} 
+                placeholder="e.g. +251912345678"
+                style={{ width: '100%', padding: '12px 16px', borderRadius: 12, border: `1.5px solid ${c.border}`, background: c.input, color: c.text, fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
+              />
+            </div>
+
+            <hr style={{ border: 0, borderTop: `1px dashed ${c.border}`, margin: '8px 0' }} />
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h4 style={{ margin: 0, color: c.text, fontSize: 14, fontWeight: 700 }}>🔒 Change Password (Optional)</h4>
+              <button type="button" onClick={() => setShowProfilePw(v => !v)} style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: 12, fontWeight: 700, cursor: 'pointer', outline: 'none' }}>
+                {showProfilePw ? '🙈 Hide Passwords' : '👁 Show Passwords'}
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: 12, fontWeight: 800, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.6 }}>Current Password</label>
+              <input 
+                type={showProfilePw ? "text" : "password"} 
+                value={currentPw} 
+                onChange={e => setCurrentPw(e.target.value)} 
+                placeholder="Enter current password to verify"
+                style={{ width: '100%', padding: '12px 16px', borderRadius: 12, border: `1.5px solid ${c.border}`, background: c.input, color: c.text, fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: 12, fontWeight: 800, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.6 }}>New Password</label>
+                <input 
+                  type={showProfilePw ? "text" : "password"} 
+                  value={newPw} 
+                  onChange={e => setNewPw(e.target.value)} 
+                  placeholder="At least 6 characters"
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: 12, border: `1.5px solid ${c.border}`, background: c.input, color: c.text, fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ fontSize: 12, fontWeight: 800, color: c.muted, textTransform: 'uppercase', letterSpacing: 0.6 }}>Confirm New Password</label>
+                <input 
+                  type={showProfilePw ? "text" : "password"} 
+                  value={confirmNewPw} 
+                  onChange={e => setConfirmNewPw(e.target.value)} 
+                  placeholder="Re-enter new password"
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: 12, border: `1.5px solid ${c.border}`, background: c.input, color: c.text, fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+            </div>
+
+            <button 
+              type="submit" 
+              className="m-btn" 
+              disabled={savingProfile}
+              style={{ width: '100%', border: 0, borderRadius: 12, padding: '10px 16px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', fontWeight: 900, cursor: savingProfile ? 'wait' : 'pointer', fontSize: 14, boxShadow: '0 4px 14px rgba(37,99,235,0.25)', marginTop: 8 }}
+            >
+              {savingProfile ? '⚡ Verifying Identity & Saving...' : '💾 Save Changes'}
+            </button>
+          </form>
+
+          {/* Biometrics Enroll Card */}
+          <div className="m-card" style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 20, padding: 28, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <h3 style={{ margin: 0, color: c.text, fontSize: 18, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>🔑 Biometric Credentials Registration</h3>
+            <p style={{ color: c.muted, fontSize: 14, lineHeight: 1.6, margin: 0 }}>
+              To secure your profile, we require biometric verification for profile updates. If you have not registered fingerprint credentials yet, touch your PC's fingerprint sensor to register first. Use the sensor to join/register below.
             </p>
             <button 
               onClick={registerFingerprint}
               className="m-btn"
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 20px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #8b5cf6, #6d28d9)', color: '#fff', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 12px rgba(139,92,246,0.3)' }}>
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '10px 16px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #8b5cf6, #6d28d9)', color: '#fff', fontWeight: 800, cursor: 'pointer', boxShadow: '0 4px 14px rgba(139,92,246,0.25)', fontSize: 14 }}>
               <span style={{ fontSize: 20 }}>🔐</span>
-              Register Fingerprint / Windows Hello
+              Register Fingerprint / Windows Hello (Enroll Now)
             </button>
           </div>
         </div>
@@ -455,7 +707,7 @@ function SummaryStrip({ dashboard, loading, isDark, c }) {
   return (
     <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:12, marginBottom:20 }}>
       {items.map(([label, value, color]) => (
-        <div key={label} className="m-card" style={{ background:c.card, border:`1px solid ${c.border}`, borderRadius:13, padding:16 }}>
+        <div key={label} className="m-card" style={{ background:c.card, border:`1px solid ${c.border}`, borderRadius:13, padding: '12px 16px' }}>
           <div style={{ color:c.muted, fontSize:11, fontWeight:800, textTransform:'uppercase', letterSpacing:.6 }}>{label}</div>
           <div style={{ color, fontSize:26, fontWeight:900, marginTop:6 }}>{loading ? '…' : value}</div>
         </div>
@@ -467,36 +719,113 @@ function SummaryStrip({ dashboard, loading, isDark, c }) {
 function FineCard({ fine, busy, payWithChapa, recordMockPayment, isDark, c }) {
   const balance = Number(fine.Balance || fine.Amount || 0)
   const [amount, setAmount] = useState(balance.toFixed(2))
-  const paid = fine.FineStatus === 'Paid' || balance <= 0
+  const [phone, setPhone] = useState('')
+  const [step, setStep] = useState('idle') // idle | phone | processing | done
+  const isWaived = fine.FineStatus === 'Waived'
+  const paid = isWaived || fine.FineStatus === 'Paid' || balance <= 0
+
+  const handleChapaFlow = async () => {
+    if (!phone.trim()) return
+    setStep('processing')
+    await recordMockPayment(fine, Number(amount), phone.trim())
+    setStep('done')
+  }
 
   return (
-    <div className="m-card" style={{ background:c.card, border:`1px solid ${c.border}`, borderRadius:16, padding:20, display:'grid', gridTemplateColumns:'1fr auto', gap:16, alignItems:'start' }}>
-      <div>
-        <h3 style={{ margin:0, color:c.text, fontSize:16 }}>{fine.TypeName || 'Library Fine'}{fine.BookTitle ? ` — ${fine.BookTitle}` : ''}</h3>
-        <p style={{ margin:'6px 0 0', color:c.muted, fontSize:13 }}>
-          Total: ETB {Number(fine.Amount||0).toFixed(2)} &nbsp;|&nbsp; Paid: ETB {Number(fine.TotalPaid||0).toFixed(2)} &nbsp;|&nbsp; <strong style={{ color:'#dc2626' }}>Balance: ETB {balance.toFixed(2)}</strong>
-        </p>
-        <div style={{ marginTop:8 }}><StatusBadge v={fine.FineStatus} /></div>
+    <div className="m-card" style={{ background:c.card, border:`1px solid ${c.border}`, borderRadius:16, padding:24, display:'flex', flexDirection:'column', gap:16 }}>
+      {/* Fine Info Row */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:12 }}>
+        <div style={{ flex:1 }}>
+          <h3 style={{ margin:0, color:c.text, fontSize:16, fontWeight:800 }}>
+            {fine.TypeName || 'Library Fine'}
+            {fine.BookTitle ? <span style={{ fontWeight:500, color:c.muted, fontSize:14 }}> — {fine.BookTitle}</span> : null}
+          </h3>
+          <p style={{ margin:'6px 0 0', color:c.muted, fontSize:13 }}>
+            Total: <strong>ETB {Number(fine.Amount||0).toFixed(2)}</strong>
+            &nbsp;|&nbsp; Paid: <strong>ETB {Number(fine.TotalPaid||0).toFixed(2)}</strong>
+            &nbsp;|&nbsp;
+            {isWaived
+              ? <strong style={{ color:'#8b5cf6' }}>Waived — No payment needed</strong>
+              : <strong style={{ color:'#dc2626' }}>Balance: ETB {balance.toFixed(2)}</strong>
+            }
+          </p>
+          <div style={{ marginTop:8 }}><StatusBadge v={fine.FineStatus} /></div>
+          {fine.WaiverReason && (
+            <p style={{ margin:'6px 0 0', color:'#8b5cf6', fontSize:12, fontStyle:'italic' }}>📝 Waiver: {fine.WaiverReason}</p>
+          )}
+        </div>
+        <div style={{ textAlign:'right', minWidth:120 }}>
+          <div style={{ fontSize:28, fontWeight:900, color: paid ? '#059669' : '#dc2626' }}>
+            {paid ? (isWaived ? '✨' : '✅') : `ETB ${balance.toFixed(2)}`}
+          </div>
+          <div style={{ fontSize:11, color:c.muted, marginTop:2 }}>{paid ? (isWaived ? 'Waived' : 'Paid') : 'Outstanding'}</div>
+        </div>
       </div>
-      <div style={{ minWidth:240 }}>
-        {!paid ? (
-          <>
+
+      {/* Payment Flow */}
+      {!paid && (
+        <div style={{ borderTop:`1px solid ${c.border}`, paddingTop:16, display:'flex', flexDirection:'column', gap:12 }}>
+          {/* Amount selector */}
+          <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' }}>
+            <label style={{ fontSize:12, fontWeight:700, color:c.muted, whiteSpace:'nowrap' }}>Amount (ETB)</label>
             <input type="number" min="1" max={balance} step="0.01" value={amount}
-              onChange={e => setAmount(e.target.value)}
-              style={{ width:'100%', padding:'9px 12px', borderRadius:9, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, outline:'none', marginBottom:8, boxSizing:'border-box' }} />
-            <button className="m-btn" disabled={busy} onClick={() => payWithChapa(fine, Number(amount))}
-              style={{ width:'100%', border:0, borderRadius:10, padding:11, background:'#10b981', color:'#fff', fontWeight:900, cursor:busy?'wait':'pointer', marginBottom:6, fontSize:13 }}>
-              {busy ? 'Opening Chapa…' : '💳 Pay with Chapa'}
-            </button>
-            <button className="m-btn" disabled={busy} onClick={() => recordMockPayment(fine, Number(amount))}
-              style={{ width:'100%', border:`1px solid ${c.border}`, borderRadius:10, padding:9, background:'transparent', color:c.muted, fontWeight:700, cursor:busy?'wait':'pointer', fontSize:12 }}>
-              Dev Mock Payment
-            </button>
-          </>
-        ) : (
-          <div style={{ color:'#059669', fontWeight:900, textAlign:'right', fontSize:14 }}>✅ Resolved</div>
-        )}
-      </div>
+              onChange={e => setAmount(e.target.value)} disabled={step !== 'idle'}
+              style={{ width:120, padding:'8px 12px', borderRadius:8, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, outline:'none' }} />
+            <span style={{ fontSize:12, color:c.muted }}>of ETB {balance.toFixed(2)} balance</span>
+          </div>
+
+          {/* Chapa Phone Flow */}
+          {step === 'idle' && (
+            <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+              <button className="m-btn" onClick={() => setStep('phone')} disabled={busy}
+                style={{ flex:1, minWidth:160, border:0, borderRadius:10, padding:'10px 16px', background:'linear-gradient(135deg,#10b981,#059669)', color:'#fff', fontWeight:800, cursor:'pointer', fontSize:13, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+                <span>💳</span> Pay with Chapa
+              </button>
+            </div>
+          )}
+
+          {step === 'phone' && (
+            <div style={{ background: isDark?'rgba(16,185,129,0.06)':'rgba(5,150,105,0.04)', borderRadius:12, padding:16, border:`1px solid rgba(16,185,129,0.2)`, display:'flex', flexDirection:'column', gap:12 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <div style={{ width:36, height:36, borderRadius:10, background:'linear-gradient(135deg,#10b981,#059669)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>📱</div>
+                <div>
+                  <div style={{ fontWeight:800, color:c.text, fontSize:14 }}>Enter your Telebirr / mobile number</div>
+                  <div style={{ color:c.muted, fontSize:12 }}>Chapa will send a payment prompt to this number</div>
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:10 }}>
+                <input type="tel" placeholder="e.g. +251912345678" value={phone} onChange={e => setPhone(e.target.value)}
+                  style={{ flex:1, padding:'10px 14px', borderRadius:9, border:`1.5px solid rgba(16,185,129,0.4)`, background:c.input, color:c.text, fontSize:14, outline:'none' }} />
+                <button className="m-btn" onClick={handleChapaFlow} disabled={!phone.trim() || busy}
+                  style={{ padding:'10px 20px', borderRadius:9, border:0, background:'linear-gradient(135deg,#10b981,#059669)', color:'#fff', fontWeight:800, cursor:(!phone.trim()||busy)?'not-allowed':'pointer', fontSize:13, whiteSpace:'nowrap' }}>
+                  {busy ? '⏳ Processing…' : '✓ Confirm & Pay'}
+                </button>
+                <button className="m-btn" onClick={() => { setStep('idle'); setPhone('') }}
+                  style={{ padding:'10px 14px', borderRadius:9, border:`1px solid ${c.border}`, background:'transparent', color:c.muted, cursor:'pointer', fontWeight:700 }}>
+                  ✕
+                </button>
+              </div>
+              <div style={{ fontSize:11, color:'rgba(16,185,129,0.8)', display:'flex', alignItems:'center', gap:6 }}>
+                <span>🔒</span> Secured by Chapa · Simulated payment environment
+              </div>
+            </div>
+          )}
+
+          {step === 'processing' && (
+            <div style={{ textAlign:'center', padding:20, color:'#10b981', fontWeight:700 }}>
+              <div style={{ fontSize:28, marginBottom:8, animation:'spin 1s linear infinite', display:'inline-block' }}>⏳</div>
+              <div>Processing payment via Chapa…</div>
+              <div style={{ fontSize:12, color:c.muted, marginTop:4 }}>Waiting for confirmation from {phone}</div>
+            </div>
+          )}
+
+          {step === 'done' && (
+            <div style={{ textAlign:'center', padding:16, color:'#10b981', fontWeight:800, fontSize:14 }}>
+              ✅ Payment confirmed! See your receipt above.
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -520,6 +849,123 @@ function EmptyState({ title, text }) {
       <div style={{ fontSize:36, marginBottom:10 }}>📘</div>
       <h3 style={{ color:'#0f172a', margin:'0 0 6px' }}>{title}</h3>
       <p style={{ margin:0, fontSize:14 }}>{text}</p>
+    </div>
+  )
+}
+
+function PaymentReceiptModal({ receipt, onClose, isDark }) {
+  const printReceipt = () => {
+    const printWin = window.open('', '', 'width=600,height=700')
+    printWin.document.write(`
+      <html><head><title>Payment Receipt – ${receipt.txRef}</title>
+      <style>
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 24px; background: #fff; color: #0f172a; }
+        .header { text-align: center; margin-bottom: 24px; }
+        .logo { font-size: 32px; }
+        .title { font-size: 22px; font-weight: 900; color: #10b981; margin: 8px 0 4px; }
+        .subtitle { font-size: 13px; color: #64748b; }
+        .badge { display: inline-block; background: #ecfdf5; color: #059669; border: 1.5px solid #10b981; padding: 4px 14px; border-radius: 999px; font-weight: 800; font-size: 13px; margin: 8px 0; }
+        .divider { border: none; border-top: 2px dashed #e2e8f0; margin: 18px 0; }
+        .row { display: flex; justify-content: space-between; padding: 7px 0; font-size: 14px; border-bottom: 1px solid #f1f5f9; }
+        .label { color: #64748b; font-weight: 600; }
+        .value { font-weight: 700; color: #0f172a; text-align: right; max-width: 55%; }
+        .amount-row { font-size: 20px; font-weight: 900; color: #10b981; margin: 12px 0; text-align: center; }
+        .txref { font-family: monospace; background: #f1f5f9; padding: 10px; border-radius: 8px; text-align: center; font-size: 13px; margin: 12px 0; word-break: break-all; }
+        .footer { text-align: center; font-size: 11px; color: #94a3b8; margin-top: 20px; }
+      </style></head><body>
+      <div class="header">
+        <div class="logo">🏛️</div>
+        <div class="title">Library Management System</div>
+        <div class="subtitle">Official Payment Receipt</div>
+        <div class="badge">✓ PAYMENT CONFIRMED</div>
+      </div>
+      <hr class="divider">
+      <div class="amount-row">ETB ${Number(receipt.amountPaid).toFixed(2)} Paid</div>
+      <hr class="divider">
+      <div class="row"><span class="label">Member Name</span><span class="value">${receipt.memberName || '—'}</span></div>
+      <div class="row"><span class="label">Student ID</span><span class="value">${receipt.studentId || '—'}</span></div>
+      <div class="row"><span class="label">Department</span><span class="value">${receipt.department || '—'}</span></div>
+      <div class="row"><span class="label">Phone</span><span class="value">${receipt.phone || '—'}</span></div>
+      <div class="row"><span class="label">Fine Type</span><span class="value">${receipt.fineType || '—'}</span></div>
+      <div class="row"><span class="label">Book</span><span class="value">${receipt.bookTitle || '—'}</span></div>
+      <div class="row"><span class="label">Payment Method</span><span class="value">${receipt.method || 'Chapa'}</span></div>
+      <div class="row"><span class="label">Remaining Balance</span><span class="value">${Number(receipt.remainingBalance || 0) <= 0 ? '✅ Fully Paid' : 'ETB ' + Number(receipt.remainingBalance).toFixed(2)}</span></div>
+      <div class="row"><span class="label">Date & Time</span><span class="value">${new Date(receipt.paidAt).toLocaleString()}</span></div>
+      <div class="txref">Ref: ${receipt.txRef}</div>
+      <div class="footer">Keep this receipt for your records. Thank you for your payment.<br>Library Management System &copy; ${new Date().getFullYear()}</div>
+      </body></html>
+    `)
+    printWin.document.close()
+    printWin.focus()
+    setTimeout(() => { printWin.print(); printWin.close() }, 300)
+  }
+
+  const balance = Number(receipt.remainingBalance || 0)
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', zIndex:99999, display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter:'blur(6px)' }}>
+      <div style={{ background: isDark ? '#161b27' : '#fff', borderRadius:24, width:'100%', maxWidth:520, maxHeight:'90vh', overflowY:'auto', boxShadow:'0 40px 100px rgba(0,0,0,0.5)', border: isDark ? '1px solid #1e2d40' : '1px solid #e2e8f0', animation:'cardIn .3s cubic-bezier(0.175,0.885,0.32,1.275)' }}>
+
+        {/* Receipt Header */}
+        <div style={{ background:'linear-gradient(135deg,#10b981,#059669)', borderRadius:'24px 24px 0 0', padding:'28px 28px 24px', textAlign:'center', color:'#fff' }}>
+          <div style={{ fontSize:36, marginBottom:8 }}>🏛️</div>
+          <div style={{ fontSize:20, fontWeight:900, letterSpacing:'-0.02em' }}>Payment Receipt</div>
+          <div style={{ fontSize:13, opacity:0.85, marginTop:4 }}>Library Management System</div>
+          <div style={{ marginTop:12, background:'rgba(255,255,255,0.2)', borderRadius:999, padding:'5px 18px', display:'inline-block', fontSize:13, fontWeight:800, border:'1.5px solid rgba(255,255,255,0.4)' }}>
+            ✓ PAYMENT CONFIRMED
+          </div>
+        </div>
+
+        {/* Amount Hero */}
+        <div style={{ textAlign:'center', padding:'20px 28px 0' }}>
+          <div style={{ fontSize:40, fontWeight:900, color:'#10b981', letterSpacing:'-0.03em' }}>
+            ETB {Number(receipt.amountPaid).toFixed(2)}
+          </div>
+          <div style={{ fontSize:13, color:'#64748b', marginTop:4 }}>
+            {balance <= 0 ? '✅ Fine fully settled' : `ETB ${balance.toFixed(2)} remaining balance`}
+          </div>
+        </div>
+
+        {/* Details */}
+        <div style={{ padding:'16px 28px', display:'flex', flexDirection:'column', gap:0 }}>
+          {[
+            ['👤 Member', receipt.memberName],
+            ['🎓 Student ID', receipt.studentId],
+            ['🏢 Department', receipt.department],
+            ['📱 Phone', receipt.phone],
+            ['📋 Fine Type', receipt.fineType],
+            ['📚 Book', receipt.bookTitle],
+            ['💳 Method', receipt.method],
+            ['📅 Date', new Date(receipt.paidAt).toLocaleString()],
+          ].map(([label, value]) => (
+            <div key={label} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 0', borderBottom:`1px solid ${isDark?'#1e2d40':'#f1f5f9'}` }}>
+              <span style={{ color:'#64748b', fontSize:13, fontWeight:600 }}>{label}</span>
+              <span style={{ color: isDark?'#f1f5f9':'#0f172a', fontSize:13, fontWeight:700, textAlign:'right', maxWidth:'60%' }}>{value || '—'}</span>
+            </div>
+          ))}
+          {/* TX Ref */}
+          <div style={{ marginTop:14, background: isDark?'rgba(255,255,255,0.04)':'#f8fafc', borderRadius:10, padding:'10px 14px', textAlign:'center' }}>
+            <div style={{ fontSize:11, color:'#64748b', fontWeight:700, marginBottom:4, textTransform:'uppercase', letterSpacing:0.8 }}>Transaction Reference</div>
+            <div style={{ fontFamily:'monospace', fontSize:12, color: isDark?'#94a3b8':'#475569', wordBreak:'break-all' }}>{receipt.txRef}</div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div style={{ padding:'0 28px 28px', display:'flex', gap:10 }}>
+          <button onClick={printReceipt}
+            style={{ flex:1, padding:'12px 0', borderRadius:12, border:0, background:'linear-gradient(135deg,#10b981,#059669)', color:'#fff', fontWeight:800, cursor:'pointer', fontSize:14, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+            🖨️ Print Receipt
+          </button>
+          <button onClick={onClose}
+            style={{ flex:1, padding:'12px 0', borderRadius:12, border:`1px solid ${isDark?'#1e2d40':'#e2e8f0'}`, background:'transparent', color: isDark?'#94a3b8':'#64748b', fontWeight:700, cursor:'pointer', fontSize:14 }}>
+            ✕ Close
+          </button>
+        </div>
+
+        <div style={{ textAlign:'center', paddingBottom:16, fontSize:11, color:'#94a3b8' }}>
+          Keep this receipt for your records · Library Management System
+        </div>
+      </div>
     </div>
   )
 }

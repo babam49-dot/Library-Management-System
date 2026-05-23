@@ -137,3 +137,79 @@ exports.getAnnouncements = async (req, res) => {
   try { send(res, 200, true, await svc.getLatestAnnouncements(5)); }
   catch (err) { handleErr(res, err); }
 };
+
+// ─── ISBN / BARCODE LOOKUP ────────────────────────────────────────────────────
+
+exports.isbnLookup = async (req, res) => {
+  const isbn = req.params.isbn.replace(/[^0-9X]/gi, '');
+  if (!isbn || (isbn.length !== 10 && isbn.length !== 13)) {
+    return send(res, 400, false, 'Invalid ISBN. Must be 10 or 13 digits.');
+  }
+
+  try {
+    // ── 1. Try Open Library ────────────────────────────────────────────────
+    const olUrl = `https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`;
+    let bookData = null;
+
+    try {
+      const olRes = await fetch(olUrl, { signal: AbortSignal.timeout(6000) });
+      if (olRes.ok) {
+        const olJson = await olRes.json();
+        const key = `ISBN:${isbn}`;
+        if (olJson[key]) {
+          const b = olJson[key];
+          bookData = {
+            source: 'openlibrary',
+            title:       b.title || '',
+            isbn:        isbn,
+            year:        b.publish_date ? parseInt(b.publish_date.slice(-4)) || '' : '',
+            description: b.notes?.value || b.description?.value || '',
+            language:    b.languages?.[0]?.key?.replace('/languages/', '') || 'English',
+            edition:     b.edition_name || '',
+            coverUrl:    b.cover?.large || b.cover?.medium || b.cover?.small || '',
+            authors:     (b.authors || []).map(a => a.name).filter(Boolean),
+            publisher:   b.publishers?.[0]?.name || '',
+            subjects:    (b.subjects || []).slice(0, 3).map(s => s.name || s).filter(Boolean),
+          };
+        }
+      }
+    } catch (_) { /* timeout or network, fall through */ }
+
+    // ── 2. Fallback to Google Books ────────────────────────────────────────
+    if (!bookData) {
+      try {
+        const gbUrl = `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&maxResults=1`;
+        const gbRes = await fetch(gbUrl, { signal: AbortSignal.timeout(6000) });
+        if (gbRes.ok) {
+          const gbJson = await gbRes.json();
+          const vol = gbJson.items?.[0]?.volumeInfo;
+          if (vol) {
+            bookData = {
+              source:      'googlebooks',
+              title:       vol.title || '',
+              isbn:        isbn,
+              year:        vol.publishedDate ? parseInt(vol.publishedDate.slice(0, 4)) || '' : '',
+              description: vol.description || '',
+              language:    vol.language || 'English',
+              edition:     '',
+              coverUrl:    vol.imageLinks?.thumbnail?.replace('http://', 'https://') || '',
+              authors:     vol.authors || [],
+              publisher:   vol.publisher || '',
+              subjects:    (vol.categories || []).slice(0, 3),
+            };
+          }
+        }
+      } catch (_) { /* give up */ }
+    }
+
+    if (!bookData) {
+      return send(res, 404, false, `No book information found for ISBN ${isbn}. Please fill in the details manually.`);
+    }
+
+    return send(res, 200, true, bookData);
+
+  } catch (err) {
+    handleErr(res, err);
+  }
+};
+

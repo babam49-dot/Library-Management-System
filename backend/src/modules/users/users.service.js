@@ -145,7 +145,7 @@ const createUser = async (userData, creatorRole) => {
   if (roleName === 'Member') {
     if (!extensionData.StudentID) throw { status: 400, message: "StudentID is required for members" };
     const [existingStudent] = await pool.execute(
-      'SELECT m.MemberID, u.Status FROM Members m JOIN Users u ON m.UserID = u.UserID WHERE m.StudentID = ?', 
+      'SELECT m.MemberID, u.Status FROM Members m JOIN Users u ON m.UserID = u.UserID WHERE m.StudentID = ?',
       [extensionData.StudentID]
     );
     if (existingStudent.length > 0) {
@@ -160,7 +160,7 @@ const createUser = async (userData, creatorRole) => {
   if (roleName === 'Staff' || roleName === 'Admin') {
     if (!extensionData.StaffIdentifier) throw { status: 400, message: "Staff ID is required for staff members" };
     const [existingStaff] = await pool.execute(
-      'SELECT s.StaffID, u.Status FROM Staff s JOIN Users u ON s.UserID = u.UserID WHERE s.StaffIdentifier = ?', 
+      'SELECT s.StaffID, u.Status FROM Staff s JOIN Users u ON s.UserID = u.UserID WHERE s.StaffIdentifier = ?',
       [extensionData.StaffIdentifier]
     );
     if (existingStaff.length > 0) {
@@ -233,7 +233,7 @@ const registerPublicUser = async (userData) => {
   if (roleName === 'Member') {
     if (!extensionData.universityId) throw { status: 400, message: "University ID is required for members" };
     const [existingStudent] = await pool.execute(
-      'SELECT m.MemberID, u.Status FROM Members m JOIN Users u ON m.UserID = u.UserID WHERE m.StudentID = ?', 
+      'SELECT m.MemberID, u.Status FROM Members m JOIN Users u ON m.UserID = u.UserID WHERE m.StudentID = ?',
       [extensionData.universityId]
     );
     if (existingStudent.length > 0) {
@@ -247,7 +247,7 @@ const registerPublicUser = async (userData) => {
   if (roleName === 'Staff' || roleName === 'Admin') {
     if (!extensionData.staffId) throw { status: 400, message: "Staff ID is required for staff members" };
     const [existingStaff] = await pool.execute(
-      'SELECT s.StaffID, u.Status FROM Staff s JOIN Users u ON s.UserID = u.UserID WHERE s.StaffIdentifier = ?', 
+      'SELECT s.StaffID, u.Status FROM Staff s JOIN Users u ON s.UserID = u.UserID WHERE s.StaffIdentifier = ?',
       [extensionData.staffId]
     );
     if (existingStaff.length > 0) {
@@ -294,7 +294,7 @@ const registerPublicUser = async (userData) => {
 
 const updateUser = async (userId, updateData) => {
   const { FullName, Email } = updateData;
-  
+
   if (Email) {
     const [existing] = await pool.execute('SELECT UserID FROM Users WHERE Email = ? AND UserID != ?', [Email, userId]);
     if (existing.length > 0) throw { status: 409, message: "Email already exists" };
@@ -422,7 +422,7 @@ const getMemberBorrowingContext = async (memberId) => {
       "SELECT COALESCE(SUM(Amount),0) as UnpaidFineTotal FROM Fines WHERE MemberID = ? AND FineStatus IN ('Unpaid', 'Partial')",
       [memberId]
     );
-  } catch (_) {}
+  } catch (_) { }
 
   // Query currently borrowed books
   // Table BorrowingRecords (assume exists as per spec)

@@ -7,6 +7,7 @@ import DashboardShell from '../components/DashboardShell'
 import BookCard from '../components/BookCard'
 import axios from 'axios'
 import Barcode from 'react-barcode'
+import BubblePopup from '../components/BubblePopup'
 
 const API = 'http://localhost:4000/api'
 const fmt = (d) => d ? new Date(d).toLocaleDateString() : '—'
@@ -42,6 +43,19 @@ export default function AdminDashboard() {
   const [barcodesModal, setBarcodesModal] = useState(null)
   const [bookCopies, setBookCopies] = useState([])
 
+  // ── Admin Barcode / ISBN Lookup ───────────────────────────────────────────
+  const [adminIsbnInput, setAdminIsbnInput] = useState('')
+  const [adminIsbnLoading, setAdminIsbnLoading] = useState(false)
+  const [adminIsbnMsg, setAdminIsbnMsg] = useState({ text: '', ok: true })
+  const [adminIsbnPreview, setAdminIsbnPreview] = useState(null)
+  const adminBarcodeFileRef = React.useRef(null)
+  const adminTitleRef    = React.useRef(null)
+  const adminIsbnRef     = React.useRef(null)
+  const adminYearRef     = React.useRef(null)
+  const adminEditionRef  = React.useRef(null)
+  const adminLangRef     = React.useRef(null)
+  const adminDescRef     = React.useRef(null)
+
   const openBarcodes = async (book) => {
     try {
       const res = await axios.get(`${API}/catalog/books/${book.BookID}/copies`, h())
@@ -50,6 +64,43 @@ export default function AdminDashboard() {
     } catch (e) {
       showToast('Error fetching copies')
     }
+  }
+
+  const lookupIsbnAdmin = async (isbn) => {
+    const clean = (isbn || adminIsbnInput).replace(/[^0-9X]/gi, '')
+    if (!clean || (clean.length !== 10 && clean.length !== 13)) {
+      setAdminIsbnMsg({ text: 'Enter a valid 10 or 13-digit ISBN.', ok: false }); return
+    }
+    setAdminIsbnLoading(true); setAdminIsbnMsg({ text: '', ok: true }); setAdminIsbnPreview(null)
+    try {
+      const res = await axios.get(`${API}/catalog/isbn-lookup/${clean}`, h())
+      const d = res.data.data
+      setAdminIsbnPreview(d)
+      setAdminIsbnMsg({ text: `✅ Found via ${d.source === 'openlibrary' ? 'Open Library' : 'Google Books'}! Fields auto-filled.`, ok: true })
+      if (adminTitleRef.current)   adminTitleRef.current.value   = d.title       || ''
+      if (adminIsbnRef.current)    adminIsbnRef.current.value    = d.isbn        || ''
+      if (adminYearRef.current)    adminYearRef.current.value    = d.year        ? String(d.year) : ''
+      if (adminEditionRef.current) adminEditionRef.current.value = d.edition     || ''
+      if (adminLangRef.current)    adminLangRef.current.value    = d.language    || 'English'
+      if (adminDescRef.current)    adminDescRef.current.value    = d.description || ''
+    } catch (err) {
+      setAdminIsbnMsg({ text: err.response?.data?.message || 'ISBN not found. Fill manually.', ok: false })
+    } finally { setAdminIsbnLoading(false) }
+  }
+
+  const handleAdminBarcodeUpload = async (e) => {
+    const file = e.target.files[0]; if (!file) return
+    if ('BarcodeDetector' in window) {
+      try {
+        const det = new window.BarcodeDetector({ formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e'] })
+        const bmp = await createImageBitmap(file)
+        const codes = await det.detect(bmp)
+        if (codes.length > 0) { const raw = codes[0].rawValue; setAdminIsbnInput(raw); await lookupIsbnAdmin(raw); return }
+      } catch (_) {}
+    }
+    const nm = file.name.replace(/[^0-9X]/gi, '')
+    if (nm.length === 13 || nm.length === 10) { setAdminIsbnInput(nm); await lookupIsbnAdmin(nm); return }
+    setAdminIsbnMsg({ text: 'Could not detect ISBN from image. Type it below.', ok: false })
   }
 
   const c = {
@@ -94,10 +145,10 @@ export default function AdminDashboard() {
   const fetchTab = useCallback(async (t) => {
     setLoading(true); setSearch('')
     const map = {
-      'pending-staff': '/users',
-      'pending-members': '/users',
-      'all-staff': '/users',
-      'members': '/users',
+      'pending-staff': '/admin/pending-staff',
+      'pending-members': '/admin/pending-members',
+      'all-staff': '/admin/all-staff',
+      'members': '/admin/all-members',
       'all-users': '/admin/all-users',
       'books': '/admin/all-books',
       'borrowings': '/admin/borrowing-records',
@@ -124,9 +175,9 @@ export default function AdminDashboard() {
 
         // Apply filtering based on tab
         if (t === 'pending-staff') results = results.filter(u => u.RoleName === 'Staff' && (u.Status === 'Pending' || u.Status === 'pending'));
-        else if (t === 'pending-members') results = results.filter(u => u.RoleName === 'Member' && (u.Status === 'Pending' || u.Status === 'pending'));
+        // pending-members now comes from dedicated endpoint, no client filter needed
         else if (t === 'all-staff') results = results.filter(u => (u.RoleName === 'Staff' || u.RoleName === 'Admin') && u.Status !== 'Pending' && u.Status !== 'pending');
-        else if (t === 'members') results = results.filter(u => u.RoleName === 'Member');
+        // members now comes from dedicated endpoint, no client filter needed
         
         setData(results)
       } catch { setData([]) }
@@ -168,7 +219,7 @@ export default function AdminDashboard() {
   const Th = ({ children }) => <th style={{ padding:'12px 16px', textAlign:'left', fontSize:12, fontWeight:700, color:c.muted, textTransform:'uppercase', letterSpacing:1, background:c.head, whiteSpace:'nowrap' }}>{children}</th>
   const Td = ({ children, style={} }) => <td style={{ padding:'12px 16px', fontSize:13, color:c.text, borderTop:`1px solid ${c.border}`, ...style }}>{children}</td>
   const Btn = ({ onClick, color='#3b82f6', children, size='sm' }) => (
-    <button className="interactive-btn" onClick={onClick} style={{ background:color+'22', color, border:`1px solid ${color}44`, padding: size==='sm' ? '4px 10px' : '8px 18px', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600, marginLeft:4 }}>{children}</button>
+    <button className="interactive-btn" onClick={onClick} style={{ background:color+'22', color, border:`1px solid ${color}44`, padding: size==='sm' ? '3px 8px' : '6px 14px', borderRadius:6, cursor:'pointer', fontSize: size==='sm' ? '11px' : '13px', fontWeight:600, marginLeft:4 }}>{children}</button>
   )
 
   const openPayments = async (fineId) => {
@@ -197,12 +248,12 @@ export default function AdminDashboard() {
             { label:'Pending Staff', val:stats?.pendingStaff, icon:'⏳', color:'#f97316', navTab:'pending-staff' },
             { label:'Pending Members', val:stats?.pendingMembers, icon:'👤', color:'#ec4899', navTab:'members' },
           ].map(s => (
-            <div key={s.label} className="interactive-card" style={{ background:c.card, border:`1px solid ${c.border}`, borderRadius:12, padding:20, cursor:'pointer' }} onClick={() => s.navTab && setTab(s.navTab)}>
+            <div key={s.label} className="interactive-card" style={{ background:c.card, border:`1px solid ${c.border}`, borderRadius:12, padding:'14px 18px', cursor:'pointer' }} onClick={() => s.navTab && setTab(s.navTab)}>
               <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8 }}>
-                <span style={{ fontSize:12, fontWeight:700, color:c.muted, textTransform:'uppercase', letterSpacing:1 }}>{s.label}</span>
-                <span style={{ fontSize:20 }}>{s.icon}</span>
+                <span style={{ fontSize:11, fontWeight:700, color:c.muted, textTransform:'uppercase', letterSpacing:1 }}>{s.label}</span>
+                <span style={{ fontSize:18 }}>{s.icon}</span>
               </div>
-              <div style={{ fontSize:36, fontWeight:800, color:s.color }}>{s.val ?? '—'}</div>
+              <div style={{ fontSize:26, fontWeight:800, color:s.color }}>{s.val ?? '—'}</div>
               {s.navTab && <div style={{ fontSize:11, color:c.muted, marginTop:6, fontWeight:600 }}>Click to manage →</div>}
             </div>
           ))}
@@ -250,7 +301,7 @@ export default function AdminDashboard() {
       'borrowings': ['Member','Book','Borrowed','Due','Status'],
       'fines': ['Member','Book','Type','Amount','Status','Issued','Waiver Reason','Actions'],
       'fine-types': ['Name','Base Amount','Description','Actions'],
-      'damage': ['Member','Book','Description','Severity','Date','Actions'],
+      'damage': ['Member','Book','Description','Severity','Assessed By','Date','Actions'],
       'reports-payment': ['Payment Ref', 'Member', 'Fine Type', 'Amount Paid', 'Method', 'Date', 'Processed By'],
       'reports-fines': ['Member', 'Fine Type', 'Total Fine', 'Paid', 'Status', 'Issued Date'],
       'reports-disposals': ['Book', 'Reason', 'Date Removed', 'Processed By'],
@@ -266,8 +317,8 @@ export default function AdminDashboard() {
           <Td>{row.JobTitle || '—'}</Td>
           <Td>{row.Phone || '—'}</Td>
           <Td>
-            <Btn color='#10b981' onClick={() => act('patch',`/admin/users/${row.UserID}/status`,{status:'Active'},'Staff approved!')}>Approve</Btn>
-            <Btn color='#ef4444' onClick={() => { if(window.confirm('Reject?')) act('patch',`/admin/users/${row.UserID}/status`,{status:'Rejected'},'Staff rejected.') }}>Reject</Btn>
+            <Btn color='#10b981' onClick={() => act('patch',`/admin/approve-staff/${row.UserID}`,{},'Staff approved!')}>Approve</Btn>
+            <Btn color='#ef4444' onClick={() => { if(window.confirm('Reject staff member?')) act('patch',`/admin/reject-staff/${row.UserID}`,{},'Staff rejected.') }}>Reject</Btn>
           </Td>
         </tr>
       )
@@ -278,8 +329,8 @@ export default function AdminDashboard() {
           <Td>{row.StudentID || '—'}</Td>
           <Td>{row.Department || '—'}</Td>
           <Td>
-            <Btn color='#10b981' onClick={() => act('patch',`/admin/users/${row.UserID}/status`,{status:'Active'},'Member approved! They can now log in.')}>Approve</Btn>
-            <Btn color='#ef4444' onClick={() => { if(window.confirm(`Reject ${row.FullName}'s application?`)) act('patch',`/admin/users/${row.UserID}/status`,{status:'Rejected'},'Member rejected.') }}>Reject</Btn>
+            <Btn color='#10b981' onClick={() => act('patch',`/admin/approve-member/${row.UserID}`,{},'Member approved! They can now log in.')}>Approve</Btn>
+            <Btn color='#ef4444' onClick={() => { if(window.confirm(`Reject ${row.FullName}'s application?`)) act('patch',`/admin/reject-member/${row.UserID}`,{},'Member rejected.') }}>Reject</Btn>
           </Td>
         </tr>
       )
@@ -380,6 +431,7 @@ export default function AdminDashboard() {
           <Td>{row.BookTitle || '—'}</Td>
           <Td style={{maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{row.Description}</Td>
           <Td><Badge v={row.Severity} /></Td>
+          <Td><strong style={{color:'#3b82f6'}}>{row.StaffName || 'Admin / Staff'}</strong></Td>
           <Td>{fmt(row.AssessmentDate)}</Td>
           <Td>
             {row.ImageBase64 && <Btn color='#8b5cf6' onClick={() => setViewImageModal(row.ImageBase64)}>View Photo</Btn>}
@@ -502,8 +554,31 @@ export default function AdminDashboard() {
 
   return (
     <DashboardShell role="admin" navItems={[]} activeTab={tab} setTab={setTab} user={user} logout={logout} tabLabel={tabLabel}>
-      {/* Toast */}
-      {toast && <div style={{ position:'fixed', bottom:24, right:24, background:'#1e293b', color:'#fff', padding:'12px 20px', borderRadius:10, zIndex:9999, fontSize:14, boxShadow:'0 4px 24px rgba(0,0,0,0.3)', borderLeft:'3px solid #f59e0b' }}>{toast}</div>}
+      {/* Floating Centered Toast System */}
+      {toast && (
+        <div style={{
+          position: 'fixed',
+          bottom: 40,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'linear-gradient(135deg, #1e293b, #0f172a)',
+          color: '#fff',
+          padding: '14px 28px',
+          borderRadius: 50,
+          zIndex: 99999,
+          fontSize: 14,
+          fontWeight: 700,
+          boxShadow: '0 20px 50px rgba(59, 130, 246, 0.35)',
+          border: '1.5px solid rgba(59, 130, 246, 0.4)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          animation: 'fadeInScale 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+        }}>
+          <span style={{ fontSize: 18 }}>ℹ️</span>
+          <span>{toast}</span>
+        </div>
+      )}
 
       {/* Issue Fine Modal */}
       {issueFineModal && (
@@ -622,12 +697,52 @@ export default function AdminDashboard() {
               <div style={{ display:'flex', alignItems:'center', gap:14 }}>
                 <div style={{ width:50, height:50, borderRadius:14, background:'linear-gradient(135deg,#10b981,#059669)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, boxShadow:'0 4px 16px rgba(16,185,129,0.4)' }}>📚</div>
                 <div>
-                  <h2 style={{ color:c.text, margin:0, fontSize:22, fontWeight:800 }}>Add New Book</h2>
-                  <p style={{ color:c.muted, margin:0, fontSize:13 }}>Register a new book and its physical copies</p>
+                <h2 style={{ color:c.text, margin:0, fontSize:22, fontWeight:800 }}>Add New Book</h2>
+                <p style={{ color:c.muted, margin:0, fontSize:13 }}>Scan a barcode or type ISBN to auto-fill</p>
+              </div>
+            </div>
+            <button onClick={() => { setAddBookModal(false); setAdminIsbnInput(''); setAdminIsbnMsg({text:'',ok:true}); setAdminIsbnPreview(null) }} style={{ background:'transparent', border:'none', color:c.muted, fontSize:24, cursor:'pointer', lineHeight:1 }}>✕</button>
+          </div>
+
+          {/* ── BARCODE SCANNER ── */}
+          <div style={{ background: isDark ? 'rgba(16,185,129,0.06)' : 'rgba(5,150,105,0.06)', border: `2px dashed ${isDark ? '#10b981' : '#059669'}`, borderRadius: 14, padding: 18, marginBottom: 20 }}>
+            <div style={{ fontWeight: 800, color: isDark ? '#34d399' : '#065f46', fontSize: 14, marginBottom: 12 }}>📷 Smart Barcode Scanner — auto-fills all fields</div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <div style={{ fontSize: 11, color: c.muted, fontWeight: 700, marginBottom: 4 }}>📁 UPLOAD BARCODE IMAGE</div>
+                <input type="file" accept="image/*" ref={adminBarcodeFileRef} onChange={handleAdminBarcodeUpload}
+                  style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: `1px solid ${isDark ? '#10b981' : '#059669'}`, background: 'transparent', color: c.text, fontSize: 12, cursor: 'pointer', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ color: c.muted, fontWeight: 700, paddingBottom: 2 }}>— OR —</div>
+              <div style={{ flex: 1, minWidth: 180 }}>
+                <div style={{ fontSize: 11, color: c.muted, fontWeight: 700, marginBottom: 4 }}>🔢 TYPE ISBN</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input type="text" placeholder="e.g. 9780140449136" value={adminIsbnInput} onChange={e => setAdminIsbnInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), lookupIsbnAdmin())}
+                    style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: `1px solid ${c.border}`, background: c.input, color: c.text, fontSize: 13, outline: 'none' }} />
+                  <button type="button" onClick={() => lookupIsbnAdmin()} disabled={adminIsbnLoading}
+                    style={{ background: isDark ? '#10b981' : '#059669', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 12, opacity: adminIsbnLoading ? 0.7 : 1 }}>
+                    {adminIsbnLoading ? '⏳' : '🔍'}
+                  </button>
                 </div>
               </div>
-              <button onClick={() => setAddBookModal(false)} style={{ background:'transparent', border:'none', color:c.muted, fontSize:24, cursor:'pointer', lineHeight:1 }}>✕</button>
             </div>
+            {adminIsbnMsg.text && (
+              <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 8, background: adminIsbnMsg.ok ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)', color: adminIsbnMsg.ok ? '#10b981' : '#ef4444', fontSize: 12, fontWeight: 600 }}>
+                {adminIsbnMsg.text}
+              </div>
+            )}
+            {adminIsbnPreview && (
+              <div style={{ marginTop: 10, display: 'flex', gap: 12, alignItems: 'flex-start', background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', borderRadius: 10, padding: 10 }}>
+                {adminIsbnPreview.coverUrl && <img src={adminIsbnPreview.coverUrl} alt="cover" style={{ width: 50, height: 70, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }} />}
+                <div style={{ fontSize: 12, color: c.text, lineHeight: 1.6 }}>
+                  <div style={{ fontWeight: 800, color: isDark ? '#34d399' : '#065f46' }}>{adminIsbnPreview.title}</div>
+                  {adminIsbnPreview.authors?.length > 0 && <div>✍️ {adminIsbnPreview.authors.join(', ')}</div>}
+                  {adminIsbnPreview.publisher && <div>🏢 {adminIsbnPreview.publisher} {adminIsbnPreview.year ? `(${adminIsbnPreview.year})` : ''}</div>}
+                </div>
+              </div>
+            )}
+          </div>
             <form onSubmit={async (e) => {
               e.preventDefault();
               setAddBookLoading(true);
@@ -652,29 +767,29 @@ export default function AdminDashboard() {
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
                 {/* Title */}
                 <div style={{ gridColumn:'span 2' }}>
-                  <label style={{ display:'block', fontSize:12, fontWeight:700, color:c.muted, marginBottom:6, textTransform:'uppercase', letterSpacing:0.5 }}>Book Title *</label>
-                  <input name="title" required placeholder="e.g. Introduction to Algorithms" style={{ width:'100%', padding:'11px 14px', borderRadius:10, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, outline:'none', boxSizing:'border-box' }} />
-                </div>
-                {/* ISBN */}
-                <div>
-                  <label style={{ display:'block', fontSize:12, fontWeight:700, color:c.muted, marginBottom:6, textTransform:'uppercase', letterSpacing:0.5 }}>ISBN *</label>
-                  <input name="isbn" required placeholder="978-3-16-148410-0" style={{ width:'100%', padding:'11px 14px', borderRadius:10, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, outline:'none', boxSizing:'border-box' }} />
-                </div>
-                {/* Year */}
-                <div>
-                  <label style={{ display:'block', fontSize:12, fontWeight:700, color:c.muted, marginBottom:6, textTransform:'uppercase', letterSpacing:0.5 }}>Publication Year</label>
-                  <input name="year" type="number" placeholder="2024" min="1000" max="2099" style={{ width:'100%', padding:'11px 14px', borderRadius:10, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, outline:'none', boxSizing:'border-box' }} />
-                </div>
+                <label style={{ display:'block', fontSize:12, fontWeight:700, color:c.muted, marginBottom:6, textTransform:'uppercase', letterSpacing:0.5 }}>Book Title *</label>
+                <input ref={adminTitleRef} name="title" required placeholder="e.g. Introduction to Algorithms" style={{ width:'100%', padding:'11px 14px', borderRadius:10, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, outline:'none', boxSizing:'border-box' }} />
+              </div>
+              {/* ISBN */}
+              <div>
+                <label style={{ display:'block', fontSize:12, fontWeight:700, color:c.muted, marginBottom:6, textTransform:'uppercase', letterSpacing:0.5 }}>ISBN *</label>
+                <input ref={adminIsbnRef} name="isbn" required placeholder="978-3-16-148410-0" style={{ width:'100%', padding:'11px 14px', borderRadius:10, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, outline:'none', boxSizing:'border-box' }} />
+              </div>
+              {/* Year */}
+              <div>
+                <label style={{ display:'block', fontSize:12, fontWeight:700, color:c.muted, marginBottom:6, textTransform:'uppercase', letterSpacing:0.5 }}>Publication Year</label>
+                <input ref={adminYearRef} name="year" type="number" placeholder="2024" min="1000" max="2099" style={{ width:'100%', padding:'11px 14px', borderRadius:10, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, outline:'none', boxSizing:'border-box' }} />
+              </div>
                 {/* Edition */}
-                <div>
-                  <label style={{ display:'block', fontSize:12, fontWeight:700, color:c.muted, marginBottom:6, textTransform:'uppercase', letterSpacing:0.5 }}>Edition</label>
-                  <input name="edition" placeholder="3rd" style={{ width:'100%', padding:'11px 14px', borderRadius:10, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, outline:'none', boxSizing:'border-box' }} />
-                </div>
-                {/* Language */}
-                <div>
-                  <label style={{ display:'block', fontSize:12, fontWeight:700, color:c.muted, marginBottom:6, textTransform:'uppercase', letterSpacing:0.5 }}>Language</label>
-                  <input name="language" defaultValue="English" style={{ width:'100%', padding:'11px 14px', borderRadius:10, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, outline:'none', boxSizing:'border-box' }} />
-                </div>
+              <div>
+                <label style={{ display:'block', fontSize:12, fontWeight:700, color:c.muted, marginBottom:6, textTransform:'uppercase', letterSpacing:0.5 }}>Edition</label>
+                <input ref={adminEditionRef} name="edition" placeholder="3rd" style={{ width:'100%', padding:'11px 14px', borderRadius:10, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, outline:'none', boxSizing:'border-box' }} />
+              </div>
+              {/* Language */}
+              <div>
+                <label style={{ display:'block', fontSize:12, fontWeight:700, color:c.muted, marginBottom:6, textTransform:'uppercase', letterSpacing:0.5 }}>Language</label>
+                <input ref={adminLangRef} name="language" defaultValue="English" style={{ width:'100%', padding:'11px 14px', borderRadius:10, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, outline:'none', boxSizing:'border-box' }} />
+              </div>
                 {/* Category */}
                 <div>
                   <label style={{ display:'block', fontSize:12, fontWeight:700, color:c.muted, marginBottom:6, textTransform:'uppercase', letterSpacing:0.5 }}>Category *</label>
@@ -702,10 +817,10 @@ export default function AdminDashboard() {
                   <input name="shelfLocation" placeholder="e.g. A2-03" style={{ width:'100%', padding:'11px 14px', borderRadius:10, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, outline:'none', boxSizing:'border-box' }} />
                 </div>
                 {/* Description */}
-                <div style={{ gridColumn:'span 2' }}>
-                  <label style={{ display:'block', fontSize:12, fontWeight:700, color:c.muted, marginBottom:6, textTransform:'uppercase', letterSpacing:0.5 }}>Description</label>
-                  <textarea name="description" rows={3} placeholder="Brief description of the book..." style={{ width:'100%', padding:'11px 14px', borderRadius:10, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, outline:'none', boxSizing:'border-box', resize:'vertical', fontFamily:'inherit' }} />
-                </div>
+              <div style={{ gridColumn:'span 2' }}>
+                <label style={{ display:'block', fontSize:12, fontWeight:700, color:c.muted, marginBottom:6, textTransform:'uppercase', letterSpacing:0.5 }}>Description</label>
+                <textarea ref={adminDescRef} name="description" rows={3} placeholder="Brief description of the book..." style={{ width:'100%', padding:'11px 14px', borderRadius:10, border:`1px solid ${c.border}`, background:c.input, color:c.text, fontSize:14, outline:'none', boxSizing:'border-box', resize:'vertical', fontFamily:'inherit' }} />
+              </div>
                 {/* Authors Checkboxes */}
                 <div style={{ gridColumn:'span 2' }}>
                   <label style={{ display:'block', fontSize:12, fontWeight:700, color:c.muted, marginBottom:10, textTransform:'uppercase', letterSpacing:0.5 }}>Authors</label>
@@ -1110,13 +1225,18 @@ function CreateUserTab({ c, act }) {
   )
 }
 
-function ProfileTab({ user, act, c }) {
+function ProfileTab({ user, c }) {
   const [pw, setPw] = React.useState({ current: '', new: '', confirm: '' })
   const [loading, setLoading] = React.useState(false)
+  const [msg, setMsg] = React.useState('')
 
   const handlePw = async (e) => {
     e.preventDefault()
-    if (pw.new !== pw.confirm) return alert("Passwords don't match")
+    setMsg('')
+    if (pw.new !== pw.confirm) {
+      setMsg("Error: Passwords don't match")
+      return
+    }
     setLoading(true)
     try {
       const res = await axios.post(`http://localhost:4000/api/auth/change-password`, {
@@ -1124,11 +1244,11 @@ function ProfileTab({ user, act, c }) {
         newPassword: pw.new
       }, { headers: { Authorization: `Bearer ${localStorage.getItem('lms_token')}` } })
       if (res.data.success) {
-        alert("Password updated successfully!")
+        setMsg("Password updated successfully!")
         setPw({ current: '', new: '', confirm: '' })
       }
     } catch (err) {
-      alert(err.response?.data?.message || err.message)
+      setMsg('Error: ' + (err.response?.data?.message || err.message))
     } finally { setLoading(false) }
   }
 
@@ -1167,9 +1287,12 @@ function ProfileTab({ user, act, c }) {
             <label style={{ color: c.muted, fontSize: 12, display: 'block', marginBottom: 6 }}>Confirm New Password</label>
             <input type="password" required value={pw.confirm} onChange={e => setPw({ ...pw, confirm: e.target.value })} style={{ width: '100%', padding: 12, borderRadius: 8, border: `1px solid ${c.border}`, background: c.input, color: c.text }} />
           </div>
-          <button type="submit" disabled={loading} style={{ background: '#f59e0b', color: '#fff', border: 'none', padding: 14, borderRadius: 8, fontWeight: 700, cursor: 'pointer', marginTop: 10 }}>
-            {loading ? 'Updating...' : 'Change Password'}
-          </button>
+          <div style={{ position: 'relative' }}>
+            <button type="submit" disabled={loading} style={{ width: '100%', background: '#f59e0b', color: '#fff', border: 'none', padding: 14, borderRadius: 8, fontWeight: 700, cursor: 'pointer', marginTop: 10 }}>
+              {loading ? 'Updating...' : 'Change Password'}
+            </button>
+            <BubblePopup msg={msg} onClear={() => setMsg('')} />
+          </div>
         </form>
       </div>
     </div>
@@ -1177,11 +1300,18 @@ function ProfileTab({ user, act, c }) {
 }
 function ConfigTab({ c, act }) {
   const [maxBooks, setMaxBooks] = useState('')
+  const [msg, setMsg] = useState('')
 
-  const handleUpdateLimits = (e) => {
+  const handleUpdateLimits = async (e) => {
     e.preventDefault()
-    act('put', '/admin/members/bulk-limit', { maxBooks }, `Max borrow limit updated to ${maxBooks} for all members.`)
-    setMaxBooks('')
+    setMsg('')
+    try {
+      await axios.put(`${API}/admin/members/bulk-limit`, { maxBooks }, { headers: { Authorization: `Bearer ${localStorage.getItem('lms_token')}` } })
+      setMsg(`Max borrow limit updated to ${maxBooks} for all members.`)
+      setMaxBooks('')
+    } catch (err) {
+      setMsg('Error: ' + (err.response?.data?.message || err.message))
+    }
   }
 
   return (
@@ -1204,7 +1334,10 @@ function ConfigTab({ c, act }) {
                 placeholder="e.g. 5" 
                 style={{ flex: 1, padding: '12px 16px', borderRadius: 8, border: `1px solid ${c.border}`, background: c.input, color: c.text, outline: 'none' }}
               />
-              <button type="submit" style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '0 24px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Apply Limit</button>
+              <div style={{ position: 'relative' }}>
+                <button type="submit" style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', height: '100%' }}>Apply Limit</button>
+                <BubblePopup msg={msg} onClear={() => setMsg('')} />
+              </div>
             </div>
             <p style={{ fontSize: 12, color: c.muted, marginTop: 8 }}>This will update the maximum number of allowed concurrent borrows for all existing members.</p>
           </div>

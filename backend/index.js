@@ -1,10 +1,26 @@
 const express = require('express');
 const cors    = require('cors');
+const http    = require('http');
 const path    = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const app = express();
-app.use(cors());
+const server = http.createServer(app);
+
+// ─── Socket.IO ────────────────────────────────────────────────────────────────
+const { Server } = require('socket.io');
+const socketService = require('./src/services/socketService');
+const io = new Server(server, {
+  cors: {
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    methods: ['GET', 'POST'],
+    credentials: true,
+  },
+  transports: ['websocket', 'polling'],
+});
+socketService.init(io);
+
+app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173', credentials: true }));
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -80,4 +96,4 @@ app.get('/db-check', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`Server running on port ${PORT} (HTTP + WebSocket)`));

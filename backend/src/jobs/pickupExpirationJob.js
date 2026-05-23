@@ -1,8 +1,8 @@
 const cron = require('node-cron');
 const db = require('../db');
+const { notifyMember } = require('../services/socketService');
 
-// Run every 1 hour: '0 * * * *'
-// For testing purposes, we can export the logic to run manually
+// Run every 1 minute
 const runExpirationJob = async () => {
   let conn;
   try {
@@ -24,37 +24,56 @@ const runExpirationJob = async () => {
       // a. Update to Expired
       await conn.query(`UPDATE BorrowingRecords SET Status = 'Expired' WHERE BorrowID = ?`, [row.BorrowID]);
 
-      // b. Check Reservations queue
-      const [resRows] = await conn.query(`
-        SELECT ReservationID, MemberID, RequestCode FROM Reservations
-        WHERE CopyID = ? AND Status = 'Queued'
-        ORDER BY Priority ASC, ReservationDate ASC LIMIT 1 FOR UPDATE
-      `);
+      // b. Fetch BookID for the CopyID
+      const [[copyRow]] = await conn.query('SELECT BookID FROM BookCopies WHERE CopyID = ?', [row.CopyID]);
+      
+      if (copyRow) {
+        const bookId = copyRow.BookID;
 
-      if (resRows.length > 0) {
-        // c. Advance queue
-        const nextRes = resRows[0];
-        await conn.query(`
-          INSERT INTO BorrowingRecords (MemberID, CopyID, RequestCode, BorrowDate, Status, PickupDeadline)
-          VALUES (?, ?, ?, CURDATE(), 'Pending', DATE_ADD(NOW(), INTERVAL 24 HOUR))
-        `, [nextRes.MemberID, row.CopyID, nextRes.RequestCode]);
+        // c. Check Reservations queue for this BookID
+        const [resRows] = await conn.query(`
+          SELECT ReservationID, MemberID, RequestCode FROM Reservations
+          WHERE BookID = ? AND Status = 'Queued'
+          ORDER BY Priority ASC, ReservationDate ASC LIMIT 1 FOR UPDATE
+        `, [bookId]);
 
-        await conn.query(`UPDATE BookCopies SET Status = 'Reserved_on_Shelf' WHERE CopyID = ?`, [row.CopyID]);
+        if (resRows.length > 0) {
+          // d. Advance queue
+          const nextRes = resRows[0];
+          await conn.query(`
+            INSERT INTO BorrowingRecords (MemberID, CopyID, RequestCode, BorrowDate, Status, PickupDeadline)
+            VALUES (?, ?, ?, CURDATE(), 'Pending', DATE_ADD(NOW(), INTERVAL 30 MINUTE))
+          `, [nextRes.MemberID, row.CopyID, nextRes.RequestCode]);
 
-        await conn.query(`
-          UPDATE Reservations SET Status = 'Ready', PickupDeadline = DATE_ADD(NOW(), INTERVAL 24 HOUR)
-          WHERE ReservationID = ?
-        `, [nextRes.ReservationID]);
+          await conn.query(`UPDATE BookCopies SET Status = 'Reserved_on_Shelf' WHERE CopyID = ?`, [row.CopyID]);
 
-        queueAdvances++;
+          await conn.query(`
+            UPDATE Reservations SET Status = 'Ready', CopyID = ?, PickupDeadline = DATE_ADD(NOW(), INTERVAL 30 MINUTE)
+            WHERE ReservationID = ?
+          `, [row.CopyID, nextRes.ReservationID]);
+
+          queueAdvances++;
+          // Notify the member in real-time
+          notifyMember(nextRes.MemberID, 'queue:promoted', {
+            reservationId: nextRes.ReservationID,
+            requestCode: nextRes.RequestCode,
+            message: 'Your reservation is now Ready for pickup! You have 30 minutes.'
+          });
+          notifyMember(nextRes.MemberID, 'reservation:updated', {});
+        } else {
+          // e. No queue -> Available
+          await conn.query(`UPDATE BookCopies SET Status = 'Available' WHERE CopyID = ?`, [row.CopyID]);
+        }
       } else {
-        // d. No queue -> Available
+        // Fallback if copy not found
         await conn.query(`UPDATE BookCopies SET Status = 'Available' WHERE CopyID = ?`, [row.CopyID]);
       }
     }
 
     await conn.commit();
-    console.log(`Pickup expiration job: ${expiredCount} rows expired, ${queueAdvances} queue advances`);
+    if (expiredCount > 0) {
+      console.log(`Pickup expiration job: ${expiredCount} rows expired, ${queueAdvances} queue advances`);
+    }
     return { expiredCount, queueAdvances };
   } catch (err) {
     if (conn) await conn.rollback();
@@ -65,6 +84,6 @@ const runExpirationJob = async () => {
   }
 };
 
-cron.schedule('0 * * * *', runExpirationJob);
+cron.schedule('* * * * *', runExpirationJob);
 
 module.exports = { runExpirationJob };

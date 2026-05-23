@@ -29,36 +29,7 @@ router.get('/dashboard', auth, async (req, res) => {
   } catch (err) { return fail(res, err.message, 500); }
 });
 
-// GET /api/staff/pending-members
-router.get('/pending-members', auth, async (req, res) => {
-  try {
-    const [rows] = await pool.execute(
-      `SELECT u.UserID, u.FirstName, u.LastName, u.FullName, u.Email, u.Phone, u.Status,
-              m.MemberID, m.StudentID, m.Department, m.RegistrationDate
-       FROM Users u
-       LEFT JOIN Members m ON m.UserID = u.UserID
-       WHERE u.RoleID = 3 AND u.Status = 'pending'
-       ORDER BY u.UserID DESC`
-    );
-    return ok(res, 'Pending members', rows);
-  } catch (err) { return fail(res, err.message, 500); }
-});
 
-// PATCH /api/staff/approve-member/:id
-router.patch('/approve-member/:id', auth, async (req, res) => {
-  try {
-    await pool.execute("UPDATE Users SET Status='active' WHERE UserID=? AND RoleID=3", [req.params.id]);
-    return ok(res, 'Member approved successfully');
-  } catch (err) { return fail(res, err.message, 500); }
-});
-
-// PATCH /api/staff/reject-member/:id
-router.patch('/reject-member/:id', auth, async (req, res) => {
-  try {
-    await pool.execute("UPDATE Users SET Status='rejected' WHERE UserID=? AND RoleID=3", [req.params.id]);
-    return ok(res, 'Member rejected');
-  } catch (err) { return fail(res, err.message, 500); }
-});
 
 // POST /api/staff/borrow
 router.post('/borrow', auth, async (req, res) => {
@@ -124,8 +95,8 @@ router.post('/return', auth, async (req, res) => {
 
     if (condition === 'Damaged' || condition === 'Lost') {
       await pool.execute(
-        "INSERT INTO DamageReports (ReturnID, Description, Severity, ImageBase64, AssessmentDate, StaffID) VALUES (?,?,?,?,NOW(),?)",
-        [returnId, `Item marked as ${condition} during return.`, 'High', imageBase64 || null, staffId]
+        "INSERT INTO DamageReports (ReturnID, CopyID, Description, Severity, ImageBase64, AssessmentDate, StaffID) VALUES (?,?,?,?,?,NOW(),?)",
+        [returnId, borrow.CopyID, `Item marked as ${condition} during return.`, 'High', imageBase64 || null, staffId]
       );
     }
 

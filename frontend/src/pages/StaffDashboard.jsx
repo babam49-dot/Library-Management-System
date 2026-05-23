@@ -5,6 +5,7 @@ import DashboardShell from '../components/DashboardShell'
 import BookCard from '../components/BookCard'
 import axios from 'axios'
 import Barcode from 'react-barcode'
+import BubblePopup from '../components/BubblePopup'
 
 const API = 'http://localhost:4000/api'
 
@@ -12,7 +13,6 @@ export default function StaffDashboard() {
   const { user, logout } = useAuth()
   const { isDark } = useTheme()
   const [stats, setStats] = useState(null)
-  const [pendingMembers, setPendingMembers] = useState([])
   const [borrowingRecords, setBorrowingRecords] = useState([])
   const [tab, setTab] = useState('overview')
   
@@ -24,6 +24,7 @@ export default function StaffDashboard() {
   const [coverFile, setCoverFile] = useState(null)
   const [bookLoading, setBookLoading] = useState(false)
   const [bookMsg, setBookMsg] = useState('')
+  const [registerStep, setRegisterStep] = useState(1)
   const fileInputRef = useRef(null)
 
   // Dropdown Data
@@ -34,7 +35,8 @@ export default function StaffDashboard() {
   // Action States
   const [issueForm, setIssueForm] = useState({ memberId: '', copyId: '' })
   const [returnForm, setReturnForm] = useState({ borrowId: '', condition: 'Good', imageBase64: '' })
-  const [actionMsg, setActionMsg] = useState('')
+  const [issueMsg, setIssueMsg] = useState('')
+  const [returnMsg, setReturnMsg] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [allBooks, setAllBooks] = useState([])
 
@@ -42,11 +44,20 @@ export default function StaffDashboard() {
   const [authorForm, setAuthorForm] = useState({ FirstName: '', LastName: '', Bio: '', Nationality: '' })
   const [categoryForm, setCategoryForm] = useState({ CategoryName: '', Description: '' })
   const [publisherForm, setPublisherForm] = useState({ PublisherName: '', Email: '', Phone: '', Address: '' })
-  const [metaMsg, setMetaMsg] = useState('')
+  const [categoryMsg, setCategoryMsg] = useState('')
+  const [authorMsg, setAuthorMsg] = useState('')
+  const [publisherMsg, setPublisherMsg] = useState('')
   const [editModal, setEditModal] = useState(null)
   
   const [barcodesModal, setBarcodesModal] = useState(null)
   const [bookCopies, setBookCopies] = useState([])
+
+  // â”€â”€ Barcode / ISBN Lookup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const [isbnInput, setIsbnInput] = useState('')
+  const [isbnLoading, setIsbnLoading] = useState(false)
+  const [isbnMsg, setIsbnMsg] = useState({ text: '', ok: true })
+  const [isbnPreview, setIsbnPreview] = useState(null) // fetched book data
+  const barcodeFileRef = useRef(null)
 
   const getHeaders = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('lms_token')}` } })
 
@@ -76,8 +87,6 @@ export default function StaffDashboard() {
     try {
       const s = await axios.get(`${API}/staff/dashboard`, getHeaders())
       setStats(s.data.data)
-      const p = await axios.get(`${API}/staff/pending-members`, getHeaders())
-      setPendingMembers(p.data.data)
       const pubs = await axios.get(`${API}/catalog/publishers`, getHeaders())
       setPublishers(pubs.data.data)
       const cats = await axios.get(`${API}/catalog/categories`, getHeaders())
@@ -93,17 +102,6 @@ export default function StaffDashboard() {
 
   useEffect(() => { fetchData() }, [])
 
-  const handleApprove = async (id) => {
-    if (!window.confirm('Approve this member?')) return
-    await axios.patch(`${API}/users/${id}/status`, { status: 'Active' }, getHeaders())
-    fetchData()
-  }
-
-  const handleReject = async (id) => {
-    if (!window.confirm('Reject this member?')) return
-    await axios.patch(`${API}/users/${id}/status`, { status: 'Inactive' }, getHeaders())
-    fetchData()
-  }
 
   const handleBookChange = (e) => {
     if (e.target.name === 'authorIds') {
@@ -135,6 +133,7 @@ export default function StaffDashboard() {
 
       await axios.post(`${API}/books`, fd, { headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${localStorage.getItem('token')}` } })
       setBookMsg('Book and copies added successfully!')
+      setRegisterStep(1)
       setBookForm({ 
         title: '', isbn: '', year: '', edition: '', language: 'English', description: '',
         publisherId: '', categoryId: '', authorIds: [], numberOfCopies: 1, shelfLocation: ''
@@ -149,16 +148,83 @@ export default function StaffDashboard() {
     }
   }
 
+  // â”€â”€ ISBN / Barcode Lookup logic â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const lookupIsbn = async (isbn) => {
+    const clean = (isbn || isbnInput).replace(/[^0-9X]/gi, '')
+    if (!clean || (clean.length !== 10 && clean.length !== 13)) {
+      setIsbnMsg({ text: 'Enter a valid 10 or 13-digit ISBN.', ok: false })
+      return
+    }
+    setIsbnLoading(true)
+    setIsbnMsg({ text: '', ok: true })
+    setIsbnPreview(null)
+    try {
+      const res = await axios.get(`${API}/catalog/isbn-lookup/${clean}`, getHeaders())
+      const d = res.data.data
+      setIsbnPreview(d)
+      setIsbnMsg({ text: `âœ… Book found via ${d.source === 'openlibrary' ? 'Open Library' : 'Google Books'}! Fields auto-filled. Redirecting to details...`, ok: true })
+      // Auto-fill form fields
+      const publisherMatch = publishers.find(p => p.PublisherName?.toLowerCase().includes((d.publisher||'').toLowerCase().substring(0,8)))
+      const categoryMatch  = categories.find(c => (d.subjects||[]).some(s => c.CategoryName?.toLowerCase().includes(s.toLowerCase().substring(0,6))))
+      setBookForm(prev => ({
+        ...prev,
+        title:       d.title        || prev.title,
+        isbn:        d.isbn         || prev.isbn,
+        year:        d.year         ? String(d.year) : prev.year,
+        edition:     d.edition      || prev.edition,
+        language:    d.language     || prev.language,
+        description: d.description  || prev.description,
+        publisherId: publisherMatch  ? String(publisherMatch.PublisherID) : prev.publisherId,
+        categoryId:  categoryMatch   ? String(categoryMatch.CategoryID)   : prev.categoryId,
+      }))
+      setTimeout(() => {
+        setRegisterStep(2)
+      }, 1000)
+    } catch (err) {
+      const msg = err.response?.data?.message || 'ISBN not found in external databases. Fill manually.'
+      setIsbnMsg({ text: msg, ok: false })
+    } finally {
+      setIsbnLoading(false)
+    }
+  }
+
+  const handleBarcodeImageUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    // Try native BarcodeDetector first (Chrome 83+)
+    if ('BarcodeDetector' in window) {
+      try {
+        const detector = new window.BarcodeDetector({ formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e'] })
+        const bitmap = await createImageBitmap(file)
+        const codes = await detector.detect(bitmap)
+        if (codes.length > 0) {
+          const raw = codes[0].rawValue
+          setIsbnInput(raw)
+          await lookupIsbn(raw)
+          return
+        }
+      } catch (_) {}
+    }
+    // Fallback: read as data URL and try to extract from filename
+    const nameMatch = file.name.replace(/[^0-9X]/gi, '')
+    if (nameMatch.length === 13 || nameMatch.length === 10) {
+      setIsbnInput(nameMatch)
+      await lookupIsbn(nameMatch)
+      return
+    }
+    setIsbnMsg({ text: 'Could not auto-detect ISBN from image. Please type the ISBN number below.', ok: false })
+  }
+
   const handleIssue = async (e) => {
     e.preventDefault()
-    setActionMsg('')
+    setIssueMsg('')
     try {
       await axios.post(`${API}/staff/borrow`, issueForm, getHeaders())
-      setActionMsg('Book issued successfully!')
+      setIssueMsg('Book issued successfully!')
       setIssueForm({ memberId: '', copyId: '' })
       fetchData()
     } catch (err) {
-      setActionMsg('Error: ' + (err.response?.data?.message || err.message))
+      setIssueMsg('Error: ' + (err.response?.data?.message || err.message))
     }
   }
 
@@ -174,36 +240,36 @@ export default function StaffDashboard() {
 
   const handleReturn = async (e) => {
     e.preventDefault()
-    setActionMsg('')
+    setReturnMsg('')
     try {
       const res = await axios.post(`${API}/staff/return`, returnForm, getHeaders())
-      setActionMsg(res.data.data.fineCreated ? 'Returned. Fine applied.' : 'Returned successfully!')
+      setReturnMsg(res.data.data.fineCreated ? 'Returned. Fine applied.' : 'Returned successfully!')
       setReturnForm({ borrowId: '', condition: 'Good', imageBase64: '' })
       fetchData()
     } catch (err) {
-      setActionMsg('Error: ' + (err.response?.data?.message || err.message))
+      setReturnMsg('Error: ' + (err.response?.data?.message || err.message))
     }
   }
 
-  const handleAddMeta = async (e, type, form, setForm, initial) => {
+  const handleAddMeta = async (e, type, form, setForm, initial, setMsg) => {
     e.preventDefault()
-    setMetaMsg('')
+    setMsg('')
     try {
       await axios.post(`${API}/catalog/${type}`, form, getHeaders())
-      setMetaMsg(`Added successfully!`)
+      setMsg(`Added successfully!`)
       setForm(initial)
       fetchData()
-    } catch (err) { setMetaMsg('Error: ' + (err.response?.data?.message || err.message)) }
+    } catch (err) { setMsg('Error: ' + (err.response?.data?.message || err.message)) }
   }
 
-  const handleDeleteMeta = async (type, id) => {
+  const handleDeleteMeta = async (type, id, setMsg) => {
     if (!window.confirm('Delete this record?')) return
-    setMetaMsg('')
+    setMsg('')
     try {
       await axios.delete(`${API}/catalog/${type}/${id}`, getHeaders())
-      setMetaMsg(`Deleted successfully!`)
+      setMsg(`Deleted successfully!`)
       fetchData()
-    } catch (err) { setMetaMsg('Error: ' + (err.response?.data?.message || err.message)) }
+    } catch (err) { setMsg('Error: ' + (err.response?.data?.message || err.message)) }
   }
 
   const handleUpdateItem = async (e, type, id, payload) => {
@@ -224,16 +290,15 @@ export default function StaffDashboard() {
   }
 
   const TABS = [
-    { key: 'overview', label: 'Circulation Overview', icon: '📊', path: '/staff' },
-    { key: 'members', label: 'Member Approvals', icon: '👤', badge: pendingMembers.length, path: '/staff' },
-    { key: 'browse', label: 'Browse Catalog', icon: '📚', path: '/staff' },
-    { key: 'catalog', label: 'Register Book', icon: '➕', path: '/staff' },
-    { key: 'metadata', label: 'Manage Metadata', icon: '🏷️', path: '/staff' },
-    { key: 'fines', label: 'Fine Payments', icon: '💰', path: '/staff' },
-    { key: 'desk', label: 'Librarian Desk', icon: '🖥️', path: '/desk' },
-    { key: 'reservations', label: 'Reservations', icon: '📋', path: '/reservations' },
-    { key: 'overdue', label: 'Overdue Books', icon: '⚠️', path: '/overdue' },
-    { key: 'profile', label: 'My Profile', icon: '👤', path: '/staff' },
+    { key: 'overview', label: 'Circulation Overview', icon: 'ðŸ“Š', path: '/staff' },
+    { key: 'browse', label: 'Browse Catalog', icon: 'ðŸ“š', path: '/staff' },
+    { key: 'catalog', label: 'Register Book', icon: 'âž•', path: '/staff' },
+    { key: 'metadata', label: 'Manage Metadata', icon: 'ðŸ·ï¸', path: '/staff' },
+    { key: 'fines', label: 'Fine Payments', icon: 'ðŸ’°', path: '/staff' },
+    { key: 'desk', label: 'Librarian Desk', icon: 'ðŸ–¥ï¸', path: '/desk' },
+    { key: 'reservations', label: 'Reservations', icon: 'ðŸ“‹', path: '/reservations' },
+    { key: 'overdue', label: 'Overdue Books', icon: 'âš ï¸', path: '/overdue' },
+    { key: 'profile', label: 'My Profile', icon: 'ðŸ‘¤', path: '/staff' },
   ]
   const tabLabel = TABS.find(t => t.key === tab)?.label || 'Staff Dashboard'
 
@@ -241,11 +306,126 @@ export default function StaffDashboard() {
     <DashboardShell role="staff" navItems={TABS} activeTab={tab} setTab={setTab} user={user} logout={logout} tabLabel={tabLabel} searchQuery={searchQuery} setSearchQuery={setSearchQuery}>
 
       {tab === 'overview' && stats && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20 }}>
-          <StatCard title="Active Borrows" value={stats.activeBorrowings} color="#10b981" cardBg={cardBg} textPrimary={textPrimary} border={border} />
-          <StatCard title="Returns Today" value={stats.returnsToday} color="#3b82f6" cardBg={cardBg} textPrimary={textPrimary} border={border} />
-          <StatCard title="Overdue Books" value={stats.overdueCount} color="#ef4444" highlight={stats.overdueCount > 0} cardBg={cardBg} textPrimary={textPrimary} border={border} />
-          <StatCard title="Pending Members" value={stats.pendingMembers} color="#f59e0b" highlight={stats.pendingMembers > 0} cardBg={cardBg} textPrimary={textPrimary} border={border} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <style>{`
+            @keyframes overviewIn { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+            @keyframes countUp { from{opacity:0;transform:scale(0.6)} to{opacity:1;transform:scale(1)} }
+            .ov-card { animation: overviewIn .4s ease both; transition: transform .2s, box-shadow .2s; cursor: default; }
+            .ov-card:hover { transform: translateY(-5px); box-shadow: 0 18px 40px rgba(0,0,0,0.18) !important; }
+            .ov-action-btn { transition: all .18s ease; border: none; cursor: pointer; font-weight: 700; border-radius: 9px; }
+            .ov-action-btn:hover { filter: brightness(1.12); transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.18); }
+            .ov-action-btn:active { transform: scale(0.96); }
+          `}</style>
+
+          {/* â”€â”€ Key Metrics Row â”€â”€ */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
+            {[
+              { label: 'Active Borrows',  value: stats.activeBorrowings,  color: '#10b981', icon: 'ðŸ“–', note: 'Currently checked out', tab: 'desk' },
+              { label: 'Returns Today',   value: stats.returnsToday,       color: '#3b82f6', icon: 'â†©ï¸', note: 'Processed today',       tab: null },
+              { label: 'Overdue Books',   value: stats.overdueCount,       color: '#ef4444', icon: 'âš ï¸', note: 'Past due date',         tab: 'overdue', alert: stats.overdueCount > 0 },
+              { label: 'Pending Members', value: stats.pendingMembers,     color: '#f59e0b', icon: 'ðŸ‘¤', note: 'Awaiting approval',     tab: null, alert: stats.pendingMembers > 0 },
+            ].map(({ label, value, color, icon, note, tab: goTab, alert }, i) => (
+              <div
+                key={label}
+                className="ov-card"
+                onClick={() => goTab && setTab(goTab)}
+                style={{
+                  animationDelay: `${i * 0.07}s`,
+                  background: cardBg,
+                  border: alert ? `2px solid ${color}` : `1px solid ${border}`,
+                  borderRadius: 14,
+                  padding: '16px 18px',
+                  boxShadow: alert ? `0 0 22px ${color}33` : '0 2px 8px rgba(0,0,0,0.06)',
+                  cursor: goTab ? 'pointer' : 'default',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, color: alert ? color : textMuted, marginBottom: 4 }}>{label}</div>
+                    <div style={{ fontSize: 32, fontWeight: 900, color: alert ? color : textPrimary, lineHeight: 1 }}>{value ?? 'â€”'}</div>
+                    <div style={{ fontSize: 11, color: textMuted, marginTop: 4 }}>{note}</div>
+                  </div>
+                  <div style={{ fontSize: 24, opacity: 0.75 }}>{icon}</div>
+                </div>
+                {goTab && (
+                  <div style={{ marginTop: 10, fontSize: 11, color, fontWeight: 700 }}>
+                    View â†’ 
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* â”€â”€ Quick Actions â”€â”€ */}
+          <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 14, padding: '18px 20px' }}>
+            <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, color: textMuted, marginBottom: 12 }}>Quick Actions</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+              {[
+                { label: 'âž• Register Book',    color: '#10b981', bg: 'rgba(16,185,129,0.1)', target: 'catalog' },
+                { label: 'ðŸ“‹ Librarian Desk',   color: '#3b82f6', bg: 'rgba(59,130,246,0.1)', target: 'desk' },
+                { label: 'ðŸ“š Browse Catalog',   color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)', target: 'browse' },
+                { label: 'ðŸ·ï¸ Manage Metadata', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', target: 'metadata' },
+                { label: 'ðŸ“‹ Reservations',     color: '#06b6d4', bg: 'rgba(6,182,212,0.1)',  target: 'reservations' },
+                { label: 'âš ï¸ Overdue List',     color: '#ef4444', bg: 'rgba(239,68,68,0.1)',  target: 'overdue', badge: stats.overdueCount > 0 ? stats.overdueCount : null },
+              ].map(({ label, color, bg, target, badge }) => (
+                <button
+                  key={target}
+                  className="ov-action-btn"
+                  onClick={() => setTab(target)}
+                  style={{ background: bg, color, padding: '8px 16px', fontSize: 13, position: 'relative' }}
+                >
+                  {label}
+                  {badge && (
+                    <span style={{ position: 'absolute', top: -5, right: -5, background: color, color: '#fff', borderRadius: '50%', width: 18, height: 18, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>
+                      {badge}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* â”€â”€ Recent Borrowings preview â”€â”€ */}
+          {borrowingRecords.length > 0 && (
+            <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 14, overflow: 'hidden' }}>
+              <div style={{ padding: '14px 18px', borderBottom: `1px solid ${border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: textPrimary }}>ðŸ“‹ Recent Activity</div>
+                <button onClick={() => setTab('desk')} className="ov-action-btn" style={{ background: 'none', color: '#3b82f6', fontSize: 12, padding: '4px 10px', border: '1px solid rgba(59,130,246,0.3)' }}>
+                  View All
+                </button>
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: tableHead }}>
+                      {['Member', 'Book', 'Status', 'Due Date'].map(h => (
+                        <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: textMuted, textTransform: 'uppercase', letterSpacing: 0.6 }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {borrowingRecords.slice(0, 5).map((r, i) => {
+                      const isOD = r.Status === 'Overdue'
+                      return (
+                        <tr key={i} className="table-row" style={{ borderTop: `1px solid ${border}` }}>
+                          <td style={{ padding: '10px 14px', fontSize: 13, color: textPrimary, fontWeight: 600 }}>{r.MemberName || r.MemberID}</td>
+                          <td style={{ padding: '10px 14px', fontSize: 13, color: textMuted }}>{r.Title}</td>
+                          <td style={{ padding: '10px 14px' }}>
+                            <span style={{ background: isOD ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)', color: isOD ? '#ef4444' : '#10b981', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 800 }}>
+                              {r.Status}
+                            </span>
+                          </td>
+                          <td style={{ padding: '10px 14px', fontSize: 12, color: isOD ? '#ef4444' : textMuted, fontWeight: isOD ? 700 : 400 }}>
+                            {r.DueDate ? new Date(r.DueDate).toLocaleDateString() : 'â€”'}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -278,118 +458,282 @@ export default function StaffDashboard() {
         </div>
       )}
 
-      {tab === 'members' && (
-        <div style={{ background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, overflow: 'hidden' }}>
-          <div style={{ padding: '16px 20px', borderBottom: `1px solid ${border}`, fontWeight: 600, color: textPrimary, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-            <span>Pending Member Registrations</span>
-            <span style={{ fontSize:13, color:textMuted }}>{pendingMembers.length} pending</span>
+      {/* Member approval is Admin-only â€” not shown here */}
+
+      {tab === 'catalog' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 0, maxWidth: 800 }}>
+          <style>{`
+            @keyframes stepIn { from{opacity:0;transform:translateX(30px)} to{opacity:1;transform:translateX(0)} }
+            .wiz-step { animation: stepIn .3s ease both; }
+            .wiz-field input, .wiz-field select, .wiz-field textarea {
+              width: 100%; padding: 10px 14px; border-radius: 10px; font-size: 14px; outline: none; box-sizing: border-box;
+              border: 1px solid ${border}; background: ${cardBg}; color: ${textPrimary};
+              transition: border-color .2s, box-shadow .2s;
+            }
+            .wiz-field input:focus, .wiz-field select:focus, .wiz-field textarea:focus {
+              border-color: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,0.12);
+            }
+            .wiz-btn-primary { background: linear-gradient(135deg,#10b981,#059669); color:#fff; border:none; padding:11px 24px; border-radius:10px; font-weight:800; font-size:14px; cursor:pointer; transition:all .2s; }
+            .wiz-btn-primary:hover { filter:brightness(1.1); transform:translateY(-2px); box-shadow:0 8px 20px rgba(16,185,129,0.3); }
+            .wiz-btn-primary:active { transform:scale(0.97); }
+            .wiz-btn-secondary { background: ${isDark?'rgba(255,255,255,0.07)':'#f1f5f9'}; color:${textMuted}; border:none; padding:11px 20px; border-radius:10px; font-weight:700; font-size:13px; cursor:pointer; transition:all .2s; }
+            .wiz-btn-secondary:hover { filter:brightness(1.08); transform:translateY(-1px); }
+          `}</style>
+
+          {/* â”€â”€ Step Breadcrumb â”€â”€ */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 24 }}>
+            {[
+              { n: 1, label: 'Scan / ISBN' },
+              { n: 2, label: 'Book Details' },
+              { n: 3, label: 'Confirm & Save' },
+            ].map(({ n, label }, i) => {
+              const done = registerStep > n
+              const active = registerStep === n
+              return (
+                <React.Fragment key={n}>
+                  <button
+                    onClick={() => n < registerStep && setRegisterStep(n)}
+                    style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                      background: 'none', border: 'none', cursor: n < registerStep ? 'pointer' : 'default', padding: '0 4px'
+                    }}
+                  >
+                    <div style={{
+                      width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontWeight: 900, fontSize: 14,
+                      background: done ? '#10b981' : active ? 'linear-gradient(135deg,#10b981,#059669)' : isDark ? '#1e2334' : '#e2e8f0',
+                      color: (done || active) ? '#fff' : textMuted,
+                      boxShadow: active ? '0 0 0 4px rgba(16,185,129,0.2)' : 'none',
+                      transition: 'all .3s'
+                    }}>
+                      {done ? 'âœ“' : n}
+                    </div>
+                    <div style={{ fontSize: 11, fontWeight: active ? 800 : 600, color: active ? '#10b981' : textMuted, whiteSpace: 'nowrap' }}>{label}</div>
+                  </button>
+                  {i < 2 && <div style={{ flex: 1, height: 2, background: done ? '#10b981' : isDark ? '#1e2334' : '#e2e8f0', transition: 'background .4s', marginBottom: 20, borderRadius: 2 }} />}
+                </React.Fragment>
+              )
+            })}
           </div>
-          {pendingMembers.length === 0 ? (
-            <div style={{ padding: 60, textAlign: 'center', color: '#64748b' }}>
-              <div className="floating" style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
-              No pending member registrations.
+
+          {/* â”€â”€ Step 1: Scan â”€â”€ */}
+          {registerStep === 1 && (
+            <div className="wiz-step" style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 16, padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 26 }}>ðŸ“·</span>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 16, color: textPrimary }}>Scan or Enter ISBN</div>
+                  <div style={{ fontSize: 12, color: textMuted }}>Upload a barcode image, or type the ISBN. Fields auto-fill from the internet.</div>
+                </div>
+              </div>
+
+              {/* Drag-drop zone */}
+              <label
+                htmlFor="barcode-upload"
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  border: `2px dashed ${isDark?'#10b981':'#059669'}`, borderRadius: 12, padding: '28px 16px',
+                  background: isDark ? 'rgba(16,185,129,0.04)' : 'rgba(5,150,105,0.04)',
+                  cursor: 'pointer', transition: 'background .2s'
+                }}
+              >
+                <span style={{ fontSize: 32 }}>{isbnLoading ? 'â³' : 'ðŸ–¼ï¸'}</span>
+                <div style={{ fontSize: 13, fontWeight: 700, color: isDark?'#34d399':'#065f46' }}>
+                  {isbnLoading ? 'Scanning barcode...' : 'Click or drop a barcode image here'}
+                </div>
+                <div style={{ fontSize: 11, color: textMuted }}>Supports EAN-13, EAN-8, Code-128, UPC</div>
+                <input id="barcode-upload" type="file" accept="image/*" ref={barcodeFileRef} onChange={handleBarcodeImageUpload} style={{ display: 'none' }} />
+              </label>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ flex: 1, height: 1, background: border }} />
+                <span style={{ fontSize: 12, color: textMuted, fontWeight: 700 }}>OR TYPE ISBN</span>
+                <div style={{ flex: 1, height: 1, background: border }} />
+              </div>
+
+              <div style={{ display: 'flex', gap: 10 }}>
+                <div className="wiz-field" style={{ flex: 1 }}>
+                  <input
+                    type="text" placeholder="e.g. 9780140449136"
+                    value={isbnInput} onChange={e => setIsbnInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), lookupIsbn())}
+                  />
+                </div>
+                <button
+                  type="button" onClick={() => lookupIsbn()} disabled={isbnLoading}
+                  className="wiz-btn-primary" style={{ flexShrink: 0, opacity: isbnLoading ? 0.7 : 1 }}
+                >
+                  {isbnLoading ? 'â³ Looking up...' : 'ðŸ” Lookup'}
+                </button>
+              </div>
+
+              {isbnMsg.text && (
+                <div style={{ padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600,
+                  background: isbnMsg.ok ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
+                  color: isbnMsg.ok ? '#10b981' : '#ef4444',
+                  border: `1px solid ${isbnMsg.ok ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`
+                }}>
+                  {isbnMsg.text}
+                </div>
+              )}
+
+              {isbnPreview && (
+                <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', background: isDark?'rgba(16,185,129,0.06)':'rgba(5,150,105,0.06)', borderRadius: 12, padding: 14 }}>
+                  {isbnPreview.coverUrl && <img src={isbnPreview.coverUrl} alt="cover" style={{ width: 60, height: 88, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }} />}
+                  <div style={{ fontSize: 13, color: textPrimary, lineHeight: 1.7 }}>
+                    <div style={{ fontWeight: 800, fontSize: 15, color: isDark?'#34d399':'#065f46' }}>{isbnPreview.title}</div>
+                    {isbnPreview.authors?.length > 0 && <div>âœï¸ {isbnPreview.authors.join(', ')}</div>}
+                    {isbnPreview.publisher && <div>ðŸ¢ {isbnPreview.publisher}</div>}
+                    {isbnPreview.year && <div>ðŸ“… {isbnPreview.year}</div>}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                <div style={{ fontSize: 12, color: textMuted }}>
+                  ISBN not found? No problem â€” fill details manually.
+                </div>
+                <button type="button" className="wiz-btn-primary" onClick={() => setRegisterStep(2)}>
+                  Fill Details â†’
+                </button>
+              </div>
             </div>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
-              <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.04)', color: '#64748b' }}>
-                  <th style={{ padding: 16 }}>Name</th>
-                  <th style={{ padding: 16 }}>Email</th>
-                  <th style={{ padding: 16 }}>University ID</th>
-                  <th style={{ padding: 16, textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendingMembers.map(m => (
-                  <tr key={m.UserID} className="table-row" style={{ borderTop: `1px solid ${border}` }}>
-                    <td style={{ padding: 16, fontWeight: 600, color: textPrimary }}>{m.FullName}</td>
-                    <td style={{ padding: 16, color: textMuted }}>{m.Email}</td>
-                    <td style={{ padding: 16, color: '#64748b' }}>{m.StudentID}</td>
-                    <td style={{ padding: 16, textAlign: 'right' }}>
-                      <button onClick={() => handleReject(m.UserID)} className="action-btn" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', padding: '6px 14px', borderRadius: 8, cursor: 'pointer', marginRight: 8, fontWeight:600 }}>Reject</button>
-                      <button onClick={() => handleApprove(m.UserID)} className="action-btn" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)', padding: '6px 14px', borderRadius: 8, cursor: 'pointer', fontWeight:600 }}>Approve</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          )}
+
+          {/* â”€â”€ Step 2: Book Details â”€â”€ */}
+          {registerStep === 2 && (
+            <div className="wiz-step" style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 16, padding: 24 }}>
+              <div style={{ fontWeight: 800, fontSize: 15, color: textPrimary, marginBottom: 18 }}>
+                ðŸ“ {isbnPreview ? `Review details for "${isbnPreview.title}"` : 'Enter Book Details'}
+              </div>
+              <form id="book-details-form" onSubmit={e => { e.preventDefault(); setRegisterStep(3) }}
+                style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <div className="wiz-field" style={{ gridColumn: 'span 2' }}>
+                  <label style={lblStyle}>Book Title *</label>
+                  <input required type="text" name="title" value={bookForm.title} onChange={handleBookChange} placeholder="Enter book title" />
+                </div>
+                <div className="wiz-field">
+                  <label style={lblStyle}>ISBN</label>
+                  <input type="text" name="isbn" value={bookForm.isbn} onChange={handleBookChange} placeholder="e.g. 9780140449136" />
+                </div>
+                <div className="wiz-field">
+                  <label style={lblStyle}>Publication Year</label>
+                  <input type="number" name="year" value={bookForm.year} onChange={handleBookChange} placeholder="e.g. 2019" />
+                </div>
+                <div className="wiz-field">
+                  <label style={lblStyle}>Publisher</label>
+                  <select name="publisherId" value={bookForm.publisherId} onChange={handleBookChange}>
+                    <option value="">-- Select Publisher --</option>
+                    {publishers.map(p => <option key={p.PublisherID} value={p.PublisherID}>{p.PublisherName}</option>)}
+                  </select>
+                  {isbnPreview?.publisher && !publishers.find(p => p.PublisherName?.toLowerCase().includes((isbnPreview.publisher||'').toLowerCase().substring(0,6))) && (
+                    <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>ðŸ“Œ "{isbnPreview.publisher}" not in list â€” add in Manage Metadata</div>
+                  )}
+                </div>
+                <div className="wiz-field">
+                  <label style={lblStyle}>Category</label>
+                  <select name="categoryId" value={bookForm.categoryId} onChange={handleBookChange}>
+                    <option value="">-- Select Category --</option>
+                    {categories.map(c => <option key={c.CategoryID} value={c.CategoryID}>{c.CategoryName}</option>)}
+                  </select>
+                </div>
+                <div className="wiz-field" style={{ gridColumn: 'span 2' }}>
+                  <label style={lblStyle}>Authors <span style={{ fontWeight: 400, color: textMuted }}>(Ctrl+click for multiple)</span></label>
+                  <select multiple name="authorIds" value={bookForm.authorIds} onChange={handleBookChange} style={{ minHeight: 80 }}>
+                    {authors.map(a => <option key={a.AuthorID} value={a.AuthorID}>{a.Name}</option>)}
+                  </select>
+                  {isbnPreview?.authors?.length > 0 && (
+                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>ðŸ“Œ From barcode: {isbnPreview.authors.join(', ')}</div>
+                  )}
+                </div>
+                <div className="wiz-field">
+                  <label style={lblStyle}>Edition</label>
+                  <input type="text" name="edition" value={bookForm.edition} onChange={handleBookChange} placeholder="e.g. 3rd" />
+                </div>
+                <div className="wiz-field">
+                  <label style={lblStyle}>Language</label>
+                  <input type="text" name="language" value={bookForm.language} onChange={handleBookChange} />
+                </div>
+                <div className="wiz-field">
+                  <label style={lblStyle}>Number of Copies *</label>
+                  <input required type="number" min="1" name="numberOfCopies" value={bookForm.numberOfCopies} onChange={handleBookChange} />
+                </div>
+                <div className="wiz-field">
+                  <label style={lblStyle}>Shelf Location</label>
+                  <input type="text" name="shelfLocation" value={bookForm.shelfLocation} onChange={handleBookChange} placeholder="e.g. A1-05" />
+                </div>
+                <div className="wiz-field" style={{ gridColumn: 'span 2' }}>
+                  <label style={lblStyle}>Cover Image {isbnPreview?.coverUrl ? '(auto-fetched â€” upload to override)' : ''}</label>
+                  <input type="file" accept="image/*" ref={fileInputRef} onChange={e => setCoverFile(e.target.files[0])} style={{ padding: '8px 12px' }} />
+                </div>
+                <div className="wiz-field" style={{ gridColumn: 'span 2' }}>
+                  <label style={lblStyle}>Description</label>
+                  <textarea name="description" value={bookForm.description} onChange={handleBookChange} style={{ minHeight: 80, resize: 'vertical', fontFamily: 'inherit' }} />
+                </div>
+              </form>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', marginTop: 18 }}>
+                <button type="button" className="wiz-btn-secondary" onClick={() => setRegisterStep(1)}>â† Back</button>
+                <button type="submit" form="book-details-form" className="wiz-btn-primary">Review & Confirm â†’</button>
+              </div>
+            </div>
+          )}
+
+          {/* â”€â”€ Step 3: Confirm â”€â”€ */}
+          {registerStep === 3 && (
+            <div className="wiz-step" style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 16, padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ fontWeight: 800, fontSize: 15, color: textPrimary }}>âœ… Confirm Registration</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                {[
+                  ['Title', bookForm.title], ['ISBN', bookForm.isbn], ['Year', bookForm.year],
+                  ['Edition', bookForm.edition], ['Language', bookForm.language], ['Copies', bookForm.numberOfCopies],
+                  ['Shelf', bookForm.shelfLocation],
+                  ['Publisher', publishers.find(p => String(p.PublisherID) === String(bookForm.publisherId))?.PublisherName || 'â€”'],
+                  ['Category', categories.find(c => String(c.CategoryID) === String(bookForm.categoryId))?.CategoryName || 'â€”'],
+                ].map(([k, v]) => v ? (
+                  <div key={k} style={{ background: isDark?'rgba(255,255,255,0.04)':'#f8fafc', borderRadius: 8, padding: '8px 12px' }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: textMuted, letterSpacing: 0.8 }}>{k}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: textPrimary }}>{String(v)}</div>
+                  </div>
+                ) : null)}
+              </div>
+              {isbnPreview?.coverUrl && (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <img src={isbnPreview.coverUrl} alt="cover" style={{ width: 50, height: 74, objectFit: 'cover', borderRadius: 6 }} />
+                  <div style={{ fontSize: 12, color: textMuted }}>Auto-fetched cover image will be used unless you uploaded one in step 2.</div>
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', marginTop: 4, position: 'relative' }}>
+                <button type="button" className="wiz-btn-secondary" onClick={() => setRegisterStep(2)}>â† Edit Details</button>
+                <div style={{ position: 'relative' }}>
+                  <button
+                    type="button" className="wiz-btn-primary" disabled={bookLoading}
+                    onClick={e => submitBook({ preventDefault: () => {} })}
+                    style={{ opacity: bookLoading ? 0.7 : 1, cursor: bookLoading ? 'not-allowed' : 'pointer' }}
+                  >
+                    {bookLoading ? 'â³ Registering...' : 'ðŸš€ Register Book & Copies'}
+                  </button>
+                  <BubblePopup msg={bookMsg} onClear={() => setBookMsg('')} />
+                </div>
+              </div>
+            </div>
           )}
         </div>
       )}
 
-      {tab === 'catalog' && (
-        <div style={{ background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, padding: 32, maxWidth: 800 }}>
-          <p style={{ color: textMuted, marginBottom: 20, fontSize:14 }}>Upload a new book to the library catalog, linking categories and assigning shelf locations.</p>
-          {bookMsg && <div style={{ padding: 12, marginBottom: 20, background: bookMsg.startsWith('Error') ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)', color: bookMsg.startsWith('Error') ? '#ef4444' : '#10b981', borderRadius: 10, border: `1px solid ${bookMsg.startsWith('Error') ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)'}` }}>{bookMsg}</div>}
-          <form onSubmit={submitBook} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <div style={{ gridColumn: 'span 2' }}>
-              <label style={lblStyle}>Book Title *</label>
-              <input required type="text" name="title" value={bookForm.title} onChange={handleBookChange} style={inputStyle} />
-            </div>
-            <div>
-              <label style={lblStyle}>ISBN</label>
-              <input type="text" name="isbn" value={bookForm.isbn} onChange={handleBookChange} style={inputStyle} />
-            </div>
-            <div>
-              <label style={lblStyle}>Publication Year</label>
-              <input type="number" name="year" value={bookForm.year} onChange={handleBookChange} style={inputStyle} />
-            </div>
-            <div>
-              <label style={lblStyle}>Publisher</label>
-              <select name="publisherId" value={bookForm.publisherId} onChange={handleBookChange} style={inputStyle}>
-                <option value="">-- Select Publisher --</option>
-                {publishers.map(p => <option key={p.PublisherID} value={p.PublisherID}>{p.PublisherName}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={lblStyle}>Category</label>
-              <select name="categoryId" value={bookForm.categoryId} onChange={handleBookChange} style={inputStyle}>
-                <option value="">-- Select Category --</option>
-                {categories.map(c => <option key={c.CategoryID} value={c.CategoryID}>{c.CategoryName}</option>)}
-              </select>
-            </div>
-            <div style={{ gridColumn: 'span 2' }}>
-              <label style={lblStyle}>Authors (Hold Ctrl to select multiple)</label>
-              <select multiple name="authorIds" value={bookForm.authorIds} onChange={handleBookChange} style={{ ...inputStyle, minHeight: 80 }}>
-                {authors.map(a => <option key={a.AuthorID} value={a.AuthorID}>{a.Name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={lblStyle}>Number of Copies *</label>
-              <input required type="number" min="1" name="numberOfCopies" value={bookForm.numberOfCopies} onChange={handleBookChange} style={inputStyle} />
-            </div>
-            <div>
-              <label style={lblStyle}>Shelf Location</label>
-              <input type="text" name="shelfLocation" value={bookForm.shelfLocation} onChange={handleBookChange} placeholder="e.g. A1-05" style={inputStyle} />
-            </div>
-            <div style={{ gridColumn: 'span 2' }}>
-              <label style={lblStyle}>Cover Image</label>
-              <input type="file" accept="image/*" ref={fileInputRef} onChange={e => setCoverFile(e.target.files[0])} style={{ ...inputStyle, padding: '8px 12px' }} />
-            </div>
-            <div style={{ gridColumn: 'span 2' }}>
-              <label style={lblStyle}>Description</label>
-              <textarea name="description" value={bookForm.description} onChange={handleBookChange} style={{ ...inputStyle, minHeight: 80, fontFamily: 'inherit' }}></textarea>
-            </div>
-            <div style={{ gridColumn: 'span 2' }}>
-              <button type="submit" disabled={bookLoading} className="interactive-btn btn-pulse" style={{ background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff', border: 'none', padding: '14px', borderRadius: 12, fontWeight: 700, cursor: bookLoading ? 'not-allowed' : 'pointer', width: '100%', fontSize: 16, boxShadow:'0 4px 20px rgba(16,185,129,0.3)' }}>
-                {bookLoading ? 'Registering...' : 'Register Book & Copies →'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
 
       {tab === 'metadata' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
-          {metaMsg && <div style={{ padding: 12, background: metaMsg.startsWith('Error') ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)', color: metaMsg.startsWith('Error') ? '#ef4444' : '#10b981', borderRadius: 10, border: `1px solid ${metaMsg.startsWith('Error') ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)'}` }}>{metaMsg}</div>}
           
           {/* Categories */}
           <div style={{ background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, padding: 24 }}>
             <h3 style={{ color: textPrimary, marginBottom: 16 }}>Manage Categories</h3>
-            <form onSubmit={(e) => handleAddMeta(e, 'categories', categoryForm, setCategoryForm, {CategoryName:'', Description:''})} style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+            <form onSubmit={(e) => handleAddMeta(e, 'categories', categoryForm, setCategoryForm, {CategoryName:'', Description:''}, setCategoryMsg)} style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
               <input required type="text" placeholder="Category Name" value={categoryForm.CategoryName} onChange={e => setCategoryForm({...categoryForm, CategoryName: e.target.value})} style={dynInputStyle} />
               <input type="text" placeholder="Description" value={categoryForm.Description} onChange={e => setCategoryForm({...categoryForm, Description: e.target.value})} className="interactive-input" style={dynInputStyle} />
-              <button type="submit" className="interactive-btn btn-pulse" style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}>Add Category</button>
+              <div style={{ position: 'relative' }}>
+                <button type="submit" className="interactive-btn btn-pulse" style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}>Add Category</button>
+                <BubblePopup msg={categoryMsg} onClear={() => setCategoryMsg('')} />
+              </div>
             </form>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
               <thead><tr style={{ color: '#64748b' }}><th style={{ padding: 12 }}>Name</th><th style={{ padding: 12 }}>Description</th><th style={{ padding: 12, textAlign: 'right' }}>Actions</th></tr></thead>
@@ -397,7 +741,7 @@ export default function StaffDashboard() {
                 {categories.map(c => (
                   <tr key={c.CategoryID} className="table-row" style={{ borderTop: `1px solid ${border}`, color: textPrimary }}>
                     <td style={{ padding: 12 }}>{c.CategoryName}</td>
-                    <td style={{ padding: 12, color: '#94a3b8' }}>{c.Description || '—'}</td>
+                    <td style={{ padding: 12, color: '#94a3b8' }}>{c.Description || 'â€”'}</td>
                     <td style={{ padding: 12, textAlign: 'right' }}>
                       <button className="interactive-btn" onClick={() => setEditModal({type:'categories', item:c})} style={{ background: 'transparent', color: '#3b82f6', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Edit</button>
                     </td>
@@ -410,12 +754,15 @@ export default function StaffDashboard() {
           {/* Authors */}
           <div style={{ background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, padding: 24 }}>
             <h3 style={{ color: textPrimary, marginBottom: 16 }}>Manage Authors</h3>
-            <form onSubmit={(e) => handleAddMeta(e, 'authors', authorForm, setAuthorForm, {FirstName:'', LastName:'', Bio:'', Nationality:''})} style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+            <form onSubmit={(e) => handleAddMeta(e, 'authors', authorForm, setAuthorForm, {FirstName:'', LastName:'', Bio:'', Nationality:''}, setAuthorMsg)} style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
               <input required type="text" placeholder="First Name" value={authorForm.FirstName} onChange={e => setAuthorForm({...authorForm, FirstName: e.target.value})} style={{...dynInputStyle, flex:1, minWidth:120}} />
               <input required type="text" placeholder="Last Name" value={authorForm.LastName} onChange={e => setAuthorForm({...authorForm, LastName: e.target.value})} style={{...dynInputStyle, flex:1, minWidth:120}} />
               <input type="text" placeholder="Nationality" value={authorForm.Nationality} onChange={e => setAuthorForm({...authorForm, Nationality: e.target.value})} style={{...dynInputStyle, flex:1, minWidth:120}} />
               <input type="text" placeholder="Bio" value={authorForm.Bio} onChange={e => setAuthorForm({...authorForm, Bio: e.target.value})} style={{...dynInputStyle, flex:2, minWidth:200}} />
-              <button type="submit" style={{ background: '#10b981', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Add Author</button>
+              <div style={{ position: 'relative' }}>
+                <button type="submit" style={{ background: '#10b981', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Add Author</button>
+                <BubblePopup msg={authorMsg} onClear={() => setAuthorMsg('')} />
+              </div>
             </form>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
               <thead><tr style={{ color: '#64748b' }}><th style={{ padding: 12 }}>Name</th><th style={{ padding: 12 }}>Nationality</th><th style={{ padding: 12, textAlign: 'right' }}>Actions</th></tr></thead>
@@ -423,10 +770,10 @@ export default function StaffDashboard() {
                 {authors.map(a => (
                   <tr key={a.AuthorID} className="table-row" style={{ borderTop: `1px solid ${border}`, color: textPrimary }}>
                     <td style={{ padding: 12 }}>{a.Name}</td>
-                    <td style={{ padding: 12, color: '#94a3b8' }}>{a.Nationality || '—'}</td>
+                    <td style={{ padding: 12, color: '#94a3b8' }}>{a.Nationality || 'â€”'}</td>
                     <td style={{ padding: 12, textAlign: 'right' }}>
                       <button className="interactive-btn" onClick={() => setEditModal({type:'authors', item:a})} style={{ background: 'transparent', color: '#3b82f6', border: 'none', cursor: 'pointer', fontWeight: 600, marginRight: 12 }}>Edit</button>
-                      <button className="interactive-btn" onClick={() => handleDeleteMeta('authors', a.AuthorID)} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', padding: '4px 10px', borderRadius: 6, cursor: 'pointer' }}>Delete</button>
+                      <button className="interactive-btn" onClick={() => handleDeleteMeta('authors', a.AuthorID, setAuthorMsg)} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', padding: '4px 10px', borderRadius: 6, cursor: 'pointer' }}>Delete</button>
                     </td>
                   </tr>
                 ))}
@@ -437,11 +784,14 @@ export default function StaffDashboard() {
           {/* Publishers */}
           <div style={{ background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, padding: 24 }}>
             <h3 style={{ color: textPrimary, marginBottom: 16 }}>Manage Publishers</h3>
-            <form onSubmit={(e) => handleAddMeta(e, 'publishers', publisherForm, setPublisherForm, {PublisherName:'', Email:'', Phone:'', Address:''})} style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+            <form onSubmit={(e) => handleAddMeta(e, 'publishers', publisherForm, setPublisherForm, {PublisherName:'', Email:'', Phone:'', Address:''}, setPublisherMsg)} style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
               <input required type="text" placeholder="Publisher Name" value={publisherForm.PublisherName} onChange={e => setPublisherForm({...publisherForm, PublisherName: e.target.value})} style={{...dynInputStyle, flex:2, minWidth:200}} />
               <input type="email" placeholder="Email" value={publisherForm.Email} onChange={e => setPublisherForm({...publisherForm, Email: e.target.value})} style={{...dynInputStyle, flex:1, minWidth:150}} />
               <input type="text" placeholder="Phone" value={publisherForm.Phone} onChange={e => setPublisherForm({...publisherForm, Phone: e.target.value})} style={{...dynInputStyle, flex:1, minWidth:120}} />
-              <button type="submit" style={{ background: '#8b5cf6', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Add Publisher</button>
+              <div style={{ position: 'relative' }}>
+                <button type="submit" style={{ background: '#8b5cf6', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Add Publisher</button>
+                <BubblePopup msg={publisherMsg} onClear={() => setPublisherMsg('')} />
+              </div>
             </form>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 14 }}>
               <thead><tr style={{ color: '#64748b' }}><th style={{ padding: 12 }}>Name</th><th style={{ padding: 12 }}>Email</th><th style={{ padding: 12 }}>Phone</th><th style={{ padding: 12, textAlign: 'right' }}>Actions</th></tr></thead>
@@ -449,8 +799,8 @@ export default function StaffDashboard() {
                 {publishers.map(p => (
                   <tr key={p.PublisherID} style={{ borderTop: `1px solid ${border}`, color: textPrimary }}>
                     <td style={{ padding: 12 }}>{p.PublisherName}</td>
-                    <td style={{ padding: 12, color: '#94a3b8' }}>{p.ContactEmail || '—'}</td>
-                    <td style={{ padding: 12, color: '#94a3b8' }}>{p.Phone || '—'}</td>
+                    <td style={{ padding: 12, color: '#94a3b8' }}>{p.ContactEmail || 'â€”'}</td>
+                    <td style={{ padding: 12, color: '#94a3b8' }}>{p.Phone || 'â€”'}</td>
                     <td style={{ padding: 12, textAlign: 'right' }}>
                       <button onClick={() => setEditModal({type:'publishers', item:p})} style={{ background: 'transparent', color: '#3b82f6', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Edit</button>
                     </td>
@@ -465,7 +815,7 @@ export default function StaffDashboard() {
       {tab === 'circulation' && (
         <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap:'wrap' }}>
           <div style={{ flex: 1, minWidth:280, background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, padding: 28 }}>
-            <h3 style={{ fontSize: 18, marginBottom: 4, color:textPrimary, fontWeight:700 }}>📤 Issue Book</h3>
+            <h3 style={{ fontSize: 18, marginBottom: 4, color:textPrimary, fontWeight:700 }}>ðŸ“¤ Issue Book</h3>
             <p style={{ color:textMuted, fontSize:13, marginBottom:20 }}>Issue a book copy to a member</p>
             <form onSubmit={handleIssue} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
@@ -476,12 +826,15 @@ export default function StaffDashboard() {
                 <label style={lblStyle}>Copy ID</label>
                 <input required type="number" value={issueForm.copyId} onChange={e => setIssueForm({...issueForm, copyId: e.target.value})} className="interactive-input" style={dynInputStyle} placeholder="Specific Copy ID" />
               </div>
-              <button type="submit" className="interactive-btn btn-pulse" style={{ background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff', border: 'none', padding: '12px', borderRadius: 10, fontWeight: 700, cursor: 'pointer', boxShadow:'0 4px 16px rgba(16,185,129,0.25)' }}>Issue Book →</button>
+              <div style={{ position: 'relative' }}>
+                <button type="submit" className="interactive-btn btn-pulse" style={{ background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: 10, fontWeight: 700, cursor: 'pointer', boxShadow:'0 4px 16px rgba(16,185,129,0.25)', width: '100%' }}>Issue Book â†’</button>
+                <BubblePopup msg={issueMsg} onClear={() => setIssueMsg('')} />
+              </div>
             </form>
           </div>
 
           <div style={{ flex: 1, minWidth:280, background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, padding: 28 }}>
-            <h3 style={{ fontSize: 18, marginBottom: 4, color:textPrimary, fontWeight:700 }}>📥 Process Return</h3>
+            <h3 style={{ fontSize: 18, marginBottom: 4, color:textPrimary, fontWeight:700 }}>ðŸ“¥ Process Return</h3>
             <p style={{ color:textMuted, fontSize:13, marginBottom:20 }}>Record a book return and log its condition</p>
             <form onSubmit={handleReturn} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
@@ -492,20 +845,22 @@ export default function StaffDashboard() {
                 <label style={lblStyle}>Condition on Return</label>
                 <select value={returnForm.condition} onChange={e => setReturnForm({...returnForm, condition: e.target.value})} style={dynInputStyle}>
                   <option value="Good">Good</option>
-                  <option value="Damaged">Damaged — requires photo proof</option>
-                  <option value="Lost">Lost — requires report</option>
+                  <option value="Damaged">Damaged â€” requires photo proof</option>
+                  <option value="Lost">Lost â€” requires report</option>
                 </select>
               </div>
               {(returnForm.condition === 'Damaged' || returnForm.condition === 'Lost') && (
                 <div>
                   <label style={lblStyle}>{returnForm.condition === 'Lost' ? 'Proof / Document (Optional)' : 'Upload Damage Photo (Required)'}</label>
                   <input type="file" accept="image/*" onChange={handleReturnImageUpload} required={returnForm.condition === 'Damaged'} style={{ ...dynInputStyle, padding: '8px 12px' }} />
-                  {returnForm.imageBase64 && <div style={{ marginTop: 8, fontSize: 12, color: '#10b981' }}>✓ Image attached</div>}
+                  {returnForm.imageBase64 && <div style={{ marginTop: 8, fontSize: 12, color: '#10b981' }}>âœ“ Image attached</div>}
                 </div>
               )}
-              <button type="submit" style={{ background: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', color: '#fff', border: 'none', padding: '12px', borderRadius: 10, fontWeight: 700, cursor: 'pointer', boxShadow:'0 4px 16px rgba(59,130,246,0.25)' }}>Process Return →</button>
+              <div style={{ position: 'relative' }}>
+                <button type="submit" style={{ background: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: 10, fontWeight: 700, cursor: 'pointer', boxShadow:'0 4px 16px rgba(59,130,246,0.25)', width: '100%' }}>Process Return â†’</button>
+                <BubblePopup msg={returnMsg} onClear={() => setReturnMsg('')} />
+              </div>
             </form>
-            {actionMsg && <div style={{ marginTop: 16, padding: 12, background: actionMsg.startsWith('Error') ? 'rgba(239,68,68,0.1)' : 'rgba(59,130,246,0.1)', color: actionMsg.startsWith('Error') ? '#ef4444' : '#60a5fa', borderRadius: 10, fontSize: 14 }}>{actionMsg}</div>}
           </div>
         </div>
       )}
@@ -633,13 +988,13 @@ export default function StaffDashboard() {
           <div style={{ background:cardBg, borderRadius:24, padding:36, width:'100%', maxWidth:720, maxHeight:'90vh', overflowY:'auto', border:`1px solid ${border}`, boxShadow:'0 40px 100px rgba(0,0,0,0.6)', animation:'fadeInScale 0.25s ease' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:28 }}>
               <div style={{ display:'flex', alignItems:'center', gap:14 }}>
-                <div style={{ width:50, height:50, borderRadius:14, background:'linear-gradient(135deg,#10b981,#059669)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, boxShadow:'0 4px 16px rgba(16,185,129,0.4)' }}>🏷️</div>
+                <div style={{ width:50, height:50, borderRadius:14, background:'linear-gradient(135deg,#10b981,#059669)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, boxShadow:'0 4px 16px rgba(16,185,129,0.4)' }}>ðŸ·ï¸</div>
                 <div>
                   <h2 style={{ color:textPrimary, margin:0, fontSize:22, fontWeight:800 }}>Barcodes: {barcodesModal.Title}</h2>
                   <p style={{ color:textMuted, margin:0, fontSize:13 }}>Printable labels for physical copies</p>
                 </div>
               </div>
-              <button onClick={() => setBarcodesModal(null)} style={{ background:'transparent', border:'none', color:textMuted, fontSize:24, cursor:'pointer', lineHeight:1 }}>✕</button>
+              <button onClick={() => setBarcodesModal(null)} style={{ background:'transparent', border:'none', color:textMuted, fontSize:24, cursor:'pointer', lineHeight:1 }}>âœ•</button>
             </div>
             
             <div id="print-barcode-area" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 20 }}>
@@ -668,7 +1023,7 @@ export default function StaffDashboard() {
                 }}
                 disabled={bookCopies.length === 0}
                 style={{ padding: '10px 20px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', color: '#fff', fontWeight: 700, cursor: bookCopies.length === 0 ? 'not-allowed' : 'pointer' }}>
-                🖨️ Print Labels
+                ðŸ–¨ï¸ Print Labels
               </button>
             </div>
           </div>
@@ -782,8 +1137,8 @@ function FinesTab({ getHeaders, c }) {
                       style={{ padding: '8px 12px', borderRadius: 6, border: `1px solid #93c5fd`, outline: 'none' }}
                     >
                       <option value="Cash">Cash</option>
-                      <option value="Card/POS">Card/POS</option>
-                      <option value="Telebirr">Telebirr / Mobile Money</option>
+                      <option value="Card">Card/POS</option>
+                      <option value="Online">Telebirr / Mobile Money</option>
                     </select>
                     <div style={{ flex: 1, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                       <button type="button" onClick={() => setPaymentForm({ fineId: null, amount: '', method: 'Cash' })} style={{ padding: '8px 16px', background: 'transparent', color: c.textMuted, border: 'none', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
@@ -812,10 +1167,20 @@ function FinesTab({ getHeaders, c }) {
 function ProfileTab({ user, c }) {
   const [pw, setPw] = React.useState({ current: '', new: '', confirm: '' })
   const [loading, setLoading] = React.useState(false)
+  const [msg, setMsg] = React.useState({ text: '', type: '' })
+  const [showPw, setShowPw] = React.useState(false)
 
   const handlePw = async (e) => {
     e.preventDefault()
-    if (pw.new !== pw.confirm) return alert("Passwords don't match")
+    setMsg({ text: '', type: '' })
+    if (pw.new !== pw.confirm) {
+      setMsg({ text: "âŒ Passwords don't match.", type: 'error' })
+      return
+    }
+    if (pw.new.length < 8) {
+      setMsg({ text: 'âŒ New password must be at least 8 characters.', type: 'error' })
+      return
+    }
     setLoading(true)
     try {
       const res = await axios.post(`http://localhost:4000/api/auth/change-password`, {
@@ -823,11 +1188,11 @@ function ProfileTab({ user, c }) {
         newPassword: pw.new
       }, { headers: { Authorization: `Bearer ${localStorage.getItem('lms_token')}` } })
       if (res.data.success) {
-        alert("Password updated successfully!")
+        setMsg({ text: 'âœ… Password updated successfully!', type: 'success' })
         setPw({ current: '', new: '', confirm: '' })
       }
     } catch (err) {
-      alert(err.response?.data?.message || err.message)
+      setMsg({ text: 'âŒ ' + (err.response?.data?.message || err.message), type: 'error' })
     } finally { setLoading(false) }
   }
 
@@ -852,22 +1217,49 @@ function ProfileTab({ user, c }) {
       </div>
 
       <div style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 32, backdropFilter:'blur(12px)' }}>
-        <h3 style={{ color: c.text, margin: '0 0 20px', fontSize: 20, fontWeight: 700 }}>Security Center</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h3 style={{ color: c.text, margin: 0, fontSize: 20, fontWeight: 700 }}>Security Center</h3>
+          <button type="button" onClick={() => setShowPw(v => !v)}
+            style={{ background: 'none', border: 'none', color: '#10b981', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            {showPw ? 'ðŸ™ˆ Hide' : 'ðŸ‘ Show Passwords'}
+          </button>
+        </div>
+
+        {msg.text && (
+          <div style={{
+            padding: '12px 18px', borderRadius: 12, marginBottom: 20,
+            background: msg.type === 'success' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
+            border: `1px solid ${msg.type === 'success' ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
+            color: msg.type === 'success' ? '#10b981' : '#ef4444',
+            fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 10
+          }}>
+            <span style={{ flex: 1 }}>{msg.text}</span>
+            <button onClick={() => setMsg({ text: '', type: '' })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 900 }}>âœ•</button>
+          </div>
+        )}
+
         <form onSubmit={handlePw} style={{ display: 'grid', gap: 16 }}>
           <div>
             <label style={{ color: c.muted, fontSize: 12, display: 'block', marginBottom: 6 }}>Current Password</label>
-            <input type="password" required value={pw.current} onChange={e => setPw({ ...pw, current: e.target.value })} style={{ width: '100%', padding: 12, borderRadius: 8, border: `1px solid ${c.border}`, background: c.input, color: c.text }} />
+            <input type={showPw ? 'text' : 'password'} required value={pw.current}
+              onChange={e => setPw({ ...pw, current: e.target.value })}
+              style={{ width: '100%', padding: 12, borderRadius: 8, border: `1px solid ${c.border}`, background: c.input, color: c.text, boxSizing: 'border-box', outline: 'none' }} />
           </div>
           <div>
             <label style={{ color: c.muted, fontSize: 12, display: 'block', marginBottom: 6 }}>New Password</label>
-            <input type="password" required value={pw.new} onChange={e => setPw({ ...pw, new: e.target.value })} style={{ width: '100%', padding: 12, borderRadius: 8, border: `1px solid ${c.border}`, background: c.input, color: c.text }} />
+            <input type={showPw ? 'text' : 'password'} required value={pw.new}
+              onChange={e => setPw({ ...pw, new: e.target.value })}
+              style={{ width: '100%', padding: 12, borderRadius: 8, border: `1px solid ${c.border}`, background: c.input, color: c.text, boxSizing: 'border-box', outline: 'none' }} />
           </div>
           <div>
             <label style={{ color: c.muted, fontSize: 12, display: 'block', marginBottom: 6 }}>Confirm New Password</label>
-            <input type="password" required value={pw.confirm} onChange={e => setPw({ ...pw, confirm: e.target.value })} style={{ width: '100%', padding: 12, borderRadius: 8, border: `1px solid ${c.border}`, background: c.input, color: c.text }} />
+            <input type={showPw ? 'text' : 'password'} required value={pw.confirm}
+              onChange={e => setPw({ ...pw, confirm: e.target.value })}
+              style={{ width: '100%', padding: 12, borderRadius: 8, border: `1px solid ${c.border}`, background: c.input, color: c.text, boxSizing: 'border-box', outline: 'none' }} />
           </div>
-          <button type="submit" disabled={loading} style={{ background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff', border: 'none', padding: 14, borderRadius: 8, fontWeight: 700, cursor: 'pointer', marginTop: 10 }}>
-            {loading ? 'Updating Security...' : 'Update Password'}
+          <button type="submit" disabled={loading}
+            style={{ background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff', border: 'none', padding: 14, borderRadius: 8, fontWeight: 700, cursor: 'pointer', marginTop: 10, fontSize: 15, opacity: loading ? 0.8 : 1 }}>
+            {loading ? 'â³ Updating...' : 'ðŸ”’ Update Password'}
           </button>
         </form>
       </div>
@@ -879,8 +1271,8 @@ const lblStyle = { display: 'block', fontSize: 13, fontWeight: 600, color: '#94a
 const inputStyle = { width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(150,150,150,0.2)', fontSize: 14, outline: 'none', boxSizing: 'border-box', background: 'transparent', color: 'inherit', transition: 'all 0.3s' }
 
 const StatCard = ({ title, value, color = '#10b981', highlight, cardBg, textPrimary, border }) => (
-  <div className="stat-card interactive-card" style={{ background: cardBg, backdropFilter:'blur(12px)', border: highlight ? `2px solid ${color}` : `1px solid ${border}`, borderRadius: 16, padding: 24, boxShadow: highlight ? `0 0 24px ${color}22` : 'none' }}>
-    <div style={{ fontSize: 12, color: highlight ? color : '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>{title}</div>
-    <div style={{ fontSize: 38, fontWeight: 800, color: highlight ? color : textPrimary }}>{value ?? '—'}</div>
+  <div className="stat-card interactive-card" style={{ background: cardBg, backdropFilter:'blur(12px)', border: highlight ? `2px solid ${color}` : `1px solid ${border}`, borderRadius: 12, padding: '14px 18px', boxShadow: highlight ? `0 0 24px ${color}22` : 'none' }}>
+    <div style={{ fontSize: 11, color: highlight ? color : '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>{title}</div>
+    <div style={{ fontSize: 26, fontWeight: 800, color: highlight ? color : textPrimary }}>{value ?? 'â€”'}</div>
   </div>
 )

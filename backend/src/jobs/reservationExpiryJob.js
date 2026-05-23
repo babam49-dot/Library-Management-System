@@ -1,5 +1,6 @@
 const cron = require('node-cron');
 const db = require('../db');
+const { notifyMember } = require('../services/socketService');
 
 // Run every 1 minute
 const runReservationExpiry = async () => {
@@ -10,7 +11,7 @@ const runReservationExpiry = async () => {
 
     // 1. Query expired reservations
     const [expiredRows] = await conn.query(`
-      SELECT ReservationID, CopyID FROM Reservations
+      SELECT ReservationID, BookID, CopyID FROM Reservations
       WHERE Status = 'Ready' AND PickupDeadline < NOW() FOR UPDATE
     `);
 
@@ -25,20 +26,30 @@ const runReservationExpiry = async () => {
       if (!row.CopyID) continue; // Should have a CopyID if it was Ready, but just in case
 
       // b. Release the copy back to Available, unless someone else is in queue
-      // First, see if someone else is in the queue for this book
+      // First, fetch the BookID for this copy (or use row.BookID)
+      const bookId = row.BookID;
+
+      // Second, see if someone else is in the queue for this book
       const [resRows] = await conn.query(`
         SELECT ReservationID, MemberID, RequestCode FROM Reservations
-        WHERE CopyID = ? AND Status = 'Queued'
+        WHERE BookID = ? AND Status = 'Queued'
         ORDER BY Priority ASC, ReservationDate ASC LIMIT 1 FOR UPDATE
-      `, [row.CopyID]);
+      `, [bookId]);
 
       if (resRows.length > 0) {
         // Next person in queue gets it (30 min deadline since we're using 30-min holds now)
         const nextRes = resRows[0];
         await conn.query(`
-          UPDATE Reservations SET Status = 'Ready', PickupDeadline = DATE_ADD(NOW(), INTERVAL 30 MINUTE)
+          UPDATE Reservations SET Status = 'Ready', CopyID = ?, PickupDeadline = DATE_ADD(NOW(), INTERVAL 30 MINUTE)
           WHERE ReservationID = ?
-        `, [nextRes.ReservationID]);
+        `, [row.CopyID, nextRes.ReservationID]);
+        // Notify the promoted member in real-time
+        notifyMember(nextRes.MemberID, 'queue:promoted', {
+          reservationId: nextRes.ReservationID,
+          requestCode: nextRes.RequestCode,
+          message: 'Your reservation is now Ready for pickup! You have 30 minutes.'
+        });
+        notifyMember(nextRes.MemberID, 'reservation:updated', {});
       } else {
         // No one in queue -> copy becomes Available
         await conn.query(`UPDATE BookCopies SET Status = 'Available' WHERE CopyID = ?`, [row.CopyID]);

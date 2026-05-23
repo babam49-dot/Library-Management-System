@@ -101,7 +101,8 @@ export default function ReservationsPage() {
             onChange={e => setStatusFilter(e.target.value)}
             style={{ width: '100%', padding: '12px 16px', borderRadius: 8, border: `1px solid ${c.border}`, background: c.input, color: c.text, fontSize: 14, outline: 'none' }}
           >
-            <option value="">All Statuses</option>
+            <option value="">Active Holds (Default)</option>
+            <option value="all">All Statuses</option>
             <option value="Queued">Queued</option>
             <option value="Ready">Ready</option>
             <option value="Collected">Collected</option>

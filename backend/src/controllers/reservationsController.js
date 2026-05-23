@@ -14,15 +14,24 @@ exports.getAllReservations = async (req, res) => {
       FROM Reservations r
       JOIN Members m ON r.MemberID = m.MemberID
       JOIN Users u ON m.UserID = u.UserID
-      JOIN BookCopies bc ON r.CopyID = bc.CopyID
-      JOIN Books b ON bc.BookID = b.BookID
+      JOIN Books b ON r.BookID = b.BookID
+      LEFT JOIN BookCopies bc ON r.CopyID = bc.CopyID
     `;
     const params = [];
     const conditions = [];
 
     if (copyId) { conditions.push('r.CopyID = ?'); params.push(copyId); }
     if (memberId) { conditions.push('m.MemberID = ?'); params.push(memberId); }
-    if (status) { conditions.push('r.Status = ?'); params.push(status); }
+    
+    if (status) {
+      if (status !== 'all') {
+        conditions.push('r.Status = ?');
+        params.push(status);
+      }
+    } else {
+      // Clean up expired/cancelled items by default
+      conditions.push("r.Status NOT IN ('Cancelled', 'Expired')");
+    }
 
     if (conditions.length > 0) {
       query += ' WHERE ' + conditions.join(' AND ');
@@ -47,10 +56,9 @@ exports.getMyReservations = async (req, res) => {
         r.CopyID as copyId, r.Status as status, r.Priority as priority,
         r.ReservationDate as reservationDate, r.PickupDeadline as pickupDeadline,
         b.Title as bookTitle, b.ISBN as isbn,
-        (SELECT COUNT(*) FROM Reservations r2 WHERE r2.CopyID = r.CopyID AND r2.Status = 'Queued' AND r2.Priority < r.Priority) as queuePosition
+        (SELECT COUNT(*) FROM Reservations r2 WHERE r2.BookID = r.BookID AND r2.Status = 'Queued' AND r2.Priority < r.Priority) as queuePosition
       FROM Reservations r
-      JOIN BookCopies bc ON r.CopyID = bc.CopyID
-      JOIN Books b ON bc.BookID = b.BookID
+      JOIN Books b ON r.BookID = b.BookID
       WHERE r.MemberID = ?
       ORDER BY r.ReservationDate DESC
     `, [memberId]);
@@ -67,7 +75,7 @@ exports.cancelReservation = async (req, res) => {
     const isMember = req.user.role === 3;
     const memberId = req.user.extensionId;
 
-    const [rows] = await db.query('SELECT MemberID, Status, CopyID FROM Reservations WHERE ReservationID = ?', [id]);
+    const [rows] = await db.query('SELECT MemberID, Status, CopyID, BookID FROM Reservations WHERE ReservationID = ?', [id]);
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: "Reservation not found" });
     }
@@ -76,7 +84,7 @@ exports.cancelReservation = async (req, res) => {
 
     if (isMember) {
       if (resRecord.MemberID !== memberId) return res.status(403).json({ success: false, message: "Forbidden" });
-      if (resRecord.Status !== 'Queued') return res.status(400).json({ success: false, message: "Can only cancel queued reservations" });
+      if (!['Queued', 'Ready'].includes(resRecord.Status)) return res.status(400).json({ success: false, message: "Can only cancel queued or ready reservations" });
     }
 
     await db.query(`UPDATE Reservations SET Status = 'Cancelled' WHERE ReservationID = ?`, [id]);
@@ -93,23 +101,23 @@ exports.cancelReservation = async (req, res) => {
         await db.query(`UPDATE BorrowingRecords SET Status = 'Expired' WHERE BorrowID = ?`, [br[0].BorrowID]);
       }
 
-      await db.query(`UPDATE BookCopies SET Status = 'Available' WHERE CopyID = ?`, [resRecord.CopyID]);
-
-      // Check next in queue
+      // Check next in queue for the book
       const [nextRes] = await db.query(`
         SELECT ReservationID, MemberID, RequestCode FROM Reservations
-        WHERE CopyID = ? AND Status = 'Queued'
+        WHERE BookID = ? AND Status = 'Queued'
         ORDER BY Priority ASC, ReservationDate ASC LIMIT 1
-      `, [resRecord.CopyID]);
+      `, [resRecord.BookID]);
 
       if (nextRes.length > 0) {
         const next = nextRes[0];
         await db.query(`
           INSERT INTO BorrowingRecords (MemberID, CopyID, RequestCode, BorrowDate, Status, PickupDeadline)
-          VALUES (?, ?, ?, CURDATE(), 'Pending', DATE_ADD(NOW(), INTERVAL 24 HOUR))
+          VALUES (?, ?, ?, CURDATE(), 'Pending', DATE_ADD(NOW(), INTERVAL 30 MINUTE))
         `, [next.MemberID, resRecord.CopyID, next.RequestCode]);
         await db.query(`UPDATE BookCopies SET Status = 'Reserved_on_Shelf' WHERE CopyID = ?`, [resRecord.CopyID]);
-        await db.query(`UPDATE Reservations SET Status = 'Ready', PickupDeadline = DATE_ADD(NOW(), INTERVAL 24 HOUR) WHERE ReservationID = ?`, [next.ReservationID]);
+        await db.query(`UPDATE Reservations SET Status = 'Ready', CopyID = ?, PickupDeadline = DATE_ADD(NOW(), INTERVAL 30 MINUTE) WHERE ReservationID = ?`, [resRecord.CopyID, next.ReservationID]);
+      } else {
+        await db.query(`UPDATE BookCopies SET Status = 'Available' WHERE CopyID = ?`, [resRecord.CopyID]);
       }
     }
 

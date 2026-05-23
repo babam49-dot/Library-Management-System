@@ -70,7 +70,7 @@ router.get('/all-staff', auth, async (req, res) => {
       `SELECT u.UserID, u.FirstName, u.LastName, u.FullName, u.Email, u.Phone, u.Status,
               s.StaffID, s.JobTitle, s.EmploymentDate, s.Salary
        FROM Users u
-       JOIN Staff s ON s.UserID = u.UserID
+       LEFT JOIN Staff s ON s.UserID = u.UserID
        WHERE u.RoleID = 2
        ORDER BY u.FullName`
     );
@@ -79,6 +79,37 @@ router.get('/all-staff', auth, async (req, res) => {
 });
 
 // ── MEMBER MANAGEMENT ─────────────────────────────────────────────────────────
+
+// GET /api/admin/pending-members
+router.get('/pending-members', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT u.UserID, u.FirstName, u.LastName, u.FullName, u.Email, u.Phone, u.Status,
+              m.MemberID, m.StudentID, m.Department, m.RegistrationDate
+       FROM Users u
+       LEFT JOIN Members m ON m.UserID = u.UserID
+       WHERE u.RoleID = 3 AND u.Status = 'pending'
+       ORDER BY u.UserID DESC`
+    );
+    return ok(res, 'Pending members', rows);
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
+// PATCH /api/admin/approve-member/:id
+router.patch('/approve-member/:id', auth, async (req, res) => {
+  try {
+    await pool.execute("UPDATE Users SET Status='active' WHERE UserID=? AND RoleID=3", [req.params.id]);
+    return ok(res, 'Member approved successfully');
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
+// PATCH /api/admin/reject-member/:id
+router.patch('/reject-member/:id', auth, async (req, res) => {
+  try {
+    await pool.execute("UPDATE Users SET Status='rejected' WHERE UserID=? AND RoleID=3", [req.params.id]);
+    return ok(res, 'Member rejected');
+  } catch (err) { return fail(res, err.message, 500); }
+});
 
 // GET /api/admin/all-members
 router.get('/all-members', auth, async (req, res) => {
@@ -498,7 +529,8 @@ router.get('/damage-reports', auth, async (req, res) => {
   try {
     const [rows] = await pool.execute(
       `SELECT dr.*, r.ReturnDate, br.BorrowID, bc.CopyID,
-              u.FullName as MemberName, u.UserID as MemberUserID, b.Title as BookTitle
+              u.FullName as MemberName, u.UserID as MemberUserID, b.Title as BookTitle,
+              su.FullName as StaffName
        FROM DamageReports dr
        LEFT JOIN Returns r ON r.ReturnID = dr.ReturnID
        LEFT JOIN BorrowingRecords br ON br.BorrowID = r.BorrowID
@@ -506,6 +538,8 @@ router.get('/damage-reports', auth, async (req, res) => {
        LEFT JOIN Users u ON u.UserID = m.UserID
        LEFT JOIN BookCopies bc ON bc.CopyID = br.CopyID
        LEFT JOIN Books b ON b.BookID = bc.BookID
+       LEFT JOIN Staff st ON st.StaffID = dr.StaffID
+       LEFT JOIN Users su ON su.UserID = st.UserID
        ORDER BY dr.AssessmentDate DESC`
     );
     return ok(res, 'Damage reports', rows);

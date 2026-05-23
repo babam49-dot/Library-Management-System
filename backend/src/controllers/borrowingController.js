@@ -81,7 +81,7 @@ exports.submitRequest = async (req, res) => {
         // Rule A
         await conn.query(`
           INSERT INTO BorrowingRecords (MemberID, CopyID, RequestCode, BorrowDate, Status, PickupDeadline)
-          VALUES (?, ?, ?, CURDATE(), 'Pending', DATE_ADD(NOW(), INTERVAL 24 HOUR))
+          VALUES (?, ?, ?, CURDATE(), 'Pending', DATE_ADD(NOW(), INTERVAL 30 MINUTE))
         `, [memberId, copyId, requestCode]);
 
         await conn.query(`UPDATE BookCopies SET Status = 'Reserved_on_Shelf' WHERE CopyID = ?`, [copyId]);
@@ -116,7 +116,7 @@ exports.submitRequest = async (req, res) => {
       success: true,
       data: {
         requestCode,
-        pickupDeadline: pending.length > 0 ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null,
+        pickupDeadline: pending.length > 0 ? new Date(Date.now() + 30 * 60 * 1000).toISOString() : null,
         pending,
         queued,
         skipped,
@@ -336,7 +336,7 @@ exports.processReturn = async (req, res) => {
         // a. INSERT new BorrowingRecords row
         await conn.query(`
           INSERT INTO BorrowingRecords (MemberID, CopyID, RequestCode, BorrowDate, Status, PickupDeadline)
-          VALUES (?, ?, ?, CURDATE(), 'Pending', DATE_ADD(NOW(), INTERVAL 24 HOUR))
+          VALUES (?, ?, ?, CURDATE(), 'Pending', DATE_ADD(NOW(), INTERVAL 30 MINUTE))
         `, [nextRes.MemberID, record.CopyID, nextRes.RequestCode]);
 
         // b. UPDATE BookCopies
@@ -345,7 +345,7 @@ exports.processReturn = async (req, res) => {
 
         // c. UPDATE Reservations
         await conn.query(`
-          UPDATE Reservations SET Status = 'Ready', PickupDeadline = DATE_ADD(NOW(), INTERVAL 24 HOUR)
+          UPDATE Reservations SET Status = 'Ready', PickupDeadline = DATE_ADD(NOW(), INTERVAL 30 MINUTE)
           WHERE ReservationID = ?
         `, [nextRes.ReservationID]);
 
@@ -577,10 +577,10 @@ exports.cancelRequest = async (req, res) => {
         const nextRes = resRows[0];
         await conn.query(`
           INSERT INTO BorrowingRecords (MemberID, CopyID, RequestCode, BorrowDate, Status, PickupDeadline)
-          VALUES (?, ?, ?, CURDATE(), 'Pending', DATE_ADD(NOW(), INTERVAL 24 HOUR))
+          VALUES (?, ?, ?, CURDATE(), 'Pending', DATE_ADD(NOW(), INTERVAL 30 MINUTE))
         `, [nextRes.MemberID, r.CopyID, nextRes.RequestCode]);
         await conn.query(`UPDATE BookCopies SET Status = 'Reserved_on_Shelf' WHERE CopyID = ?`, [r.CopyID]);
-        await conn.query(`UPDATE Reservations SET Status = 'Ready', PickupDeadline = DATE_ADD(NOW(), INTERVAL 24 HOUR) WHERE ReservationID = ?`, [nextRes.ReservationID]);
+        await conn.query(`UPDATE Reservations SET Status = 'Ready', PickupDeadline = DATE_ADD(NOW(), INTERVAL 30 MINUTE) WHERE ReservationID = ?`, [nextRes.ReservationID]);
       }
     }
 

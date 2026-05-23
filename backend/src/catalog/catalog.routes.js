@@ -48,4 +48,7 @@ router.get( '/publishers',      authenticated, ctrl.listPublishers);
 router.post('/publishers',      staffOrAdmin,  ctrl.createPublisher);
 router.put( '/publishers/:id',  staffOrAdmin,  ctrl.updatePublisher);
 
+// ─── ISBN / BARCODE LOOKUP ────────────────────────────────────────────────────
+router.get('/isbn-lookup/:isbn', staffOrAdmin, ctrl.isbnLookup);
+
 module.exports = router;
