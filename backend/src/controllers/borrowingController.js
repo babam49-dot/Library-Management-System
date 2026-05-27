@@ -8,6 +8,10 @@ const getConnection = async () => await db.getConnection();
 exports.submitRequest = async (req, res) => {
   const { copyIds } = req.body;
   const memberId = req.user.MemberID || req.user.memberID || req.user.extensionId;
+  const roleId = req.user.RoleID || req.user.roleID || 3; // 1=Admin, 2=Staff, 3=Member
+  // Members (RoleID=3) get a 5-minute pickup window; staff/admin get 30 minutes
+  const pickupInterval = roleId === 3 ? 'INTERVAL 5 MINUTE' : 'INTERVAL 30 MINUTE';
+  const pickupMs = roleId === 3 ? 5 * 60 * 1000 : 30 * 60 * 1000;
 
   if (!copyIds || !Array.isArray(copyIds) || copyIds.length === 0) {
     return res.status(400).json({ success: false, message: "copyIds must be a non-empty array" });
@@ -81,7 +85,7 @@ exports.submitRequest = async (req, res) => {
         // Rule A
         await conn.query(`
           INSERT INTO BorrowingRecords (MemberID, CopyID, RequestCode, BorrowDate, Status, PickupDeadline)
-          VALUES (?, ?, ?, CURDATE(), 'Pending', DATE_ADD(NOW(), INTERVAL 30 MINUTE))
+          VALUES (?, ?, ?, CURDATE(), 'Pending', DATE_ADD(NOW(), ${pickupInterval}))
         `, [memberId, copyId, requestCode]);
 
         await conn.query(`UPDATE BookCopies SET Status = 'Reserved_on_Shelf' WHERE CopyID = ?`, [copyId]);
@@ -116,7 +120,7 @@ exports.submitRequest = async (req, res) => {
       success: true,
       data: {
         requestCode,
-        pickupDeadline: pending.length > 0 ? new Date(Date.now() + 30 * 60 * 1000).toISOString() : null,
+        pickupDeadline: pending.length > 0 ? new Date(Date.now() + pickupMs).toISOString() : null,
         pending,
         queued,
         skipped,

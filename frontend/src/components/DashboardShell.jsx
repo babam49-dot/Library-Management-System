@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useTheme } from '../context/ThemeContext'
 import DarkModeToggle from '../components/DarkModeToggle'
 
@@ -14,6 +14,8 @@ export default function DashboardShell({
 }) {
   const { isDark } = useTheme()
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const navigate = useNavigate()
+  const location = useLocation()
 
   const ROLE_META = {
     admin:  { color: '#f59e0b', gradient: 'linear-gradient(135deg,#f59e0b,#d97706)', label: 'Administrator',   icon: '🔑' },
@@ -80,7 +82,13 @@ export default function DashboardShell({
               {(navItems || []).map(item => {
                 const active = activeTab === item.key
                 return (
-                  <button key={item.key} onClick={() => setTab && setTab(item.key)} className="nav-item"
+                  <button key={item.key} onClick={() => {
+                if (item.path && item.path !== location.pathname) {
+                  navigate(item.path, { state: { tab: item.key } })
+                } else if (setTab) {
+                  setTab(item.key)
+                }
+              }} className="nav-item"
                     style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 10, border: 'none', background: active ? `${meta.color}22` : 'transparent', color: active ? meta.color : c.muted, cursor: 'pointer', fontSize: 13, fontWeight: active ? 700 : 500, whiteSpace: 'nowrap', transition: 'all 0.2s' }}>
                     <span>{item.icon}</span><span>{item.label}</span>
                   </button>

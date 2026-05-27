@@ -8,7 +8,7 @@ const ok = (res, message, data = null) => res.json({ success: true, message, dat
 const fail = (res, message, status = 400, data = null) =>
   res.status(status).json({ success: false, message, data });
 
-const memberOnly = [authenticate, requireRole(3)];
+const memberOnly = [authenticate, requireRole(1, 2, 3)];
 
 function getMemberId(req) {
   return req.user.MemberID || req.user.memberID || req.user.extensionId;

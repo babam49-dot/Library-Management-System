@@ -368,5 +368,28 @@ router.patch('/all-reservations/:id', auth, async (req, res) => {
   } catch (err) { return fail(res, err.message, 500); }
 });
 
+
+// GET /api/staff/payment-history — payment history visible to staff
+router.get('/payment-history', auth, async (req, res) => {
+  try {
+    const [rows] = await pool.execute(`
+      SELECT p.PaymentID, p.AmountPaid, p.PaymentMethod, p.PaymentReference, p.PaymentStatus, p.PaymentDate,
+             f.FineID, ft.TypeName as FineType,
+             m.MemberID, m.StudentID, u.FullName as MemberName,
+             s.FullName as ProcessedBy
+      FROM Payments p
+      JOIN Fines f ON f.FineID = p.FineID
+      LEFT JOIN FineTypes ft ON ft.TypeID = f.FineTypeID
+      JOIN Members m ON m.MemberID = p.MemberID
+      JOIN Users u ON u.UserID = m.UserID
+      LEFT JOIN Staff st ON st.StaffID = p.ProcessedByStaffID
+      LEFT JOIN Users s ON s.UserID = st.UserID
+      WHERE p.PaymentStatus = 'Completed'
+      ORDER BY p.PaymentDate DESC LIMIT 200
+    `);
+    return ok(res, 'Payment History', rows);
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
 module.exports = router;
 

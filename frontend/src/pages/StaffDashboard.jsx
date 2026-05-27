@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import DashboardShell from '../components/DashboardShell'
@@ -11,10 +12,17 @@ const API = 'http://localhost:4000/api'
 
 export default function StaffDashboard() {
   const { user, logout } = useAuth()
+  const location = useLocation()
   const { isDark } = useTheme()
   const [stats, setStats] = useState(null)
   const [borrowingRecords, setBorrowingRecords] = useState([])
-  const [tab, setTab] = useState('overview')
+  const [tab, setTab] = useState(location.state?.tab || 'overview')
+
+  useEffect(() => {
+    if (location.state?.tab) {
+      setTab(location.state.tab);
+    }
+  }, [location.state]);
   
   // Catalog Form States
   const [bookForm, setBookForm] = useState({ 
@@ -142,7 +150,7 @@ export default function StaffDashboard() {
       })
       if (coverFile) fd.append('coverImage', coverFile)
 
-      await axios.post(`${API}/books`, fd, { headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${localStorage.getItem('token')}` } })
+      await axios.post(`${API}/books`, fd, { headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${localStorage.getItem('lms_token')}` } })
       setBookMsg('Book and copies added successfully!')
       setRegisterStep(1)
       setBookForm({ 
@@ -347,6 +355,7 @@ export default function StaffDashboard() {
     { key: 'reservations', label: 'Reservations', icon: 'üìã', path: '/reservations' },
     { key: 'overdue', label: 'Overdue Books', icon: '‚ö†Ô∏è', path: '/overdue' },
     { key: 'profile', label: 'My Profile', icon: 'üë§', path: '/staff' },
+    { key: 'payments', label: 'Payment History', icon: 'üßæ', path: '/staff' },
   ]
   const tabLabel = TABS.find(t => t.key === tab)?.label || 'Staff Dashboard'
 
@@ -390,7 +399,7 @@ export default function StaffDashboard() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
                     <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, color: alert ? color : textMuted, marginBottom: 4 }}>{label}</div>
-                    <div style={{ fontSize: 32, fontWeight: 900, color: alert ? color : textPrimary, lineHeight: 1 }}>{value ?? 'ó'}</div>
+                    <div style={{ fontSize: 32, fontWeight: 900, color: alert ? color : textPrimary, lineHeight: 1 }}>{value ?? 'ÔøΩ'}</div>
                     <div style={{ fontSize: 11, color: textMuted, marginTop: 4 }}>{note}</div>
                   </div>
                   <div style={{ fontSize: 24, opacity: 0.75 }}>{icon}</div>
@@ -464,7 +473,7 @@ export default function StaffDashboard() {
                             </span>
                           </td>
                           <td style={{ padding: '10px 14px', fontSize: 12, color: isOD ? '#ef4444' : textMuted, fontWeight: isOD ? 700 : 400 }}>
-                            {r.DueDate ? new Date(r.DueDate).toLocaleDateString() : 'ó'}
+                            {r.DueDate ? new Date(r.DueDate).toLocaleDateString() : 'ÔøΩ'}
                           </td>
                         </tr>
                       )
@@ -506,7 +515,7 @@ export default function StaffDashboard() {
         </div>
       )}
 
-      {/* Member approval is Admin-only ó not shown here */}
+      {/* Member approval is Admin-only ÔøΩ not shown here */}
 
       {tab === 'catalog' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 0, maxWidth: 800 }}>
@@ -639,7 +648,7 @@ export default function StaffDashboard() {
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
                 <div style={{ fontSize: 12, color: textMuted }}>
-                  ISBN not found? No problem ó fill details manually.
+                  ISBN not found? No problem ÔøΩ fill details manually.
                 </div>
                 <button type="button" className="wiz-btn-primary" onClick={() => setRegisterStep(2)}>
                   Fill Details ‚Üí
@@ -675,7 +684,7 @@ export default function StaffDashboard() {
                     {publishers.map(p => <option key={p.PublisherID} value={p.PublisherID}>{p.PublisherName}</option>)}
                   </select>
                   {isbnPreview?.publisher && !publishers.find(p => p.PublisherName?.toLowerCase().includes((isbnPreview.publisher||'').toLowerCase().substring(0,6))) && (
-                    <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>üìå "{isbnPreview.publisher}" not in list ó add in Manage Metadata</div>
+                    <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>üìå "{isbnPreview.publisher}" not in list ÔøΩ add in Manage Metadata</div>
                   )}
                 </div>
                 <div className="wiz-field">
@@ -711,7 +720,7 @@ export default function StaffDashboard() {
                   <input type="text" name="shelfLocation" value={bookForm.shelfLocation} onChange={handleBookChange} placeholder="e.g. A1-05" />
                 </div>
                 <div className="wiz-field" style={{ gridColumn: 'span 2' }}>
-                  <label style={lblStyle}>Cover Image {isbnPreview?.coverUrl ? '(auto-fetched ó upload to override)' : ''}</label>
+                  <label style={lblStyle}>Cover Image {isbnPreview?.coverUrl ? '(auto-fetched ÔøΩ upload to override)' : ''}</label>
                   <input type="file" accept="image/*" ref={fileInputRef} onChange={e => setCoverFile(e.target.files[0])} style={{ padding: '8px 12px' }} />
                 </div>
                 <div className="wiz-field" style={{ gridColumn: 'span 2' }}>
@@ -735,8 +744,8 @@ export default function StaffDashboard() {
                   ['Title', bookForm.title], ['ISBN', bookForm.isbn], ['Year', bookForm.year],
                   ['Edition', bookForm.edition], ['Language', bookForm.language], ['Copies', bookForm.numberOfCopies],
                   ['Shelf', bookForm.shelfLocation],
-                  ['Publisher', publishers.find(p => String(p.PublisherID) === String(bookForm.publisherId))?.PublisherName || 'ó'],
-                  ['Category', categories.find(c => String(c.CategoryID) === String(bookForm.categoryId))?.CategoryName || 'ó'],
+                  ['Publisher', publishers.find(p => String(p.PublisherID) === String(bookForm.publisherId))?.PublisherName || 'ÔøΩ'],
+                  ['Category', categories.find(c => String(c.CategoryID) === String(bookForm.categoryId))?.CategoryName || 'ÔøΩ'],
                 ].map(([k, v]) => v ? (
                   <div key={k} style={{ background: isDark?'rgba(255,255,255,0.04)':'#f8fafc', borderRadius: 8, padding: '8px 12px' }}>
                     <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: textMuted, letterSpacing: 0.8 }}>{k}</div>
@@ -789,7 +798,7 @@ export default function StaffDashboard() {
                 {categories.map(c => (
                   <tr key={c.CategoryID} className="table-row" style={{ borderTop: `1px solid ${border}`, color: textPrimary }}>
                     <td style={{ padding: 12 }}>{c.CategoryName}</td>
-                    <td style={{ padding: 12, color: '#94a3b8' }}>{c.Description || 'ó'}</td>
+                    <td style={{ padding: 12, color: '#94a3b8' }}>{c.Description || 'ÔøΩ'}</td>
                     <td style={{ padding: 12, textAlign: 'right' }}>
                       <button className="interactive-btn" onClick={() => setEditModal({type:'categories', item:c})} style={{ background: 'transparent', color: '#3b82f6', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Edit</button>
                     </td>
@@ -818,7 +827,7 @@ export default function StaffDashboard() {
                 {authors.map(a => (
                   <tr key={a.AuthorID} className="table-row" style={{ borderTop: `1px solid ${border}`, color: textPrimary }}>
                     <td style={{ padding: 12 }}>{a.Name}</td>
-                    <td style={{ padding: 12, color: '#94a3b8' }}>{a.Nationality || 'ó'}</td>
+                    <td style={{ padding: 12, color: '#94a3b8' }}>{a.Nationality || 'ÔøΩ'}</td>
                     <td style={{ padding: 12, textAlign: 'right' }}>
                       <button className="interactive-btn" onClick={() => setEditModal({type:'authors', item:a})} style={{ background: 'transparent', color: '#3b82f6', border: 'none', cursor: 'pointer', fontWeight: 600, marginRight: 12 }}>Edit</button>
                       <button className="interactive-btn" onClick={() => handleDeleteMeta('authors', a.AuthorID, setAuthorMsg)} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', padding: '4px 10px', borderRadius: 6, cursor: 'pointer' }}>Delete</button>
@@ -847,8 +856,8 @@ export default function StaffDashboard() {
                 {publishers.map(p => (
                   <tr key={p.PublisherID} style={{ borderTop: `1px solid ${border}`, color: textPrimary }}>
                     <td style={{ padding: 12 }}>{p.PublisherName}</td>
-                    <td style={{ padding: 12, color: '#94a3b8' }}>{p.ContactEmail || 'ó'}</td>
-                    <td style={{ padding: 12, color: '#94a3b8' }}>{p.Phone || 'ó'}</td>
+                    <td style={{ padding: 12, color: '#94a3b8' }}>{p.ContactEmail || 'ÔøΩ'}</td>
+                    <td style={{ padding: 12, color: '#94a3b8' }}>{p.Phone || 'ÔøΩ'}</td>
                     <td style={{ padding: 12, textAlign: 'right' }}>
                       <button onClick={() => setEditModal({type:'publishers', item:p})} style={{ background: 'transparent', color: '#3b82f6', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Edit</button>
                     </td>
@@ -893,8 +902,8 @@ export default function StaffDashboard() {
                 <label style={lblStyle}>Condition on Return</label>
                 <select value={returnForm.condition} onChange={e => setReturnForm({...returnForm, condition: e.target.value})} style={dynInputStyle}>
                   <option value="Good">Good</option>
-                  <option value="Damaged">Damaged ó requires photo proof</option>
-                  <option value="Lost">Lost ó requires report</option>
+                  <option value="Damaged">Damaged ÔøΩ requires photo proof</option>
+                  <option value="Lost">Lost ÔøΩ requires report</option>
                 </select>
               </div>
               {(returnForm.condition === 'Damaged' || returnForm.condition === 'Lost') && (
@@ -1186,10 +1195,10 @@ export default function StaffDashboard() {
                       const col = isPending ? '#f59e0b' : st === 'Borrowed' ? '#10b981' : st === 'Overdue' ? '#ef4444' : '#64748b';
                       return (
                         <tr key={b.BorrowID || b.borrowId} className="table-row" style={{ borderBottom:`1px solid ${border}` }}>
-                          <td style={{ padding:'11px 14px', color:textPrimary, fontWeight:600, fontSize:13, maxWidth:180 }}><div style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{b.Title || b.bookTitle || 'ó'}</div></td>
-                          <td style={{ padding:'11px 14px', fontSize:12, color:textMuted, fontFamily:'monospace' }}>{b.RequestCode || b.requestCode || 'ó'}</td>
-                          <td style={{ padding:'11px 14px', fontSize:12, color:textMuted, whiteSpace:'nowrap' }}>{b.BorrowDate || b.borrowDate ? new Date(b.BorrowDate || b.borrowDate).toLocaleDateString() : 'ó'}</td>
-                          <td style={{ padding:'11px 14px', fontSize:12, color: st === 'Overdue' ? '#ef4444' : textMuted, whiteSpace:'nowrap' }}>{b.DueDate || b.dueDate ? new Date(b.DueDate || b.dueDate).toLocaleDateString() : 'ó'}</td>
+                          <td style={{ padding:'11px 14px', color:textPrimary, fontWeight:600, fontSize:13, maxWidth:180 }}><div style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{b.Title || b.bookTitle || 'ÔøΩ'}</div></td>
+                          <td style={{ padding:'11px 14px', fontSize:12, color:textMuted, fontFamily:'monospace' }}>{b.RequestCode || b.requestCode || 'ÔøΩ'}</td>
+                          <td style={{ padding:'11px 14px', fontSize:12, color:textMuted, whiteSpace:'nowrap' }}>{b.BorrowDate || b.borrowDate ? new Date(b.BorrowDate || b.borrowDate).toLocaleDateString() : 'ÔøΩ'}</td>
+                          <td style={{ padding:'11px 14px', fontSize:12, color: st === 'Overdue' ? '#ef4444' : textMuted, whiteSpace:'nowrap' }}>{b.DueDate || b.dueDate ? new Date(b.DueDate || b.dueDate).toLocaleDateString() : 'ÔøΩ'}</td>
                           <td style={{ padding:'11px 14px' }}><span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background:col+'18', color:col, border:`1px solid ${col}40` }}>{st}</span></td>
                           <td style={{ padding:'11px 14px' }}>
                             {isPending && (
@@ -1212,9 +1221,149 @@ export default function StaffDashboard() {
 
       {tab === 'fines' && <FinesTab getHeaders={getHeaders} c={{ cardBg, border, textPrimary, textMuted, inputBg, inputBorder }} />}
 
+      {tab === 'payments' && <PaymentsHistoryTab getHeaders={getHeaders} API={API} c={{ cardBg, border, textPrimary, textMuted, inputBg, inputBorder }} />}
+
 
     </DashboardShell>
   )
+}
+
+
+
+function PaymentsHistoryTab({ getHeaders, API, c }) {
+  const [payments, setPayments] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState('');
+  const [search, setSearch] = React.useState('');
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const res = await axios.get(`${API}/staff/payment-history`, getHeaders());
+        setPayments(res.data.data || []);
+      } catch (err) {
+        setError(err.response?.data?.message || err.message);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const filtered = payments.filter(p => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    return (
+      (p.MemberName || '').toLowerCase().includes(q) ||
+      (p.StudentID || '').toLowerCase().includes(q) ||
+      (p.FineType || '').toLowerCase().includes(q) ||
+      (p.PaymentMethod || '').toLowerCase().includes(q) ||
+      (p.PaymentReference || '').toLowerCase().includes(q)
+    );
+  });
+
+  const totalCollected = payments.reduce((sum, p) => sum + Number(p.AmountPaid || 0), 0);
+  const cashTotal = payments.filter(p => p.PaymentMethod === 'Cash').reduce((sum, p) => sum + Number(p.AmountPaid || 0), 0);
+  const chapaTotal = payments.filter(p => p.PaymentMethod !== 'Cash').reduce((sum, p) => sum + Number(p.AmountPaid || 0), 0);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <style>{`
+        @keyframes payIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+        .pay-row:hover td { background: rgba(16,185,129,0.04) !important; }
+      `}</style>
+
+      {/* Summary Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 14 }}>
+        {[
+          { label: 'Total Collected', value: `ETB ${totalCollected.toFixed(2)}`, color: '#10b981', icon: 'üí∞' },
+          { label: 'Cash Payments', value: `ETB ${cashTotal.toFixed(2)}`, color: '#3b82f6', icon: 'üíµ' },
+          { label: 'Chapa / Digital', value: `ETB ${chapaTotal.toFixed(2)}`, color: '#8b5cf6', icon: 'üì±' },
+          { label: 'Total Transactions', value: payments.length, color: '#f59e0b', icon: 'üßæ' },
+        ].map(({ label, value, color, icon }) => (
+          <div key={label} style={{ background: c.cardBg, border: `1px solid ${c.border}`, borderRadius: 14, padding: '16px 18px', animation: 'payIn 0.4s ease' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, color: c.textMuted, marginBottom: 4 }}>{label}</div>
+                <div style={{ fontSize: 26, fontWeight: 900, color: color, lineHeight: 1 }}>{loading ? '‚Ä¶' : value}</div>
+              </div>
+              <div style={{ fontSize: 22, opacity: 0.75 }}>{icon}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Search Bar */}
+      <div style={{ background: c.cardBg, border: `1px solid ${c.border}`, borderRadius: 14, padding: '16px 20px', display: 'flex', gap: 12, alignItems: 'center' }}>
+        <span style={{ fontSize: 16, opacity: 0.5 }}>üîç</span>
+        <input
+          type="text"
+          placeholder="Search by member name, student ID, fine type, or reference‚Ä¶"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: c.textPrimary, fontSize: 14 }}
+        />
+        {search && <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', color: c.textMuted, cursor: 'pointer', fontSize: 16, fontWeight: 900 }}>‚úï</button>}
+      </div>
+
+      {/* Table */}
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 60, color: c.textMuted, fontSize: 14 }}>‚è≥ Loading payment history‚Ä¶</div>
+      ) : error ? (
+        <div style={{ textAlign: 'center', padding: 40, color: '#ef4444', fontWeight: 700 }}>‚ùå {error}</div>
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 60, color: c.textMuted }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>üßæ</div>
+          <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>{search ? 'No results found' : 'No payments recorded yet'}</div>
+          <div style={{ fontSize: 13 }}>{search ? 'Try a different search term.' : 'Payments will appear here once processed.'}</div>
+        </div>
+      ) : (
+        <div style={{ background: c.cardBg, border: `1px solid ${c.border}`, borderRadius: 14, overflow: 'hidden' }}>
+          <div style={{ padding: '12px 18px', borderBottom: `1px solid ${c.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: c.textPrimary }}>Payment Records</div>
+            <div style={{ fontSize: 12, color: c.textMuted, fontWeight: 600 }}>{filtered.length} of {payments.length} records</div>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: 'rgba(16,185,129,0.05)' }}>
+                  {['Date', 'Member', 'Student ID', 'Fine Type', 'Amount Paid', 'Method', 'Reference', 'Processed By'].map(h => (
+                    <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: c.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((p, i) => (
+                  <tr key={p.PaymentID || i} className="pay-row" style={{ borderTop: `1px solid ${c.border}` }}>
+                    <td style={{ padding: '10px 14px', fontSize: 12, color: c.textMuted, whiteSpace: 'nowrap' }}>
+                      {p.PaymentDate ? new Date(p.PaymentDate).toLocaleString() : '‚Äî'}
+                    </td>
+                    <td style={{ padding: '10px 14px', fontSize: 13, color: c.textPrimary, fontWeight: 700 }}>{p.MemberName || '‚Äî'}</td>
+                    <td style={{ padding: '10px 14px', fontSize: 12, color: '#3b82f6', fontFamily: 'monospace' }}>{p.StudentID || '‚Äî'}</td>
+                    <td style={{ padding: '10px 14px', fontSize: 12, color: c.textMuted }}>{p.FineType || 'Library Fine'}</td>
+                    <td style={{ padding: '10px 14px', fontSize: 14, fontWeight: 900, color: '#10b981', whiteSpace: 'nowrap' }}>
+                      ETB {Number(p.AmountPaid || 0).toFixed(2)}
+                    </td>
+                    <td style={{ padding: '10px 14px' }}>
+                      <span style={{
+                        fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 20,
+                        background: p.PaymentMethod === 'Cash' ? 'rgba(59,130,246,0.1)' : 'rgba(139,92,246,0.1)',
+                        color: p.PaymentMethod === 'Cash' ? '#3b82f6' : '#8b5cf6',
+                        border: `1px solid ${p.PaymentMethod === 'Cash' ? 'rgba(59,130,246,0.3)' : 'rgba(139,92,246,0.3)'}`
+                      }}>{p.PaymentMethod || 'Unknown'}</span>
+                    </td>
+                    <td style={{ padding: '10px 14px', fontSize: 11, color: c.textMuted, fontFamily: 'monospace', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {p.PaymentReference || '‚Äî'}
+                    </td>
+                    <td style={{ padding: '10px 14px', fontSize: 12, color: c.textMuted }}>{p.ProcessedBy || 'Self / System'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function FinesTab({ getHeaders, c }) {
@@ -1453,6 +1602,6 @@ const inputStyle = { width: '100%', padding: '10px 14px', borderRadius: 10, bord
 const StatCard = ({ title, value, color = '#10b981', highlight, cardBg, textPrimary, border }) => (
   <div className="stat-card interactive-card" style={{ background: cardBg, backdropFilter:'blur(12px)', border: highlight ? `2px solid ${color}` : `1px solid ${border}`, borderRadius: 12, padding: '14px 18px', boxShadow: highlight ? `0 0 24px ${color}22` : 'none' }}>
     <div style={{ fontSize: 11, color: highlight ? color : '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>{title}</div>
-    <div style={{ fontSize: 26, fontWeight: 800, color: highlight ? color : textPrimary }}>{value ?? 'ó'}</div>
+    <div style={{ fontSize: 26, fontWeight: 800, color: highlight ? color : textPrimary }}>{value ?? 'ÔøΩ'}</div>
   </div>
 )
