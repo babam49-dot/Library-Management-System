@@ -215,7 +215,7 @@ exports.confirmCollection = async (req, res) => {
 
     for (const bid of borrowIds) {
       const [rows] = await conn.query(`
-        SELECT CopyID, Status, PickupDeadline, RequestCode FROM BorrowingRecords
+        SELECT CopyID, Status, PickupDeadline, RequestCode, MemberID FROM BorrowingRecords
         WHERE BorrowID = ? FOR UPDATE
       `, [bid]);
 
@@ -225,6 +225,25 @@ exports.confirmCollection = async (req, res) => {
       
       if (record.RequestCode !== code || record.Status !== 'Pending') {
         continue;
+      }
+
+      // Check if the borrower is Staff (RoleID 2) or Admin (RoleID 1)
+      const [borrowerUser] = await conn.query(`
+        SELECT u.RoleID FROM Users u
+        JOIN Members m ON u.UserID = m.UserID
+        WHERE m.MemberID = ?
+      `, [record.MemberID]);
+
+      const borrowerRoleID = borrowerUser[0]?.RoleID;
+      if (borrowerRoleID === 2 || borrowerRoleID === 1) {
+        // ONLY Admin (RoleID 1) can confirm this borrow request
+        if (req.user.roleID !== 1) {
+          await conn.rollback();
+          return res.status(403).json({
+            success: false,
+            message: "Only administrators can permit borrow requests made by staff members."
+          });
+        }
       }
 
       if (record.PickupDeadline && new Date(record.PickupDeadline) < new Date()) {
@@ -603,7 +622,7 @@ exports.getSession = async (req, res) => {
         br.BorrowID as borrowId, br.RequestCode as requestCode, br.Status as status,
         br.BorrowDate as borrowDate, br.DueDate as dueDate, br.PickupDeadline as pickupDeadline,
         b.Title as bookTitle, bc.CopyID as copyId, bc.ShelfLocation as shelfLocation,
-        m.MemberID as memberId, u.FullName as fullName, u.Email as email
+        m.MemberID as memberId, m.StudentID as studentId, u.FullName as fullName, u.Email as email, u.RoleID as roleId
       FROM BorrowingRecords br
       JOIN BookCopies bc ON br.CopyID = bc.CopyID
       JOIN Books b ON bc.BookID = b.BookID
@@ -618,8 +637,10 @@ exports.getSession = async (req, res) => {
 
     const member = {
       memberId: rows[0].memberId,
+      studentId: rows[0].studentId,
       fullName: rows[0].fullName,
-      email: rows[0].email
+      email: rows[0].email,
+      roleId: rows[0].roleId  // 1=Admin, 2=Staff, 3=Member
     };
 
     res.json({
@@ -654,6 +675,25 @@ exports.confirmCollection = async (req, res) => {
     }
 
     const memberId = rows[0].MemberID;
+
+    // Check if the borrower is Staff (RoleID 2) or Admin (RoleID 1)
+    const [borrowerUser] = await conn.query(`
+      SELECT u.RoleID FROM Users u
+      JOIN Members m ON u.UserID = m.UserID
+      WHERE m.MemberID = ?
+    `, [memberId]);
+
+    const borrowerRoleID = borrowerUser[0]?.RoleID;
+    if (borrowerRoleID === 2 || borrowerRoleID === 1) {
+      // ONLY Admin (RoleID 1) can confirm this borrow request
+      if (req.user.roleID !== 1) {
+        await conn.rollback();
+        return res.status(403).json({
+          success: false,
+          message: "Only administrators can permit borrow requests made by staff members."
+        });
+      }
+    }
     
     // Check fine block
     const debtCheck = await validateDebtCheck(memberId, conn);

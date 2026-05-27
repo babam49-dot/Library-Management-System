@@ -94,28 +94,54 @@ router.post('/register/member', async (req, res) => {
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
-    if (!email || !password)
-      return fail(res, 'Email and password are required');
+    const { email, identifier, password, loginType } = req.body;
+    const loginInput = email || identifier;
+    if (!loginInput || !password)
+      return fail(res, 'Email/Identifier and password are required');
 
-    const [rows] = await pool.execute('SELECT * FROM Users WHERE Email = ?', [email]);
-    if (rows.length === 0)
-      return fail(res, 'No account found with this email.', 401);
+    let user = null;
+    // Step 1: Look up by Email
+    const [emailRows] = await pool.execute('SELECT * FROM Users WHERE Email = ?', [loginInput]);
+    if (emailRows.length > 0) {
+      user = emailRows[0];
+    } else {
+      // Step 2: Look up by Student ID or Staff ID
+      if (loginType === 'student') {
+        const [studentRows] = await pool.execute(
+          `SELECT u.* FROM Users u 
+           JOIN Members m ON u.UserID = m.UserID 
+           WHERE m.StudentID = ?`,
+          [loginInput]
+        );
+        if (studentRows.length > 0) user = studentRows[0];
+      } else if (loginType === 'staff') {
+        const [staffRows] = await pool.execute(
+          `SELECT u.* FROM Users u 
+           JOIN Staff s ON u.UserID = s.UserID 
+           WHERE s.StaffIdentifier = ?`,
+          [loginInput]
+        );
+        if (staffRows.length > 0) user = staffRows[0];
+      }
+    }
 
-    const user = rows[0];
+    if (!user)
+      return fail(res, 'Invalid credentials', 401);
+
     const match = await bcrypt.compare(password, user.Password);
     if (!match)
-      return fail(res, 'Incorrect password.', 401);
+      return fail(res, 'Invalid credentials', 401);
 
-    if (user.Status === 'pending') {
+    const userStatus = (user.Status || '').toLowerCase();
+    if (userStatus === 'pending') {
       if (user.RoleID === 2) return fail(res, 'Your account is pending admin approval.', 403);
       if (user.RoleID === 3) return fail(res, 'Your account is pending staff approval.', 403);
       return fail(res, 'Your account is pending approval.', 403);
     }
-    if (user.Status === 'rejected')
+    if (userStatus === 'rejected')
       return fail(res, 'Your account has been rejected. Contact the library.', 403);
-    if (user.Status !== 'active')
-      return fail(res, 'Your account is not active.', 403);
+    if (userStatus !== 'active')
+      return fail(res, 'Account is not active', 403);
 
     let memberId = null;
     let staffId = null;
@@ -125,6 +151,20 @@ router.post('/login', async (req, res) => {
     } else if (user.RoleID === 2 || user.RoleID === 1) {
       const [s] = await pool.execute('SELECT StaffID FROM Staff WHERE UserID = ?', [user.UserID]);
       if (s.length) staffId = s[0].StaffID;
+
+      // Auto-create/link a Member record for Staff/Admin so they can borrow books
+      const [m] = await pool.execute('SELECT MemberID FROM Members WHERE UserID = ?', [user.UserID]);
+      if (m.length) {
+        memberId = m[0].MemberID;
+      } else {
+        const mid = await nextMemberId();
+        const staffIdentifier = staffId ? `STAFF-${staffId}` : `ADMIN-${user.UserID}`;
+        await pool.execute(
+          'INSERT INTO Members (MemberID, UserID, StudentID, Department, RegistrationDate, MaxBooksAllowed) VALUES (?,?,?,?,?,?)',
+          [mid, user.UserID, staffIdentifier, 'Staff Department', new Date(), 5]
+        );
+        memberId = mid;
+      }
     }
 
     const token = jwt.sign(
