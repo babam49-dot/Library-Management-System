@@ -29,8 +29,6 @@ router.get('/dashboard', auth, async (req, res) => {
   } catch (err) { return fail(res, err.message, 500); }
 });
 
-
-
 // POST /api/staff/borrow
 router.post('/borrow', auth, async (req, res) => {
   try {
@@ -60,7 +58,6 @@ router.post('/borrow', auth, async (req, res) => {
     );
     await pool.execute("UPDATE BookCopies SET Status='borrowed' WHERE CopyID=?", [copyId]);
 
-    // Update any matching reservation to 'fulfilled'
     const [bookRes] = await pool.execute("SELECT BookID FROM BookCopies WHERE CopyID=?", [copyId]);
     if (bookRes.length) {
       await pool.execute(
@@ -103,7 +100,6 @@ router.post('/return', auth, async (req, res) => {
     await pool.execute("UPDATE BorrowingRecords SET Status='returned' WHERE BorrowID=?", [borrowId]);
     await pool.execute("UPDATE BookCopies SET Status=? WHERE CopyID=?", [condition === 'Lost' ? 'lost' : 'available', borrow.CopyID]);
 
-    // Update pending reservation if copy now available
     const [bookRes] = await pool.execute("SELECT BookID FROM BookCopies WHERE CopyID=?", [borrow.CopyID]);
     if (bookRes.length) {
       await pool.execute(
@@ -112,7 +108,6 @@ router.post('/return', auth, async (req, res) => {
       );
     }
 
-    // Auto-calculate fine if overdue
     const returnDate = new Date();
     const dueDate = new Date(borrow.DueDate);
     let fineId = null;
@@ -287,7 +282,7 @@ router.post('/record-payment', auth, async (req, res) => {
 
     const balance = Math.max(Number(fine.Amount || 0) - Number(paid.totalPaid || 0), 0);
     const payable = Number(amount);
-    
+
     if (!payable || payable <= 0 || payable > balance) {
       await connection.rollback();
       return fail(res, `Amount must be between 1 and ${balance.toFixed(2)}`);
@@ -314,7 +309,7 @@ router.post('/record-payment', auth, async (req, res) => {
   }
 });
 
-// GET /api/staff/all-borrowings — full history of all members (staff view)
+// GET /api/staff/all-borrowings
 router.get('/all-borrowings', auth, async (req, res) => {
   try {
     const [rows] = await pool.execute(
@@ -337,7 +332,7 @@ router.get('/all-borrowings', auth, async (req, res) => {
   } catch (err) { return fail(res, err.message, 500); }
 });
 
-// GET /api/staff/all-reservations — full reservation list for staff management
+// GET /api/staff/all-reservations
 router.get('/all-reservations', auth, async (req, res) => {
   try {
     const [rows] = await pool.execute(
@@ -357,7 +352,7 @@ router.get('/all-reservations', auth, async (req, res) => {
   } catch (err) { return fail(res, err.message, 500); }
 });
 
-// PATCH /api/staff/all-reservations/:id — update reservation status
+// PATCH /api/staff/all-reservations/:id
 router.patch('/all-reservations/:id', auth, async (req, res) => {
   try {
     const { status } = req.body;
@@ -368,8 +363,82 @@ router.patch('/all-reservations/:id', auth, async (req, res) => {
   } catch (err) { return fail(res, err.message, 500); }
 });
 
+// POST /api/staff/self-reserve — staff member reserves a book for personal borrowing
+router.post('/self-reserve', auth, async (req, res) => {
+  const { bookId } = req.body;
+  const userID = req.user.userID || req.user.UserID;
+  if (!bookId) return fail(res, 'bookId is required');
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
 
-// GET /api/staff/payment-history — payment history visible to staff
+    // Look up or create a Members record for this staff user
+    const [[staffMember]] = await connection.execute(
+      'SELECT MemberID FROM Members WHERE UserID = ?', [userID]
+    );
+    let memberID = staffMember?.MemberID;
+
+    if (memberID) {
+      const [resCount] = await connection.execute(
+        "SELECT COUNT(*) as cnt FROM Reservations WHERE MemberID = ? AND Status IN ('Queued','Ready')",
+        [memberID]
+      );
+      if (resCount[0].cnt >= 2) {
+        await connection.rollback();
+        return fail(res, 'You have reached the maximum reservation limit of 2 books.');
+      }
+
+      const [existingRes] = await connection.execute(
+        "SELECT ResID FROM Reservations WHERE MemberID = ? AND BookID = ? AND Status IN ('Queued','Ready')",
+        [memberID, bookId]
+      );
+      if (existingRes.length > 0) {
+        await connection.rollback();
+        return fail(res, 'You already have an active reservation for this book.');
+      }
+    } else {
+      const [insertResult] = await connection.execute(
+        "INSERT INTO Members (UserID, StudentID, Department, MaxBooksAllowed) VALUES (?, ?, 'Staff', 5)",
+        [userID, `STAFF-${userID}`]
+      );
+      memberID = insertResult.insertId;
+    }
+
+    const [available] = await connection.execute(
+      "SELECT CopyID FROM BookCopies WHERE BookID = ? AND Status = 'available' LIMIT 1",
+      [bookId]
+    );
+
+    const requestCode = 'RSV-' + Math.floor(1000 + Math.random() * 9000);
+    let copyID = null;
+    let status = 'Queued';
+
+    if (available.length > 0) {
+      copyID = available[0].CopyID;
+      status = 'Ready';
+      await connection.execute("UPDATE BookCopies SET Status = 'Reserved_on_Shelf' WHERE CopyID = ?", [copyID]);
+    }
+
+    await connection.execute(
+      "INSERT INTO Reservations (MemberID, BookID, CopyID, Status, RequestCode, ReservationDate, Priority) VALUES (?, ?, ?, ?, ?, NOW(), 1)",
+      [memberID, bookId, copyID, status, requestCode]
+    );
+
+    await connection.commit();
+    return ok(res, status === 'Ready'
+      ? `Reserved! Show code "${requestCode}" to admin for pickup.`
+      : `Added to queue. Code: "${requestCode}". You'll be notified when ready.`,
+      { requestCode, status, immediate: status === 'Ready' }
+    );
+  } catch (err) {
+    await connection.rollback();
+    return fail(res, err.message, 500);
+  } finally {
+    connection.release();
+  }
+});
+
+// GET /api/staff/payment-history
 router.get('/payment-history', auth, async (req, res) => {
   try {
     const [rows] = await pool.execute(`
@@ -392,4 +461,3 @@ router.get('/payment-history', auth, async (req, res) => {
 });
 
 module.exports = router;
-

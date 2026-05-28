@@ -9,7 +9,7 @@ export default function Layout({ children }) {
   const location = useLocation()
   
   // Hide global nav/footer for dashboard pages
-  const isDashboard = ['/admin', '/staff', '/member'].some(path => location.pathname.startsWith(path))
+  const isDashboard = ['/admin', '/staff', '/member', '/desk', '/reservations', '/overdue', '/borrow', '/my-borrows', '/book'].some(path => location.pathname.startsWith(path))
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>

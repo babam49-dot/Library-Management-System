@@ -175,7 +175,7 @@ async function listBooks(filters) {
 
   let sql = `
     SELECT
-      b.BookID, b.Title, b.ISBN, b.Language, b.Edition, b.Year AS PublishYear,
+      b.BookID, b.Title, b.ISBN, b.Language, b.Edition, b.Year, b.Year AS PublishYear,
       b.CategoryID, b.PublisherID, b.CoverImage,
       c.CategoryName, p.PublisherName,
       GROUP_CONCAT(DISTINCT a.Name SEPARATOR ', ') AS Authors,
@@ -188,7 +188,7 @@ async function listBooks(filters) {
     LEFT JOIN BookAuthors ba ON ba.BookID      = b.BookID
     LEFT JOIN Authors a      ON a.AuthorID     = ba.AuthorID
     LEFT JOIN BookCopies bc  ON bc.BookID      = b.BookID
-    WHERE b.IsActive = 1
+    WHERE (b.IsActive = 1 OR b.IsActive IS NULL)
   `;
   const params = [];
 

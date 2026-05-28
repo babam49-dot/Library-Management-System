@@ -164,7 +164,13 @@ export default function DashboardShell({
           {(navItems || []).map(item => {
             const active = activeTab === item.key
             return (
-              <button key={item.key} onClick={() => setTab && setTab(item.key)} className="sidebar-item"
+              <button key={item.key} onClick={() => {
+                if (item.path && item.path !== location.pathname) {
+                  navigate(item.path, { state: { tab: item.key } })
+                } else if (setTab) {
+                  setTab(item.key)
+                }
+              }} className="sidebar-item"
                 title={!sidebarOpen ? item.label : ''}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',

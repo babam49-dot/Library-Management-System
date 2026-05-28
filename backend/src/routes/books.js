@@ -90,10 +90,15 @@ router.get('/', auth, async (req, res) => {
 // POST /api/books - add book
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, '../../../uploads'));
+    const uploadPath = path.join(__dirname, '../../uploads');
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -123,7 +128,7 @@ router.post('/', auth, upload.single('coverImage'), async (req, res) => {
     const bookId = (mBook.m || 0) + 1;
 
     await connection.execute(
-      'INSERT INTO Books (BookID, Title, ISBN, Year, Edition, Language, Description, PublisherID, CategoryID, CoverImage) VALUES (?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO Books (BookID, Title, ISBN, Year, Edition, Language, Description, PublisherID, CategoryID, CoverImage, IsActive) VALUES (?,?,?,?,?,?,?,?,?,?,1)',
       [bookId, title, isbn || null, year || null, edition || null, language || 'English', description || '', publisherId || null, categoryId || null, coverImagePath]
     );
 

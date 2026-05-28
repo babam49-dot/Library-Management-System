@@ -104,7 +104,7 @@ router.get('/books', memberOnly, async (req, res) => {
     const filters = [];
     let sql = `
       SELECT
-        b.BookID, b.Title, b.ISBN, b.Language, b.Edition, b.Year AS PublishYear, b.CoverImage,
+        b.BookID, b.Title, b.ISBN, b.Language, b.Edition, b.Year, b.Year AS PublishYear, b.CoverImage,
         c.CategoryName, p.PublisherName,
         GROUP_CONCAT(DISTINCT a.Name SEPARATOR ', ') AS Authors,
         COUNT(DISTINCT CASE WHEN bc.Status = 'Available' THEN bc.CopyID END) AS AvailableCopies,
@@ -199,6 +199,16 @@ router.post('/reserve', memberOnly, async (req, res) => {
     if (summary.borrowingBlocked) {
       await connection.rollback();
       return fail(res, 'You have an unpaid balance. Please settle your fines before reserving.', 403);
+    }
+
+    // Check reservation limit (Max 2)
+    const [resCount] = await connection.execute(
+      "SELECT COUNT(*) as cnt FROM Reservations WHERE MemberID = ? AND Status IN ('Queued','Ready')",
+      [memberId]
+    );
+    if (resCount[0].cnt >= 2) {
+      await connection.rollback();
+      return fail(res, 'You have reached the maximum reservation limit of 2 books.');
     }
 
     // Check if member already has this book reserved or borrowed

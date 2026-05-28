@@ -148,8 +148,9 @@ exports.getSession = async (req, res) => {
       SELECT 
         br.BorrowID as borrowId, br.CopyID as copyId, br.Status as status, 
         br.PickupDeadline as pickupDeadline, br.DueDate as dueDate, br.ReturnDate as returnDate,
-        b.Title as bookTitle, b.ISBN as isbn, b.ShelfLocation as shelfLocation,
-        m.MemberID as memberID, u.FullName as fullName, u.Email as email, m.UniversityID as studentID
+        b.Title as bookTitle, b.ISBN as isbn, bc.ShelfLocation as shelfLocation,
+        m.MemberID as memberID, u.FullName as fullName, u.Email as email,
+        m.UniversityID as studentID, u.RoleID as roleId
       FROM BorrowingRecords br
       JOIN Members m ON br.MemberID = m.MemberID
       JOIN Users u ON m.UserID = u.UserID
@@ -166,7 +167,8 @@ exports.getSession = async (req, res) => {
       memberID: rows[0].memberID,
       fullName: rows[0].fullName,
       email: rows[0].email,
-      studentID: rows[0].studentID
+      studentID: rows[0].studentID,
+      roleId: rows[0].roleId
     };
 
     const sessionRows = rows.map(r => {
@@ -690,7 +692,8 @@ exports.confirmCollection = async (req, res) => {
     const borrowerRoleID = borrowerUser[0]?.RoleID;
     if (borrowerRoleID === 2 || borrowerRoleID === 1) {
       // ONLY Admin (RoleID 1) can confirm this borrow request
-      if (req.user.roleID !== 1) {
+      const currentRoleID = req.user.RoleID || req.user.roleID || req.user.role_id;
+      if (currentRoleID !== 1) {
         await conn.rollback();
         return res.status(403).json({
           success: false,
@@ -832,14 +835,14 @@ exports.getOverdue = async (req, res) => {
 exports.getSessions = async (req, res) => {
   try {
     const [rows] = await pool.query(`
-      SELECT br.BorrowID as id, br.RequestCode as code, br.Status as status, br.RequestDate as requestDate,
+      SELECT br.BorrowID as id, br.RequestCode as code, br.Status as status, br.BorrowDate as requestDate,
              u.FullName as memberName, b.Title as bookTitle, bc.CopyID as copyId
       FROM BorrowingRecords br
       JOIN Members m ON m.MemberID = br.MemberID
       JOIN Users u ON u.UserID = m.UserID
       JOIN BookCopies bc ON bc.CopyID = br.CopyID
       JOIN Books b ON b.BookID = bc.BookID
-      ORDER BY br.RequestDate DESC LIMIT 100
+      ORDER BY br.BorrowDate DESC LIMIT 100
     `);
     res.json({ success: true, data: rows });
   } catch (err) {

@@ -134,7 +134,7 @@ export default function SessionCard({ sessionData, onConfirm, isConfirming }) {
                 disabled={selectedIds.length === 0 || isConfirming}
                 className="w-full md:w-auto px-8 py-3 bg-[#d4af37] text-white rounded-xl font-bold hover:bg-[#b5952f] disabled:opacity-50 transition-colors"
               >
-                {isConfirming ? 'Processing...' : `Confirm ${selectedIds.length} Books`}
+                {isConfirming ? 'Permitting...' : `Permit & Approve Borrowing (${selectedIds.length})`}
               </button>
             </>
           ) : (

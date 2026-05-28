@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useCart } from '../context/CartContext'
 
 /**
  * Shared interactive book card used across Admin, Staff, Member dashboards and Home.
@@ -32,6 +33,10 @@ export default function BookCard({
 }) {
   const navigate = useNavigate()
   const [popup, setPopup] = useState(false)
+  const [hovered, setHovered] = useState(false)
+
+  const { cart } = useCart()
+  const inCart = cart.some(i => i.bookId === book.BookID)
 
   const available = Number(book.AvailableCopies ?? 0)
 
@@ -60,17 +65,74 @@ export default function BookCard({
   return (
     <>
       <style>{`
-        .bk-card { transition: transform 0.25s cubic-bezier(0.175,0.885,0.32,1.275), box-shadow 0.25s ease, border-color 0.25s ease; }
+        .bk-card { transition: transform 0.25s cubic-bezier(0.175,0.885,0.32,1.275), box-shadow 0.25s ease, border-color 0.25s ease; position: relative; }
         .bk-card:hover { transform: translateY(-6px) scale(1.01); box-shadow: 0 20px 48px rgba(0,0,0,0.18) !important; border-color: #3b82f6 !important; }
+        .bk-card.in-cart-card { border-color: #10b981 !important; }
+        .bk-hover-overlay { position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 20px; background: rgba(0,0,0,0.72); backdrop-filter: blur(4px); border-radius: 18px; animation: bkFadeIn 0.18s ease; }
         .bk-popup-overlay { animation: bkFadeIn 0.2s ease; }
         .bk-popup-inner { animation: bkScaleIn 0.25s cubic-bezier(0.175,0.885,0.32,1.275); }
         @keyframes bkFadeIn { from { opacity:0; } to { opacity:1; } }
         @keyframes bkScaleIn { from { opacity:0; transform:scale(0.92) translateY(20px); } to { opacity:1; transform:scale(1) translateY(0); } }
         .bk-action-btn { transition: all 0.18s ease; }
         .bk-action-btn:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.08); }
+        .bk-hover-btn { width: 100%; padding: 11px; border: none; border-radius: 12px; font-weight: 800; font-size: 14px; cursor: pointer; transition: all 0.15s ease; }
+        .bk-hover-btn:hover { filter: brightness(1.1); transform: scale(1.02); }
       `}</style>
 
-      <article className="bk-card" style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 18, overflow: 'hidden', display: 'flex', flexDirection: 'column', cursor: 'pointer' }}>
+      <article
+        className={`bk-card${inCart ? ' in-cart-card' : ''}`}
+        style={{ background: cardBg, border: `1px solid ${inCart ? '#10b981' : border}`, borderRadius: 18, overflow: 'hidden', display: 'flex', flexDirection: 'column', cursor: 'pointer', opacity: inCart ? 0.82 : 1, position: 'relative' }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
+
+        {/* Hover overlay for member quick-actions */}
+        {hovered && showActions === 'member' && (
+          <div className="bk-hover-overlay" onMouseLeave={() => setHovered(false)}>
+            <div style={{ color: '#fff', fontWeight: 900, fontSize: 15, textAlign: 'center', marginBottom: 4, lineHeight: 1.3 }}>{book.Title}</div>
+            <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginBottom: 8 }}>By {book.Authors || 'Unknown'}</div>
+            {inCart ? (
+              <div style={{ background: 'rgba(16,185,129,0.25)', border: '1.5px solid #10b981', borderRadius: 12, padding: '10px 18px', color: '#6ee7b7', fontWeight: 800, fontSize: 13, textAlign: 'center', width: '100%' }}>
+                ✅ Already in Borrow Cart
+              </div>
+            ) : available > 0 ? (
+              <button
+                className="bk-hover-btn"
+                disabled={blocked}
+                onClick={(e) => { e.stopPropagation(); onBorrow && onBorrow(book) }}
+                style={{ background: blocked ? '#475569' : 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: '#fff' }}
+              >
+                🛒 Add to Borrow Cart
+              </button>
+            ) : (
+              <button
+                className="bk-hover-btn"
+                disabled={blocked}
+                onClick={(e) => { e.stopPropagation(); onWaitlist && onWaitlist(book) }}
+                style={{ background: blocked ? '#475569' : 'linear-gradient(135deg,#d97706,#b45309)', color: '#fff' }}
+              >
+                ⏳ Join Waitlist
+              </button>
+            )}
+            {available > 0 && !inCart && (
+              <button
+                className="bk-hover-btn"
+                disabled={blocked}
+                onClick={(e) => { e.stopPropagation(); onReserve && onReserve(book) }}
+                style={{ background: blocked ? '#475569' : 'linear-gradient(135deg,#7c3aed,#6d28d9)', color: '#fff' }}
+              >
+                🕒 Reserve
+              </button>
+            )}
+            <button
+              className="bk-hover-btn"
+              onClick={(e) => { e.stopPropagation(); navigate(`/book/${book.BookID}`) }}
+              style={{ background: 'rgba(255,255,255,0.12)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)' }}
+            >
+              👁️ View Details
+            </button>
+          </div>
+        )}
 
         {/* Cover Image Area */}
         <div
@@ -86,8 +148,14 @@ export default function BookCard({
               </div>
             )
           }
+          {/* In-cart badge */}
+          {inCart && (
+            <span style={{ position: 'absolute', top: 12, left: 12, background: 'rgba(16,185,129,0.9)', backdropFilter: 'blur(8px)', color: '#fff', padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 800 }}>
+              ✅ In Cart
+            </span>
+          )}
           {/* Category Badge */}
-          {book.CategoryName && (
+          {book.CategoryName && !inCart && (
             <span style={{ position: 'absolute', top: 12, left: 12, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)', color: '#fff', padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 800, letterSpacing: 0.8, textTransform: 'uppercase' }}>
               {book.CategoryName}
             </span>
@@ -175,6 +243,37 @@ export default function BookCard({
                 )}
                 <button className="bk-action-btn" onClick={() => navigate(`/book/${book.BookID}`)} style={{ background: isDark ? 'rgba(255,255,255,0.07)' : '#f1f5f9', color: muted, border: 'none', borderRadius: 10, padding: '8px 12px', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
                   👁️
+                </button>
+              </>
+            )}
+            {showActions === 'staff-browse' && (
+              <>
+                {available > 0 ? (
+                  <div style={{ display: 'flex', gap: 6, flex: 1 }}>
+                    <button className="bk-action-btn"
+                      onClick={() => onBorrow && onBorrow(book)}
+                      style={{ flex: 1, background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 8px', fontWeight: 800, cursor: 'pointer', fontSize: 12 }}>
+                      🛒 Cart
+                    </button>
+                    <button className="bk-action-btn"
+                      onClick={() => onReserve && onReserve(book)}
+                      style={{ flex: 1, background: 'linear-gradient(135deg,#7c3aed,#6d28d9)', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 8px', fontWeight: 800, cursor: 'pointer', fontSize: 12 }}>
+                      🕒 Reserve
+                    </button>
+                  </div>
+                ) : (
+                  <button className="bk-action-btn"
+                    onClick={() => onWaitlist && onWaitlist(book)}
+                    style={{ flex: 1, background: 'linear-gradient(135deg,#d97706,#b45309)', color: '#fff', border: 'none', borderRadius: 10, padding: '9px 12px', fontWeight: 800, cursor: 'pointer', fontSize: 13 }}>
+                    ⏳ Waitlist
+                  </button>
+                )}
+                <button className="bk-action-btn" onClick={() => onBarcodes && onBarcodes(book)} style={{ background: 'rgba(16,185,129,0.12)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 10, padding: '8px 12px', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+                  🏷️
+                </button>
+                <button className="bk-action-btn" onClick={() => setPopup(true)}
+                  style={{ background: isDark ? 'rgba(255,255,255,0.08)' : '#f1f5f9', color: text, border: 'none', borderRadius: 10, padding: '9px 14px', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+                  ℹ️
                 </button>
               </>
             )}

@@ -77,12 +77,42 @@ export default function AdminDashboard() {
       const d = res.data.data
       setAdminIsbnPreview(d)
       setAdminIsbnMsg({ text: `✅ Found via ${d.source === 'openlibrary' ? 'Open Library' : 'Google Books'}! Fields auto-filled.`, ok: true })
+      
+      // Refresh options to include any auto-registered publisher, category, or authors
+      const [catsRes, pubsRes, authsRes] = await Promise.all([
+        axios.get(`${API}/catalog/categories`, h()),
+        axios.get(`${API}/catalog/publishers`, h()),
+        axios.get(`${API}/catalog/authors`, h())
+      ]);
+      setCategories(catsRes.data.data || []);
+      setPublishers(pubsRes.data.data || []);
+      setAuthors(authsRes.data.data || []);
+
       if (adminTitleRef.current)   adminTitleRef.current.value   = d.title       || ''
       if (adminIsbnRef.current)    adminIsbnRef.current.value    = d.isbn        || ''
       if (adminYearRef.current)    adminYearRef.current.value    = d.year        ? String(d.year) : ''
       if (adminEditionRef.current) adminEditionRef.current.value = d.edition     || ''
       if (adminLangRef.current)    adminLangRef.current.value    = d.language    || 'English'
       if (adminDescRef.current)    adminDescRef.current.value    = d.description || ''
+
+      // Select publisher and category in DOM after state updates render
+      setTimeout(() => {
+        const pubSelect = document.querySelector('select[name="publisherId"]');
+        if (pubSelect && d.publisherId) pubSelect.value = String(d.publisherId);
+
+        const catSelect = document.querySelector('select[name="categoryId"]');
+        if (catSelect && d.categoryId) catSelect.value = String(d.categoryId);
+
+        // Check author checkboxes in DOM
+        document.querySelectorAll('input[name="authorId"]').forEach(el => el.checked = false);
+        if (Array.isArray(d.authorIds)) {
+          d.authorIds.forEach(id => {
+            const el = document.querySelector(`input[name="authorId"][value="${id}"]`);
+            if (el) el.checked = true;
+          });
+        }
+      }, 50);
+
     } catch (err) {
       setAdminIsbnMsg({ text: err.response?.data?.message || 'ISBN not found. Fill manually.', ok: false })
     } finally { setAdminIsbnLoading(false) }

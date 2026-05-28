@@ -1,4 +1,5 @@
 const svc = require('./catalog.service');
+const pool = require('../db');
 
 // ─── utility ──────────────────────────────────────────────────────────────────
 const send = (res, status, success, payload) =>
@@ -204,6 +205,78 @@ exports.isbnLookup = async (req, res) => {
 
     if (!bookData) {
       return send(res, 404, false, `No book information found for ISBN ${isbn}. Please fill in the details manually.`);
+    }
+
+    // ── 3. Auto-register publisher, category, and authors if missing ──
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+
+      // 1. Publisher
+      let publisherId = null;
+      if (bookData.publisher) {
+        const [[existingPub]] = await connection.execute(
+          'SELECT PublisherID FROM Publishers WHERE PublisherName = ?',
+          [bookData.publisher]
+        );
+        if (existingPub) {
+          publisherId = existingPub.PublisherID;
+        } else {
+          const [pubRes] = await connection.execute(
+            'INSERT INTO Publishers (PublisherName, Address, ContactEmail, Phone) VALUES (?, ?, ?, ?)',
+            [bookData.publisher, 'Auto-registered via ISBN Lookup', '', '']
+          );
+          publisherId = pubRes.insertId;
+        }
+      }
+      bookData.publisherId = publisherId;
+
+      // 2. Category / Subject
+      let categoryId = null;
+      const categoryName = bookData.subjects?.[0] || 'General';
+      const [[existingCat]] = await connection.execute(
+        'SELECT CategoryID FROM Categories WHERE CategoryName = ?',
+        [categoryName]
+      );
+      if (existingCat) {
+        categoryId = existingCat.CategoryID;
+      } else {
+        const [catRes] = await connection.execute(
+          'INSERT INTO Categories (CategoryName, Description) VALUES (?, ?)',
+          [categoryName, 'Auto-registered via ISBN Lookup']
+        );
+        categoryId = catRes.insertId;
+      }
+      bookData.categoryId = categoryId;
+
+      // 3. Authors
+      const authorIds = [];
+      if (Array.isArray(bookData.authors)) {
+        for (const authorName of bookData.authors) {
+          if (!authorName) continue;
+          const [[existingAuth]] = await connection.execute(
+            'SELECT AuthorID FROM Authors WHERE Name = ?',
+            [authorName]
+          );
+          if (existingAuth) {
+            authorIds.push(existingAuth.AuthorID);
+          } else {
+            const [authRes] = await connection.execute(
+              'INSERT INTO Authors (Name, Bio, Nationality) VALUES (?, ?, ?)',
+              [authorName, 'Auto-registered via ISBN Lookup', 'Unknown']
+            );
+            authorIds.push(authRes.insertId);
+          }
+        }
+      }
+      bookData.authorIds = authorIds;
+
+      await connection.commit();
+    } catch (dbErr) {
+      await connection.rollback();
+      console.error('[ISBN Auto-register Error]', dbErr);
+    } finally {
+      connection.release();
     }
 
     return send(res, 200, true, bookData);

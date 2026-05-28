@@ -253,25 +253,18 @@ export default function MemberDashboard() {
       const checkRes = await api.get('/member/has-fingerprint')
       const { hasFingerprint } = checkRes.data.data
 
-      if (!hasFingerprint) {
-        setProfileNotice({
-          text: '❌ You are not registered. Please use the sensor to join/register first by clicking the button below.',
-          type: 'error'
-        })
-        setSavingProfile(false)
-        return
-      }
+      if (hasFingerprint) {
+        // Step B: Authenticate via WebAuthn
+        setProfileNotice({ text: '🔑 Please touch your fingerprint sensor to authorize changes...', type: 'info' })
+        const beginRes = await api.post('/auth/webauthn/login/begin', { identifier: user.Email, loginType: 'student' })
+        const { options, userId } = beginRes.data.data
 
-      // Step B: Authenticate via WebAuthn
-      setProfileNotice({ text: '🔑 Please touch your fingerprint sensor to authorize changes...', type: 'info' })
-      const beginRes = await api.post('/auth/webauthn/login/begin', { identifier: user.Email, loginType: 'student' })
-      const { options, userId } = beginRes.data.data
+        const attResp = await startAuthentication({ optionsJSON: options })
+        const verifyRes = await api.post('/auth/webauthn/login/complete', { userId, response: attResp })
 
-      const attResp = await startAuthentication({ optionsJSON: options })
-      const verifyRes = await api.post('/auth/webauthn/login/complete', { userId, response: attResp })
-
-      if (!verifyRes.data.success) {
-        throw new Error('Biometric verification failed.')
+        if (!verifyRes.data.success) {
+          throw new Error('Biometric verification failed.')
+        }
       }
 
       // Step C: Save details
@@ -678,9 +671,9 @@ export default function MemberDashboard() {
 
           {/* Biometrics Enroll Card */}
           <div className="m-card" style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 20, padding: 28, display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <h3 style={{ margin: 0, color: c.text, fontSize: 18, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>🔑 Biometric Credentials Registration</h3>
+            <h3 style={{ margin: 0, color: c.text, fontSize: 18, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>🔑 Biometric Credentials (Optional)</h3>
             <p style={{ color: c.muted, fontSize: 14, lineHeight: 1.6, margin: 0 }}>
-              To secure your profile, we require biometric verification for profile updates. If you have not registered fingerprint credentials yet, touch your PC's fingerprint sensor to register first. Use the sensor to join/register below.
+              Biometric verification is supported to enhance your account security. If you have not registered fingerprint credentials yet, touch your PC's fingerprint sensor to register first. Standard updates will automatically fallback to password authorization if no fingerprint is set.
             </p>
             <button 
               onClick={registerFingerprint}

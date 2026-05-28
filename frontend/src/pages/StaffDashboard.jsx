@@ -23,6 +23,10 @@ export default function StaffDashboard() {
       setTab(location.state.tab);
     }
   }, [location.state]);
+
+  useEffect(() => {
+    setSearchQuery('');
+  }, [tab]);
   
   // Catalog Form States
   const [bookForm, setBookForm] = useState({ 
@@ -114,7 +118,7 @@ export default function StaffDashboard() {
       setAllBooks(bks.data.data || [])
       try {
         const myB = await axios.get(`${API}/borrowing/my`, getHeaders())
-        setMyBorrows(myB.data.data || [])
+        setMyBorrows(myB.data.data?.records || myB.data.data || [])
       } catch (_) {}
     } catch (err) { console.error(err) }
   }
@@ -148,9 +152,18 @@ export default function StaffDashboard() {
           fd.append(key, bookForm[key])
         }
       })
-      if (coverFile) fd.append('coverImage', coverFile)
+      if (coverFile) {
+        fd.append('coverImage', coverFile)
+      } else if (isbnPreview?.coverUrl) {
+        fd.append('coverImage', isbnPreview.coverUrl)
+      }
 
-      await axios.post(`${API}/books`, fd, { headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${localStorage.getItem('lms_token')}` } })
+      const headers = {
+        ...getHeaders().headers,
+        'Content-Type': 'multipart/form-data'
+      }
+
+      await axios.post(`${API}/books`, fd, { headers })
       setBookMsg('Book and copies added successfully!')
       setRegisterStep(1)
       setBookForm({ 
@@ -158,6 +171,7 @@ export default function StaffDashboard() {
         publisherId: '', categoryId: '', authorIds: [], numberOfCopies: 1, shelfLocation: ''
       })
       setCoverFile(null)
+      setIsbnPreview(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
       fetchData()
     } catch (err) {
@@ -182,9 +196,10 @@ export default function StaffDashboard() {
       const d = res.data.data
       setIsbnPreview(d)
       setIsbnMsg({ text: `✅ Book found via ${d.source === 'openlibrary' ? 'Open Library' : 'Google Books'}! Fields auto-filled. Redirecting to details...`, ok: true })
-      // Auto-fill form fields
-      const publisherMatch = publishers.find(p => p.PublisherName?.toLowerCase().includes((d.publisher||'').toLowerCase().substring(0,8)))
-      const categoryMatch  = categories.find(c => (d.subjects||[]).some(s => c.CategoryName?.toLowerCase().includes(s.toLowerCase().substring(0,6))))
+      
+      // Refresh options to include any auto-registered publisher, category, or authors
+      await fetchData()
+
       setBookForm(prev => ({
         ...prev,
         title:       d.title        || prev.title,
@@ -193,8 +208,9 @@ export default function StaffDashboard() {
         edition:     d.edition      || prev.edition,
         language:    d.language     || prev.language,
         description: d.description  || prev.description,
-        publisherId: publisherMatch  ? String(publisherMatch.PublisherID) : prev.publisherId,
-        categoryId:  categoryMatch   ? String(categoryMatch.CategoryID)   : prev.categoryId,
+        publisherId: d.publisherId  ? String(d.publisherId) : prev.publisherId,
+        categoryId:  d.categoryId   ? String(d.categoryId) : prev.categoryId,
+        authorIds:   d.authorIds    ? d.authorIds.map(String) : prev.authorIds
       }))
       setTimeout(() => {
         setRegisterStep(2)
@@ -343,7 +359,23 @@ export default function StaffDashboard() {
     } catch (err) { setMyBorrowMsg({ text: 'Error: ' + (err.response?.data?.message || err.message), ok: false }) }
   }
 
-  const pendingMyBorrows = myBorrows.filter(b => b.status === 'Pending').length
+  const reserveForMyself = async (book) => {
+    try {
+      const res = await axios.post(`${API}/staff/self-reserve`, { bookId: book.BookID }, getHeaders())
+      setMyBorrowMsg({ text: '✅ ' + res.data.message, ok: true })
+      setTimeout(() => setMyBorrowMsg({ text: '', ok: true }), 5000)
+      fetchData()
+    } catch (err) {
+      setMyBorrowMsg({ text: 'Error: ' + (err.response?.data?.message || err.message), ok: false })
+      setTimeout(() => setMyBorrowMsg({ text: '', ok: true }), 4000)
+    }
+  }
+
+  const joinMyWaitlist = (book) => {
+    reserveForMyself(book)
+  }
+
+  const pendingMyBorrows = Array.isArray(myBorrows) ? myBorrows.filter(b => (b.status || b.Status) === 'Pending').length : 0
   const TABS = [
     { key: 'overview', label: 'Circulation Overview', icon: '📊', path: '/staff' },
     { key: 'myborrow', label: 'My Borrowing', icon: '📖', path: '/staff', badge: pendingMyBorrows },
@@ -358,6 +390,15 @@ export default function StaffDashboard() {
     { key: 'payments', label: 'Payment History', icon: '🧾', path: '/staff' },
   ]
   const tabLabel = TABS.find(t => t.key === tab)?.label || 'Staff Dashboard'
+
+  const handleNav = (targetTab) => {
+    const item = TABS.find(t => t.key === targetTab);
+    if (item && item.path && item.path !== location.pathname) {
+      navigate(item.path, { state: { tab: item.key } });
+    } else {
+      setTab(targetTab);
+    }
+  };
 
   return (
     <DashboardShell role="staff" navItems={TABS} activeTab={tab} setTab={setTab} user={user} logout={logout} tabLabel={tabLabel} searchQuery={searchQuery} setSearchQuery={setSearchQuery}>
@@ -385,7 +426,7 @@ export default function StaffDashboard() {
               <div
                 key={label}
                 className="ov-card"
-                onClick={() => goTab && setTab(goTab)}
+                onClick={() => goTab && handleNav(goTab)}
                 style={{
                   animationDelay: `${i * 0.07}s`,
                   background: cardBg,
@@ -399,7 +440,7 @@ export default function StaffDashboard() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
                     <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, color: alert ? color : textMuted, marginBottom: 4 }}>{label}</div>
-                    <div style={{ fontSize: 32, fontWeight: 900, color: alert ? color : textPrimary, lineHeight: 1 }}>{value ?? '�'}</div>
+                    <div style={{ fontSize: 32, fontWeight: 900, color: alert ? color : textPrimary, lineHeight: 1 }}>{value ?? '—'}</div>
                     <div style={{ fontSize: 11, color: textMuted, marginTop: 4 }}>{note}</div>
                   </div>
                   <div style={{ fontSize: 24, opacity: 0.75 }}>{icon}</div>
@@ -419,6 +460,7 @@ export default function StaffDashboard() {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
               {[
                 { label: '➕ Register Book',    color: '#10b981', bg: 'rgba(16,185,129,0.1)', target: 'catalog' },
+                { label: '📖 My Borrowing',      color: '#6366f1', bg: 'rgba(99,102,241,0.1)',  target: 'myborrow', badge: pendingMyBorrows > 0 ? pendingMyBorrows : null },
                 { label: '📋 Librarian Desk',   color: '#3b82f6', bg: 'rgba(59,130,246,0.1)', target: 'desk' },
                 { label: '📚 Browse Catalog',   color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)', target: 'browse' },
                 { label: '🏷️ Manage Metadata', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', target: 'metadata' },
@@ -428,7 +470,7 @@ export default function StaffDashboard() {
                 <button
                   key={target}
                   className="ov-action-btn"
-                  onClick={() => setTab(target)}
+                  onClick={() => handleNav(target)}
                   style={{ background: bg, color, padding: '8px 16px', fontSize: 13, position: 'relative' }}
                 >
                   {label}
@@ -447,7 +489,7 @@ export default function StaffDashboard() {
             <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 14, overflow: 'hidden' }}>
               <div style={{ padding: '14px 18px', borderBottom: `1px solid ${border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: textPrimary }}>📋 Recent Activity</div>
-                <button onClick={() => setTab('desk')} className="ov-action-btn" style={{ background: 'none', color: '#3b82f6', fontSize: 12, padding: '4px 10px', border: '1px solid rgba(59,130,246,0.3)' }}>
+                <button onClick={() => handleNav('desk')} className="ov-action-btn" style={{ background: 'none', color: '#3b82f6', fontSize: 12, padding: '4px 10px', border: '1px solid rgba(59,130,246,0.3)' }}>
                   View All
                 </button>
               </div>
@@ -487,13 +529,43 @@ export default function StaffDashboard() {
       )}
 
       {tab === 'browse' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8, scrollbarWidth: 'none' }}>
-            <button onClick={() => setSearchQuery('')} style={{ padding: '8px 20px', borderRadius: 20, fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap', border: 'none', cursor: 'pointer', background: !searchQuery ? '#10b981' : isDark ? 'rgba(255,255,255,0.05)' : '#e2e8f0', color: !searchQuery ? '#fff' : textMuted, transition: 'all 0.2s' }}>All Categories</button>
-            {[...new Set(allBooks.map(b => b.CategoryName).filter(Boolean))].map(cat => (
-              <button key={cat} onClick={() => setSearchQuery(cat)} style={{ padding: '8px 20px', borderRadius: 20, fontWeight: 700, fontSize: 14, whiteSpace: 'nowrap', border: 'none', cursor: 'pointer', background: searchQuery === cat ? '#10b981' : isDark ? 'rgba(255,255,255,0.05)' : '#e2e8f0', color: searchQuery === cat ? '#fff' : textMuted, transition: 'all 0.2s' }}>{cat}</button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <style>{`
+            @keyframes browseIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+            .br-cart { animation: browseIn 0.3s ease both; }
+          `}</style>
+
+          {/* Cart summary banner */}
+          {myBorrowCart.length > 0 && (
+            <div className="br-cart" style={{ background: 'linear-gradient(135deg,rgba(16,185,129,0.12),rgba(5,150,105,0.07))', border: '2px solid rgba(16,185,129,0.45)', borderRadius: 14, padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 20 }}>🛒</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 800, color: '#065f46', fontSize: 14 }}>Borrow Cart — {myBorrowCart.length} book{myBorrowCart.length !== 1 ? 's' : ''} selected</div>
+                <div style={{ fontSize: 12, color: '#047857', marginTop: 2 }}>{myBorrowCart.map(i => i.title).join(', ')}</div>
+              </div>
+              <button onClick={() => setTab('myborrow')} style={{ background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff', border: 'none', padding: '9px 18px', borderRadius: 9, fontWeight: 700, cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' }}>
+                Review & Submit →
+              </button>
+            </div>
+          )}
+
+          {/* Message banner */}
+          {myBorrowMsg.text && (
+            <div style={{ padding: '11px 16px', borderRadius: 10, fontWeight: 700, fontSize: 13, background: myBorrowMsg.ok ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', color: myBorrowMsg.ok ? '#065f46' : '#991b1b', border: `1px solid ${myBorrowMsg.ok ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`, display: 'flex', justifyContent: 'space-between' }}>
+              <span>{myBorrowMsg.text}</span>
+              <button onClick={() => setMyBorrowMsg({ text: '', ok: true })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 900, color: 'inherit' }}>✕</button>
+            </div>
+          )}
+
+          {/* Category filter tabs */}
+          <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6, scrollbarWidth: 'none' }}>
+            <button onClick={() => setSearchQuery('')} style={{ padding: '7px 18px', borderRadius: 20, fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap', border: 'none', cursor: 'pointer', background: !searchQuery ? '#10b981' : isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0', color: !searchQuery ? '#fff' : textMuted, transition: 'all 0.2s', flexShrink: 0 }}>All Books</button>
+            {[...new Set(allBooks.map(b => b.CategoryName).filter(Boolean))].sort().map(cat => (
+              <button key={cat} onClick={() => setSearchQuery(cat)} style={{ padding: '7px 18px', borderRadius: 20, fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap', border: 'none', cursor: 'pointer', background: searchQuery === cat ? '#10b981' : isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0', color: searchQuery === cat ? '#fff' : textMuted, transition: 'all 0.2s', flexShrink: 0 }}>{cat}</button>
             ))}
           </div>
+
+          {/* Books grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 20 }}>
             {allBooks.filter(b => {
               if (!searchQuery) return true;
@@ -504,13 +576,26 @@ export default function StaffDashboard() {
                 key={b.BookID}
                 book={b}
                 isDark={isDark}
-                showActions="staff"
-                onEdit={(book) => setEditModal({ type: 'books', item: book })}
+                showActions="staff-browse"
+                onBorrow={addToMyCart}
+                onReserve={reserveForMyself}
+                onWaitlist={joinMyWaitlist}
                 onBarcodes={openBarcodes}
                 index={i}
-                detailLink={true}
+                detailLink={false}
               />
             ))}
+            {allBooks.filter(b => {
+              if (!searchQuery) return true;
+              const q = searchQuery.toLowerCase();
+              return b.Title?.toLowerCase().includes(q) || b.Authors?.toLowerCase().includes(q) || b.CategoryName?.toLowerCase().includes(q);
+            }).length === 0 && (
+              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 60, color: textMuted }}>
+                <div style={{ fontSize: 48, marginBottom: 12 }}>📭</div>
+                <div style={{ fontWeight: 700, fontSize: 16 }}>No books found</div>
+                <div style={{ fontSize: 13 }}>Try a different search or category.</div>
+              </div>
+            )}
           </div>
         </div>
       )}

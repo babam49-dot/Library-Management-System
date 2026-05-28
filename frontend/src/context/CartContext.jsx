@@ -1,6 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 
-const CartContext = createContext()
+const CartContext = createContext({
+  cart: [],
+  addToCart: () => {},
+  removeFromCart: () => {},
+  clearCart: () => {},
+  isInCart: () => false,
+})
 
 export const useCart = () => useContext(CartContext)
 
