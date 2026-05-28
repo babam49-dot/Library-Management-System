@@ -33,6 +33,7 @@ import LibrarianDeskPage from './pages/LibrarianDeskPage'
 import ReservationsPage from './pages/ReservationsPage'
 import OverduePage from './pages/OverduePage'
 import BookDetailPage from './pages/BookDetailPage'
+import BorrowCartPage from './pages/BorrowCartPage'
 
 createRoot(document.getElementById('root')).render(
   <ThemeProvider>
@@ -52,6 +53,7 @@ createRoot(document.getElementById('root')).render(
               {/* Module 3 Routes */}
               <Route path="/borrow" element={<ProtectedRoute allowedRoles={[3]}><BorrowingPage /></ProtectedRoute>} />
               <Route path="/my-borrows" element={<ProtectedRoute allowedRoles={[3]}><MyBorrowsPage /></ProtectedRoute>} />
+              <Route path="/borrow-cart" element={<ProtectedRoute allowedRoles={[3]}><BorrowCartPage /></ProtectedRoute>} />
               <Route path="/desk" element={<ProtectedRoute allowedRoles={[1, 2]}><LibrarianDeskPage /></ProtectedRoute>} />
               <Route path="/reservations" element={<ProtectedRoute allowedRoles={[1, 2]}><ReservationsPage /></ProtectedRoute>} />
               <Route path="/overdue" element={<ProtectedRoute allowedRoles={[1, 2]}><OverduePage /></ProtectedRoute>} />

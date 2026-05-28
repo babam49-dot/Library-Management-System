@@ -11,12 +11,13 @@ import BubblePopup from '../components/BubblePopup'
 import { io } from 'socket.io-client'
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
 
-const makeNavItems = (pendingBorrows, pendingFines, pendingReservations) => [
+const makeNavItems = (pendingBorrows, pendingFines, pendingReservations, cartCount) => [
   { key: 'catalog',      label: 'Browse Catalog',    icon: '📚' },
   { key: 'borrows',      label: 'My Borrowings',     icon: '📖', badge: pendingBorrows },
   { key: 'reservations', label: 'My Reservations',   icon: '🕒', badge: pendingReservations },
   { key: 'fines',        label: 'My Fines',          icon: '💳', badge: pendingFines > 0 ? 1 : 0 },
   { key: 'profile',      label: 'My Profile',        icon: '👤' },
+  { key: 'cart',         label: 'Borrow Cart',       icon: '🛒', badge: cartCount, path: '/borrow-cart' },
 ]
 
 const tabTitles = {
@@ -388,61 +389,55 @@ export default function MemberDashboard() {
 
       {/* CATALOG */}
       {tab === 'catalog' && (
-        <div style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) 300px', gap:18, alignItems:'start' }}>
-          <section>
-            {/* Category pills */}
-            <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:16 }}>
-              <button onClick={() => setCategory('')} className="m-btn"
-                style={{ padding:'5px 12px', borderRadius:20, border:'none', fontWeight:700, fontSize:12, cursor:'pointer', background: !category ? '#3b82f6' : isDark?'rgba(255,255,255,.08)':'#e2e8f0', color: !category ? '#fff' : c.muted }}>
-                All
+        <div style={{ position: 'relative' }}>
+          {/* Category pills */}
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:16 }}>
+            <button onClick={() => setCategory('')} className="m-btn"
+              style={{ padding:'5px 12px', borderRadius:20, border:'none', fontWeight:700, fontSize:12, cursor:'pointer', background: !category ? '#3b82f6' : isDark?'rgba(255,255,255,.08)':'#e2e8f0', color: !category ? '#fff' : c.muted }}>
+              All
+            </button>
+            {categories.map(cat => (
+              <button key={cat} onClick={() => setCategory(cat)} className="m-btn"
+                style={{ padding:'5px 12px', borderRadius:20, border:'none', fontWeight:700, fontSize:12, cursor:'pointer', background: category===cat ? '#3b82f6' : isDark?'rgba(255,255,255,.08)':'#e2e8f0', color: category===cat ? '#fff' : c.muted }}>
+                {cat}
               </button>
-              {categories.map(cat => (
-                <button key={cat} onClick={() => setCategory(cat)} className="m-btn"
-                  style={{ padding:'5px 12px', borderRadius:20, border:'none', fontWeight:700, fontSize:12, cursor:'pointer', background: category===cat ? '#3b82f6' : isDark?'rgba(255,255,255,.08)':'#e2e8f0', color: category===cat ? '#fff' : c.muted }}>
-                  {cat}
-                </button>
-              ))}
-            </div>
+            ))}
+          </div>
 
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(250px,1fr))', gap:18 }}>
-              {filteredBooks.map((book, i) => (
-                <BookCard key={book.BookID} book={book} isDark={isDark} showActions="member"
-                  onBorrow={handleAddToCart}
-                  onReserve={() => joinWaitlist(book.BookID)}
-                  onWaitlist={() => joinWaitlist(book.BookID)}
-                  blocked={blocked} index={i} detailLink={true} />
-              ))}
-              {!filteredBooks.length && (
-                <div className="m-card" style={{ gridColumn:'1/-1', padding:40, textAlign:'center', background:c.card, border:`1px solid ${c.border}`, borderRadius:16, color:c.muted }}>
-                  <div style={{ fontSize:36, marginBottom:10 }}>📭</div>No books found.
-                </div>
-              )}
-            </div>
-          </section>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(250px,1fr))', gap:18 }}>
+            {filteredBooks.map((book, i) => (
+              <BookCard key={book.BookID} book={book} isDark={isDark} showActions="member"
+                onBorrow={handleAddToCart}
+                onReserve={() => joinWaitlist(book.BookID)}
+                onWaitlist={() => joinWaitlist(book.BookID)}
+                blocked={blocked} index={i} detailLink={true} />
+            ))}
+            {!filteredBooks.length && (
+              <div className="m-card" style={{ gridColumn:'1/-1', padding:40, textAlign:'center', background:c.card, border:`1px solid ${c.border}`, borderRadius:16, color:c.muted }}>
+                <div style={{ fontSize:36, marginBottom:10 }}>📭</div>No books found.
+              </div>
+            )}
+          </div>
 
-          {/* Borrow Cart */}
-          <aside className="m-card" style={{ background:'#0f172a', color:'#fff', borderRadius:16, padding:20, position:'sticky', top:80 }}>
-            <h3 style={{ margin:'0 0 6px', fontSize:17, fontWeight:900 }}>🛒 Borrow Cart</h3>
-            <p style={{ color:'#cbd5e1', fontSize:12, margin:'0 0 14px' }}>Add books, then submit one request for the whole session.</p>
-            <div style={{ display:'grid', gap:8, marginBottom:14 }}>
-              {cart.map(item => (
-                <div key={item.copyId} style={{ background:'rgba(255,255,255,.07)', borderRadius:10, padding:10 }}>
-                  <div style={{ fontWeight:800, fontSize:13 }}>{item.title}</div>
-                  <div style={{ color:'#94a3b8', fontSize:11 }}>Copy #{item.copyId}</div>
-                  <button onClick={() => removeFromCart(item.copyId)}
-                    style={{ marginTop:6, background:'transparent', color:'#fca5a5', border:0, cursor:'pointer', fontWeight:700, fontSize:12, padding:0 }}>Remove</button>
-                </div>
-              ))}
-              {!cart.length && <div style={{ color:'#94a3b8', fontSize:13 }}>Your cart is empty.</div>}
-            </div>
-            <div style={{ position: 'relative' }}>
-              <button className="m-btn" onClick={submitBorrowRequest} disabled={!cart.length || blocked}
-                style={{ width:'100%', border:0, borderRadius:11, padding: 10, color:'#fff', fontWeight:900, fontSize:13, cursor:(!cart.length||blocked)?'not-allowed':'pointer', background: blocked?'#64748b':'linear-gradient(135deg,#2563eb,#1d4ed8)' }}>
-                {blocked ? '🔒 Borrowing Suspended' : cart.length ? `Submit ${cart.length} Book(s)` : 'Submit Request'}
-              </button>
-              <BubblePopup msg={cartMsg} onClear={() => setCartMsg('')} />
-            </div>
-          </aside>
+          {/* Floating Cart Button */}
+          <style>{`
+            @keyframes cartPulse { 0%,100%{box-shadow:0 8px 32px rgba(37,99,235,0.4)} 50%{box-shadow:0 8px 48px rgba(37,99,235,0.7)} }
+            .cart-fab { position:fixed; bottom:32px; right:32px; z-index:1000; display:flex; align-items:center; gap:12px; padding:14px 24px; border:none; border-radius:50px; cursor:pointer; font-weight:900; font-size:15px; color:#fff; transition:all 0.2s ease; }
+            .cart-fab:hover { transform:translateY(-3px) scale(1.04); }
+            .cart-fab-badge { position:absolute; top:-8px; right:-8px; background:#ef4444; color:#fff; width:24px; height:24px; border-radius:50%; font-size:12px; font-weight:900; display:flex; align-items:center; justify-content:center; border:2px solid #fff; }
+          `}</style>
+          <button
+            className="cart-fab"
+            onClick={() => navigate('/borrow-cart')}
+            style={{
+              background: blocked ? '#64748b' : 'linear-gradient(135deg,#2563eb,#1d4ed8)',
+              animation: cart.length > 0 && !blocked ? 'cartPulse 2s infinite' : 'none',
+            }}
+          >
+            <span style={{ fontSize: 20 }}>🛒</span>
+            <span>{cart.length > 0 ? `View Cart (${cart.length})` : 'Borrow Cart'}</span>
+            {cart.length > 0 && <span className="cart-fab-badge">{cart.length}</span>}
+          </button>
         </div>
       )}
 
