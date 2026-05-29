@@ -30,13 +30,14 @@ export default function BookCard({
   blocked = false,
   detailLink = true,
   index = 0,
+  inCart: customInCart,
 }) {
   const navigate = useNavigate()
   const [popup, setPopup] = useState(false)
   const [hovered, setHovered] = useState(false)
 
   const { cart } = useCart()
-  const inCart = cart.some(i => i.bookId === book.BookID)
+  const inCart = customInCart !== undefined ? customInCart : cart.some(i => i.bookId === book.BookID)
 
   const available = Number(book.AvailableCopies ?? 0)
 
@@ -87,7 +88,7 @@ export default function BookCard({
       >
 
         {/* Hover overlay for member quick-actions */}
-        {hovered && showActions === 'member' && (
+        {hovered && (showActions === 'member' || showActions === 'staff-browse') && (
           <div className="bk-hover-overlay" onMouseLeave={() => setHovered(false)}>
             <div style={{ color: '#fff', fontWeight: 900, fontSize: 15, textAlign: 'center', marginBottom: 4, lineHeight: 1.3 }}>{book.Title}</div>
             <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginBottom: 8 }}>By {book.Authors || 'Unknown'}</div>

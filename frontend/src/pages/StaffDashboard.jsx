@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import DashboardShell from '../components/DashboardShell'
@@ -7,16 +7,20 @@ import BookCard from '../components/BookCard'
 import axios from 'axios'
 import Barcode from 'react-barcode'
 import BubblePopup from '../components/BubblePopup'
+import { useStaffNavCounts, getStaffNavItems } from '../hooks/useStaffNavCounts'
 
 const API = 'http://localhost:4000/api'
 
 export default function StaffDashboard() {
   const { user, logout } = useAuth()
   const location = useLocation()
+  const navigate = useNavigate()
   const { isDark } = useTheme()
   const [stats, setStats] = useState(null)
   const [borrowingRecords, setBorrowingRecords] = useState([])
   const [tab, setTab] = useState(location.state?.tab || 'overview')
+  const { counts, refetch: refetchStaffCounts } = useStaffNavCounts()
+  const [pendingDeskSessionsCount, setPendingDeskSessionsCount] = useState(0)
 
   useEffect(() => {
     if (location.state?.tab) {
@@ -114,16 +118,38 @@ export default function StaffDashboard() {
       setAuthors(auths.data.data)
       const borrows = await axios.get(`${API}/staff/borrowing-records`, getHeaders())
       setBorrowingRecords(borrows.data.data)
-      const bks = await axios.get(`${API}/catalog/books`, getHeaders())
+      const bks = await axios.get(`${API}/member/books`, getHeaders())
       setAllBooks(bks.data.data || [])
       try {
         const myB = await axios.get(`${API}/borrowing/my`, getHeaders())
         setMyBorrows(myB.data.data?.records || myB.data.data || [])
       } catch (_) {}
+      try {
+        const res = await axios.get(`${API}/borrowing/sessions`, getHeaders())
+        const rows = res.data.data || [];
+        const pendingCount = rows.filter(r => r.status === 'Pending').length;
+        setPendingDeskSessionsCount(pendingCount);
+      } catch (_) {}
+      refetchStaffCounts();
     } catch (err) { console.error(err) }
   }
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(async () => {
+      try {
+        const s = await axios.get(`${API}/staff/dashboard`, getHeaders())
+        setStats(s.data.data)
+        const myB = await axios.get(`${API}/borrowing/my`, getHeaders())
+        setMyBorrows(myB.data.data?.records || myB.data.data || [])
+        const res = await axios.get(`${API}/borrowing/sessions`, getHeaders())
+        const rows = res.data.data || [];
+        const pendingCount = rows.filter(r => r.status === 'Pending').length;
+        setPendingDeskSessionsCount(pendingCount);
+      } catch (_) {}
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [])
 
 
   const handleBookChange = (e) => {
@@ -375,20 +401,7 @@ export default function StaffDashboard() {
     reserveForMyself(book)
   }
 
-  const pendingMyBorrows = Array.isArray(myBorrows) ? myBorrows.filter(b => (b.status || b.Status) === 'Pending').length : 0
-  const TABS = [
-    { key: 'overview', label: 'Circulation Overview', icon: '📊', path: '/staff' },
-    { key: 'myborrow', label: 'My Borrowing', icon: '📖', path: '/staff', badge: pendingMyBorrows },
-    { key: 'browse', label: 'Browse Catalog', icon: '📚', path: '/staff' },
-    { key: 'catalog', label: 'Register Book', icon: '➕', path: '/staff' },
-    { key: 'metadata', label: 'Manage Metadata', icon: '🏷️', path: '/staff' },
-    { key: 'fines', label: 'Fine Payments', icon: '💰', path: '/staff' },
-    { key: 'desk', label: 'Librarian Desk', icon: '🖥️', path: '/desk' },
-    { key: 'reservations', label: 'Reservations', icon: '📋', path: '/reservations' },
-    { key: 'overdue', label: 'Overdue Books', icon: '⚠️', path: '/overdue' },
-    { key: 'profile', label: 'My Profile', icon: '👤', path: '/staff' },
-    { key: 'payments', label: 'Payment History', icon: '🧾', path: '/staff' },
-  ]
+  const TABS = getStaffNavItems(counts)
   const tabLabel = TABS.find(t => t.key === tab)?.label || 'Staff Dashboard'
 
   const handleNav = (targetTab) => {
@@ -403,7 +416,7 @@ export default function StaffDashboard() {
   return (
     <DashboardShell role="staff" navItems={TABS} activeTab={tab} setTab={setTab} user={user} logout={logout} tabLabel={tabLabel} searchQuery={searchQuery} setSearchQuery={setSearchQuery}>
 
-      {tab === 'overview' && stats && (
+      {tab === 'overview' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <style>{`
             @keyframes overviewIn { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
@@ -416,6 +429,7 @@ export default function StaffDashboard() {
           `}</style>
 
           {/* ── Key Metrics Row ── */}
+          {stats && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
             {[
               { label: 'Active Borrows',  value: stats.activeBorrowings,  color: '#10b981', icon: '📖', note: 'Currently checked out', tab: 'desk' },
@@ -453,33 +467,97 @@ export default function StaffDashboard() {
               </div>
             ))}
           </div>
+          )}
 
-          {/* ── Quick Actions ── */}
-          <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 14, padding: '18px 20px' }}>
-            <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, color: textMuted, marginBottom: 12 }}>Quick Actions</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+          {/* ── Navigation Cards Grid ── */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, color: textMuted, marginBottom: 14 }}>Navigate To</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14 }}>
               {[
-                { label: '➕ Register Book',    color: '#10b981', bg: 'rgba(16,185,129,0.1)', target: 'catalog' },
-                { label: '📖 My Borrowing',      color: '#6366f1', bg: 'rgba(99,102,241,0.1)',  target: 'myborrow', badge: pendingMyBorrows > 0 ? pendingMyBorrows : null },
-                { label: '📋 Librarian Desk',   color: '#3b82f6', bg: 'rgba(59,130,246,0.1)', target: 'desk' },
-                { label: '📚 Browse Catalog',   color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)', target: 'browse' },
-                { label: '🏷️ Manage Metadata', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', target: 'metadata' },
-                { label: '📋 Reservations',     color: '#06b6d4', bg: 'rgba(6,182,212,0.1)',  target: 'reservations' },
-                { label: '⚠️ Overdue List',     color: '#ef4444', bg: 'rgba(239,68,68,0.1)',  target: 'overdue', badge: stats.overdueCount > 0 ? stats.overdueCount : null },
-              ].map(({ label, color, bg, target, badge }) => (
-                <button
-                  key={target}
-                  className="ov-action-btn"
-                  onClick={() => handleNav(target)}
-                  style={{ background: bg, color, padding: '8px 16px', fontSize: 13, position: 'relative' }}
+                {
+                  key: 'myborrow', icon: '📖', label: 'My Borrowing',
+                  desc: 'Borrow books for yourself', color: '#6366f1',
+                  badge: counts.myborrow, badgeLabel: counts.myborrow > 0 ? `${counts.myborrow} Pending` : null,
+                },
+                {
+                  key: 'browse', icon: '📚', label: 'Browse Catalog',
+                  desc: `${allBooks.length} books available`, color: '#8b5cf6',
+                  badge: null, badgeLabel: null,
+                },
+                {
+                  key: 'desk', icon: '🖥️', label: 'Librarian Desk',
+                  desc: 'Approve & process borrows', color: '#3b82f6',
+                  badge: counts.desk, badgeLabel: counts.desk > 0 ? `${counts.desk} Pending` : null,
+                },
+                {
+                  key: 'reservations', icon: '📋', label: 'Reservations',
+                  desc: 'Manage book holds', color: '#06b6d4',
+                  badge: counts.reservations, badgeLabel: counts.reservations > 0 ? `${counts.reservations} Active` : null,
+                },
+                {
+                  key: 'overdue', icon: '⚠️', label: 'Overdue Books',
+                  desc: 'Books past their due date', color: '#ef4444',
+                  badge: counts.overdue, badgeLabel: counts.overdue > 0 ? `${counts.overdue} Overdue` : null,
+                },
+                {
+                  key: 'catalog', icon: '➕', label: 'Register Book',
+                  desc: 'Add new books to library', color: '#10b981',
+                  badge: null, badgeLabel: null,
+                },
+                {
+                  key: 'metadata', icon: '🏷️', label: 'Manage Metadata',
+                  desc: 'Authors, categories, publishers', color: '#f59e0b',
+                  badge: null, badgeLabel: null,
+                },
+                {
+                  key: 'fines', icon: '💰', label: 'Fine Payments',
+                  desc: 'Process member fines', color: '#f97316',
+                  badge: null, badgeLabel: null,
+                },
+                {
+                  key: 'payments', icon: '🧾', label: 'Payment History',
+                  desc: 'View all payment records', color: '#64748b',
+                  badge: null, badgeLabel: null,
+                },
+                {
+                  key: 'profile', icon: '👤', label: 'My Profile',
+                  desc: 'Update your account info', color: '#94a3b8',
+                  badge: null, badgeLabel: null,
+                },
+              ].map(({ key, icon, label, desc, color, badge, badgeLabel }) => (
+                <div
+                  key={key}
+                  className="ov-card"
+                  onClick={() => handleNav(key)}
+                  style={{
+                    background: cardBg,
+                    border: badge > 0 ? `2px solid ${color}55` : `1px solid ${border}`,
+                    borderRadius: 14,
+                    padding: '16px 18px',
+                    cursor: 'pointer',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    boxShadow: badge > 0 ? `0 0 18px ${color}22` : '0 2px 8px rgba(0,0,0,0.05)',
+                  }}
                 >
-                  {label}
-                  {badge && (
-                    <span style={{ position: 'absolute', top: -5, right: -5, background: color, color: '#fff', borderRadius: '50%', width: 18, height: 18, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>
-                      {badge}
-                    </span>
-                  )}
-                </button>
+                  {/* Color accent top bar */}
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${color}, ${color}88)`, borderRadius: '14px 14px 0 0' }} />
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
+                      {icon}
+                    </div>
+                    {badgeLabel && (
+                      <span style={{ background: `${color}20`, color, borderRadius: 20, fontSize: 10, fontWeight: 800, padding: '3px 8px', whiteSpace: 'nowrap', border: `1px solid ${color}44`, flexShrink: 0 }}>
+                        {badgeLabel}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ fontWeight: 800, fontSize: 14, color: textPrimary, marginBottom: 3 }}>{label}</div>
+                    <div style={{ fontSize: 11, color: textMuted, lineHeight: 1.4 }}>{desc}</div>
+                  </div>
+                  <div style={{ marginTop: 10, fontSize: 11, color, fontWeight: 700 }}>Open →</div>
+                </div>
               ))}
             </div>
           </div>
@@ -535,6 +613,25 @@ export default function StaffDashboard() {
             .br-cart { animation: browseIn 0.3s ease both; }
           `}</style>
 
+          {/* ── Page Header Banner ── */}
+          <div style={{ background: `linear-gradient(135deg, ${isDark ? 'rgba(139,92,246,0.12)' : 'rgba(139,92,246,0.08)'}, ${isDark ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.05)'})`, border: '1.5px solid rgba(139,92,246,0.3)', borderRadius: 16, padding: '18px 22px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+            <div style={{ width: 48, height: 48, borderRadius: 14, background: 'linear-gradient(135deg,#8b5cf6,#6d28d9)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0, boxShadow: '0 4px 16px rgba(139,92,246,0.35)' }}>📚</div>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <div style={{ fontWeight: 900, fontSize: 16, color: textPrimary, marginBottom: 3 }}>Full Library Catalog</div>
+              <div style={{ fontSize: 13, color: textMuted, lineHeight: 1.5 }}>Browse all <strong style={{ color: '#8b5cf6' }}>{allBooks.length} books</strong> in the library. As staff, you can add books to your personal borrow cart, reserve, or join the waitlist — just like a student.</div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+              <div style={{ textAlign: 'center', padding: '8px 14px', background: 'rgba(139,92,246,0.12)', borderRadius: 10, border: '1px solid rgba(139,92,246,0.25)' }}>
+                <div style={{ fontSize: 18, fontWeight: 900, color: '#8b5cf6' }}>{allBooks.filter(b => Number(b.AvailableCopies) > 0).length}</div>
+                <div style={{ fontSize: 10, color: textMuted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8 }}>Available</div>
+              </div>
+              <div style={{ textAlign: 'center', padding: '8px 14px', background: 'rgba(16,185,129,0.1)', borderRadius: 10, border: '1px solid rgba(16,185,129,0.25)' }}>
+                <div style={{ fontSize: 18, fontWeight: 900, color: '#10b981' }}>{myBorrowCart.length}</div>
+                <div style={{ fontSize: 10, color: textMuted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8 }}>In Cart</div>
+              </div>
+            </div>
+          </div>
+
           {/* Cart summary banner */}
           {myBorrowCart.length > 0 && (
             <div className="br-cart" style={{ background: 'linear-gradient(135deg,rgba(16,185,129,0.12),rgba(5,150,105,0.07))', border: '2px solid rgba(16,185,129,0.45)', borderRadius: 14, padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
@@ -576,6 +673,7 @@ export default function StaffDashboard() {
                 key={b.BookID}
                 book={b}
                 isDark={isDark}
+                inCart={myBorrowCart.some(item => String(item.bookId) === String(b.BookID))}
                 showActions="staff-browse"
                 onBorrow={addToMyCart}
                 onReserve={reserveForMyself}

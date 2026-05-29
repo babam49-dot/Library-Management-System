@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import DashboardShell from '../components/DashboardShell';
 import { useTheme } from '../context/ThemeContext';
 import { useBorrowing } from '../hooks/useBorrowing';
+import { useStaffNavCounts, getStaffNavItems } from '../hooks/useStaffNavCounts';
 import OverdueTable from '../components/overdue/OverdueTable';
 
 export default function OverduePage() {
@@ -54,18 +55,8 @@ export default function OverduePage() {
   const uniqueMembers = new Set(filteredRecords.map(r => r.memberID)).size;
   const totalEstFines = filteredRecords.reduce((sum, r) => sum + parseFloat(r.estimatedFine || 0), 0);
 
-  const STAFF_NAV_ITEMS = [
-    { key: 'overview', label: 'Circulation Overview', icon: '📊', path: '/staff' },
-    { key: 'members', label: 'Member Approvals', icon: '👤', path: '/staff' },
-    { key: 'browse', label: 'Browse Catalog', icon: '📚', path: '/staff' },
-    { key: 'catalog', label: 'Register Book', icon: '➕', path: '/staff' },
-    { key: 'metadata', label: 'Manage Metadata', icon: '🏷️', path: '/staff' },
-    { key: 'fines', label: 'Fine Payments', icon: '💰', path: '/staff' },
-    { key: 'desk', label: 'Librarian Desk', icon: '🖥️', path: '/desk' },
-    { key: 'reservations', label: 'Reservations', icon: '📋', path: '/reservations' },
-    { key: 'overdue', label: 'Overdue Books', icon: '⚠️', path: '/overdue' },
-    { key: 'profile', label: 'My Profile', icon: '👤', path: '/staff' },
-  ];
+  const { counts } = useStaffNavCounts();
+  const STAFF_NAV_ITEMS = getStaffNavItems(counts);
 
   const c = {
     card: isDark ? '#161b27' : '#fff',

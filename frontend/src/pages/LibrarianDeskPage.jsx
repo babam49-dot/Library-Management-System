@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import DashboardShell from '../components/DashboardShell';
 import { useTheme } from '../context/ThemeContext';
 import DeskLookupBar from '../components/desk/DeskLookupBar';
@@ -7,10 +8,51 @@ import ReturnConditionSelect from '../components/desk/ReturnConditionSelect';
 import { useDeskSession } from '../hooks/useDeskSession';
 import { useReturns } from '../hooks/useReturns';
 import * as borrowApi from '../api/borrowingApi';
+import { useStaffNavCounts, getStaffNavItems } from '../hooks/useStaffNavCounts';
+
+function CountdownTimer({ deadline, onExpire }) {
+  const [timeLeft, setTimeLeft] = useState(0);
+
+  useEffect(() => {
+    const calc = () => {
+      const diff = new Date(deadline) - new Date();
+      return Math.max(0, Math.floor(diff / 1000));
+    };
+
+    setTimeLeft(calc());
+
+    const timer = setInterval(() => {
+      const rem = calc();
+      setTimeLeft(rem);
+      if (rem <= 0) {
+        clearInterval(timer);
+        if (onExpire) onExpire();
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [deadline]);
+
+  if (timeLeft <= 0) {
+    return <span style={{ color: '#ef4444', fontWeight: 800 }}>Expired</span>;
+  }
+
+  const mins = Math.floor(timeLeft / 60);
+  const secs = timeLeft % 60;
+  const formatted = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+
+  return (
+    <span style={{ color: timeLeft < 60 ? '#ef4444' : '#f59e0b', fontWeight: 800 }}>
+      ⏳ {formatted}
+    </span>
+  );
+}
 
 export default function LibrarianDeskPage() {
   const { isDark } = useTheme();
-  const [tab, setTab] = useState('pickup'); // 'pickup' or 'return'
+  const location = useLocation();
+  const initialTab = location.state?.subTab || 'pickup';
+  const [tab, setTab] = useState(initialTab);
   const [pendingSessions, setPendingSessions] = useState([]);
   
   const { 
@@ -39,6 +81,7 @@ export default function LibrarianDeskPage() {
           grouped[r.code] = {
             code: r.code,
             memberName: r.memberName,
+            pickupDeadline: r.pickupDeadline,
             books: []
           };
         }
@@ -54,6 +97,8 @@ export default function LibrarianDeskPage() {
 
   useEffect(() => {
     loadPendingSessions();
+    const interval = setInterval(loadPendingSessions, 10000);
+    return () => clearInterval(interval);
   }, [tab]);
 
   const c = {
@@ -79,6 +124,19 @@ export default function LibrarianDeskPage() {
       }
     } catch (e) {
       // Error handled by hook
+    }
+  };
+
+  const handleQuickApprove = async (code) => {
+    try {
+      await borrowApi.confirmCollection(code, {});
+      alert(`Session ${code} approved successfully!`);
+      loadPendingSessions();
+      if (lookupCode === code) {
+        handleLookup(code);
+      }
+    } catch (e) {
+      alert('Failed to approve: ' + (e.response?.data?.message || e.message || e));
     }
   };
 
@@ -120,20 +178,86 @@ export default function LibrarianDeskPage() {
     }));
   };
 
-  const STAFF_NAV_ITEMS = [
-    { key: 'overview', label: 'Circulation Overview', icon: '📊', path: '/staff' },
-    { key: 'members', label: 'Member Approvals', icon: '👤', path: '/staff' },
-    { key: 'browse', label: 'Browse Catalog', icon: '📚', path: '/staff' },
-    { key: 'catalog', label: 'Register Book', icon: '➕', path: '/staff' },
-    { key: 'metadata', label: 'Manage Metadata', icon: '🏷️', path: '/staff' },
-    { key: 'desk', label: 'Librarian Desk', icon: '🖥️', path: '/desk' },
-    { key: 'reservations', label: 'Reservations', icon: '📋', path: '/reservations' },
-    { key: 'overdue', label: 'Overdue Books', icon: '⚠️', path: '/overdue' },
-    { key: 'profile', label: 'My Profile', icon: '👤', path: '/staff' },
-  ];
+  const { counts } = useStaffNavCounts();
+  const STAFF_NAV_ITEMS = getStaffNavItems(counts);
 
   return (
     <DashboardShell role="staff" navItems={STAFF_NAV_ITEMS} activeTab="desk" tabLabel="Librarian Desk">
+      {/* Top Live Notification Banners for Pending Borrow requests */}
+      {pendingSessions.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
+          {pendingSessions.map(sess => {
+            const isExpired = new Date(sess.pickupDeadline) < new Date();
+            if (isExpired) return null;
+            return (
+              <div 
+                key={`notif-${sess.code}`}
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between', 
+                  background: isDark ? 'rgba(212, 175, 55, 0.15)' : '#fffbeb', 
+                  border: '1.5px solid #d4af37', 
+                  borderRadius: 12, 
+                  padding: '14px 20px',
+                  boxShadow: '0 6px 20px rgba(212,175,55,0.08)',
+                  animation: 'fadeIn 0.3s ease',
+                  flexWrap: 'wrap',
+                  gap: 12
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <span style={{ fontSize: 22, animation: 'float 3s ease-in-out infinite' }}>🔔</span>
+                  <div>
+                    <strong style={{ color: c.text, fontSize: 15 }}>Pending Approval Request: <span style={{ fontFamily: 'monospace', color: '#d4af37', fontSize: 16 }}>{sess.code}</span></strong>
+                    <div style={{ fontSize: 13, color: c.muted, marginTop: 2 }}>
+                      Member: <strong>{sess.memberName}</strong> • Books: {sess.books.join(', ')}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: 13, background: isDark ? '#1a2236' : '#f1f5f9', padding: '6px 12px', borderRadius: 20, border: `1.5px solid ${c.border}`, marginRight: 8 }}>
+                    Expires: <CountdownTimer deadline={sess.pickupDeadline} onExpire={loadPendingSessions} />
+                  </div>
+                  <button
+                    onClick={() => handleLookup(sess.code)}
+                    className="interactive-btn"
+                    style={{ 
+                      background: '#3b82f6', 
+                      color: '#fff', 
+                      border: 'none', 
+                      borderRadius: 8, 
+                      padding: '8px 16px', 
+                      fontSize: 13, 
+                      fontWeight: 700, 
+                      cursor: 'pointer' 
+                    }}
+                  >
+                    View Details
+                  </button>
+                  <button
+                    onClick={() => handleQuickApprove(sess.code)}
+                    className="interactive-btn"
+                    style={{ 
+                      background: '#10b981', 
+                      color: '#fff', 
+                      border: 'none', 
+                      borderRadius: 8, 
+                      padding: '8px 16px', 
+                      fontSize: 13, 
+                      fontWeight: 700, 
+                      cursor: 'pointer' 
+                    }}
+                  >
+                    Approve Request
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       <div style={{ display:'flex', borderBottom:`1px solid ${c.border}`, marginBottom: 24 }}>
         <button
           onClick={() => { setTab('pickup'); clearSession(); }}
@@ -277,8 +401,30 @@ export default function LibrarianDeskPage() {
                       <span style={{ fontSize: 11, background: '#2563eb', color: '#fff', padding: '2px 8px', borderRadius: 10, fontWeight: 700 }}>Click to Load</span>
                     </div>
                     <div style={{ fontSize: 13, fontWeight: 800, color: c.text, marginBottom: 4 }}>{sess.memberName}</div>
-                    <div style={{ fontSize: 11, color: c.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div style={{ fontSize: 11, color: c.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 8 }}>
                       {sess.books.join(', ')}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${c.border}`, paddingTop: 8, marginTop: 4 }}>
+                      <span style={{ fontSize: 12 }}><CountdownTimer deadline={sess.pickupDeadline} onExpire={loadPendingSessions} /></span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleQuickApprove(sess.code);
+                        }}
+                        className="interactive-btn"
+                        style={{
+                          background: '#10b981',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: 6,
+                          padding: '4px 10px',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Approve
+                      </button>
                     </div>
                   </div>
                 ))}

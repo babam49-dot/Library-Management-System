@@ -52,6 +52,16 @@ const booksData = [
     year: 1925,
     cover: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80',
     description: 'A novel about the American Dream in the Roaring Twenties.'
+  },
+  {
+    title: 'To Kill a Mockingbird',
+    category: 'Fiction',
+    author: 'Harper Lee',
+    publisher: 'J. B. Lippincott & Co.',
+    isbn: '9780446310789',
+    year: 1960,
+    cover: 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80',
+    description: 'The memorable novel of a childhood in a sleepy Southern town and the crisis of conscience that rocked it.'
   }
 ];
 
@@ -99,7 +109,7 @@ async function seedBooks() {
         const [[mBook]] = await conn.execute("SELECT MAX(BookID) as m FROM Books");
         bookId = (mBook.m || 0) + 1;
         await conn.execute(
-          "INSERT INTO Books (BookID, Title, ISBN, Year, Edition, Language, Description, PublisherID, CategoryID, CoverImage) VALUES (?,?,?,?,?,?,?,?,?,?)",
+          "INSERT INTO Books (BookID, Title, ISBN, Year, Edition, Language, Description, PublisherID, CategoryID, CoverImage, IsActive) VALUES (?,?,?,?,?,?,?,?,?,?,1)",
           [bookId, b.title, b.isbn, b.year, '1st', 'English', b.description, pubId, catId, b.cover]
         );
         
@@ -108,8 +118,8 @@ async function seedBooks() {
         // Insert copies
         const [[mCopy1]] = await conn.execute("SELECT MAX(CopyID) as m FROM BookCopies");
         let copyId = (mCopy1.m || 0) + 1;
-        await conn.execute("INSERT INTO BookCopies (CopyID, BookID, ShelfLocation, Status) VALUES (?,?,?,?)", [copyId, bookId, 'A1', 'available']);
-        await conn.execute("INSERT INTO BookCopies (CopyID, BookID, ShelfLocation, Status) VALUES (?,?,?,?)", [copyId + 1, bookId, 'A1', 'available']);
+        await conn.execute("INSERT INTO BookCopies (CopyID, BookID, ShelfLocation, Status) VALUES (?,?,?,?)", [copyId, bookId, 'A1', 'Available']);
+        await conn.execute("INSERT INTO BookCopies (CopyID, BookID, ShelfLocation, Status) VALUES (?,?,?,?)", [copyId + 1, bookId, 'A1', 'Available']);
       }
     }
     console.log("Successfully seeded demo books with covers!");
