@@ -108,28 +108,50 @@ export default function StaffDashboard() {
 
   const fetchData = async () => {
     try {
-      const s = await axios.get(`${API}/staff/dashboard`, getHeaders())
-      setStats(s.data.data)
-      const pubs = await axios.get(`${API}/catalog/publishers`, getHeaders())
-      setPublishers(pubs.data.data)
-      const cats = await axios.get(`${API}/catalog/categories`, getHeaders())
-      setCategories(cats.data.data)
-      const auths = await axios.get(`${API}/catalog/authors`, getHeaders())
-      setAuthors(auths.data.data)
-      const borrows = await axios.get(`${API}/staff/borrowing-records`, getHeaders())
-      setBorrowingRecords(borrows.data.data)
-      const bks = await axios.get(`${API}/member/books`, getHeaders())
-      setAllBooks(bks.data.data || [])
+      const headers = getHeaders();
+
       try {
-        const myB = await axios.get(`${API}/borrowing/my`, getHeaders())
-        setMyBorrows(myB.data.data?.records || myB.data.data || [])
+        const s = await axios.get(`${API}/staff/dashboard`, headers)
+        setStats(s.data.data)
+      } catch (e) { console.error("Failed to load dashboard stats", e) }
+
+      try {
+        const pubs = await axios.get(`${API}/catalog/publishers`, headers)
+        setPublishers(pubs.data.data)
+      } catch (e) { console.error("Failed to load publishers", e) }
+
+      try {
+        const cats = await axios.get(`${API}/catalog/categories`, headers)
+        setCategories(cats.data.data)
+      } catch (e) { console.error("Failed to load categories", e) }
+
+      try {
+        const auths = await axios.get(`${API}/catalog/authors`, headers)
+        setAuthors(auths.data.data)
+      } catch (e) { console.error("Failed to load authors", e) }
+
+      try {
+        const borrows = await axios.get(`${API}/staff/borrowing-records`, headers)
+        setBorrowingRecords(borrows.data.data)
+      } catch (e) { console.error("Failed to load borrowing records", e) }
+
+      try {
+        const bks = await axios.get(`${API}/member/books`, headers)
+        setAllBooks(bks.data.data || [])
+      } catch (e) { console.error("Failed to load books", e) }
+
+      try {
+        const myB = await axios.get(`${API}/staff/my-borrows`, headers)
+        setMyBorrows(myB.data.data || [])
       } catch (_) {}
+
       try {
-        const res = await axios.get(`${API}/borrowing/sessions`, getHeaders())
+        const res = await axios.get(`${API}/borrowing/sessions`, headers)
         const rows = res.data.data || [];
         const pendingCount = rows.filter(r => r.status === 'Pending').length;
         setPendingDeskSessionsCount(pendingCount);
       } catch (_) {}
+
       refetchStaffCounts();
     } catch (err) { console.error(err) }
   }
@@ -140,8 +162,8 @@ export default function StaffDashboard() {
       try {
         const s = await axios.get(`${API}/staff/dashboard`, getHeaders())
         setStats(s.data.data)
-        const myB = await axios.get(`${API}/borrowing/my`, getHeaders())
-        setMyBorrows(myB.data.data?.records || myB.data.data || [])
+        const myB = await axios.get(`${API}/staff/my-borrows`, getHeaders())
+        setMyBorrows(myB.data.data || [])
         const res = await axios.get(`${API}/borrowing/sessions`, getHeaders())
         const rows = res.data.data || [];
         const pendingCount = rows.filter(r => r.status === 'Pending').length;
@@ -377,7 +399,6 @@ export default function StaffDashboard() {
     } finally { setMyBorrowLoading(false) }
   }
   const retractMyBorrow = async (borrowId) => {
-    if (!window.confirm('Retract this pending borrow request?')) return
     try {
       await axios.delete(`${API}/member/borrows/${borrowId}/retract`, getHeaders())
       setMyBorrowMsg({ text: '✅ Request retracted. Copy is available again.', ok: true })
@@ -1283,112 +1304,164 @@ export default function StaffDashboard() {
             .mb-btn:disabled { opacity:0.45; cursor:not-allowed; }
           `}</style>
 
-          <div style={{ display:'flex', alignItems:'flex-start', gap:12, background:'linear-gradient(135deg,rgba(16,185,129,0.1),rgba(5,150,105,0.06))', border:'2px solid rgba(16,185,129,0.3)', borderRadius:14, padding:'14px 18px' }}>
-            <span style={{ fontSize:22 }}>&#x2139;&#xFE0F;</span>
-            <div>
-              <div style={{ fontWeight:800, color:'#065f46', fontSize:14, marginBottom:4 }}>Staff Borrow Policy</div>
-              <div style={{ fontSize:13, color:'#047857', lineHeight:1.6 }}>As a staff member you may borrow books for personal use. Add books below, submit a request, then show your code to an <strong>Administrator</strong> at the desk for approval.</div>
+          {/* ── Policy banner ── */}
+          <div style={{ display:'flex', alignItems:'flex-start', gap:12, background:'linear-gradient(135deg,rgba(99,102,241,0.1),rgba(139,92,246,0.06))', border:'2px solid rgba(99,102,241,0.3)', borderRadius:14, padding:'14px 18px' }}>
+            <span style={{ fontSize:22 }}>ℹ️</span>
+            <div style={{ flex:1 }}>
+              <div style={{ fontWeight:800, color:'#4338ca', fontSize:14, marginBottom:4 }}>Staff Borrow Policy</div>
+              <div style={{ fontSize:13, color:'#4f46e5', lineHeight:1.6 }}>As a staff member you may borrow books for personal use. Browse the catalog, add books to your cart, then submit a borrow request. Your request must be approved by an <strong>Administrator</strong> at the desk.</div>
             </div>
+            <button
+              onClick={() => setTab('browse')}
+              style={{ flexShrink:0, background:'linear-gradient(135deg,#6366f1,#4f46e5)', color:'#fff', border:'none', padding:'10px 20px', borderRadius:10, fontWeight:800, fontSize:13, cursor:'pointer', whiteSpace:'nowrap', boxShadow:'0 4px 14px rgba(99,102,241,0.35)' }}
+            >
+              📚 Browse Catalog →
+            </button>
           </div>
 
+          {/* ── Cart & message ── */}
           {myBorrowMsg.text && (
             <div style={{ animation:'mbIn 0.3s ease', padding:'12px 18px', borderRadius:12, fontWeight:700, fontSize:14, background: myBorrowMsg.ok ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.1)', border:`1px solid ${myBorrowMsg.ok ? 'rgba(16,185,129,0.35)' : 'rgba(239,68,68,0.35)'}`, color: myBorrowMsg.ok ? '#065f46' : '#991b1b', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
               <span>{myBorrowMsg.text}</span>
-              <button onClick={() => setMyBorrowMsg({ text:'', ok:true })} style={{ background:'none', border:'none', cursor:'pointer', fontWeight:900, color:'inherit', fontSize:16 }}>x</button>
+              <button onClick={() => setMyBorrowMsg({ text:'', ok:true })} style={{ background:'none', border:'none', cursor:'pointer', fontWeight:900, color:'inherit', fontSize:16 }}>✕</button>
             </div>
           )}
 
           {myBorrowCart.length > 0 && (
             <div style={{ animation:'mbIn 0.35s ease', background:'linear-gradient(135deg,rgba(16,185,129,0.08),rgba(5,150,105,0.04))', border:'2px solid rgba(16,185,129,0.4)', borderRadius:16, padding:20 }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
-                <div style={{ fontWeight:800, fontSize:16, color:'#065f46' }}>Borrow Cart ({myBorrowCart.length} book{myBorrowCart.length !== 1 ? 's' : ''})</div>
+                <div style={{ fontWeight:800, fontSize:16, color:'#065f46' }}>🛒 Borrow Cart ({myBorrowCart.length} book{myBorrowCart.length !== 1 ? 's' : ''})</div>
                 <button onClick={submitMyBorrow} disabled={myBorrowLoading} className="mb-btn" style={{ background:'linear-gradient(135deg,#10b981,#059669)', color:'#fff', padding:'10px 22px', fontSize:14 }}>
-                  {myBorrowLoading ? 'Submitting...' : 'Submit Borrow Request'}
+                  {myBorrowLoading ? '⏳ Submitting...' : '✅ Submit Borrow Request'}
                 </button>
               </div>
               <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
                 {myBorrowCart.map(item => (
                   <div key={item.copyId} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'rgba(255,255,255,0.7)', borderRadius:10, padding:'10px 14px', border:'1px solid rgba(16,185,129,0.2)' }}>
                     <div>
-                      <div style={{ fontWeight:700, fontSize:14 }}>{item.title}</div>
+                      <div style={{ fontWeight:700, fontSize:14, color:'#065f46' }}>{item.title}</div>
                       {item.authors && <div style={{ fontSize:12, color:'#64748b' }}>{item.authors}</div>}
                     </div>
                     <button onClick={() => removeFromMyCart(item.copyId)} style={{ background:'rgba(239,68,68,0.1)', color:'#ef4444', border:'none', borderRadius:7, padding:'5px 10px', fontWeight:700, cursor:'pointer' }}>Remove</button>
                   </div>
                 ))}
               </div>
+              <div style={{ marginTop:12, padding:'10px 14px', background:'rgba(245,158,11,0.1)', borderRadius:10, border:'1px solid rgba(245,158,11,0.3)', fontSize:13, color:'#92400e', fontWeight:600 }}>
+                ⏳ After submitting, take note of your <strong>request code</strong> and present it to an <strong>Admin</strong> at the desk for approval.
+              </div>
             </div>
           )}
 
-          <div style={{ display:'flex', gap:8, overflowX:'auto', paddingBottom:4, scrollbarWidth:'none' }}>
-            {['',...[...new Set(allBooks.map(b => b.CategoryName).filter(Boolean))].sort()].map(cat => (
-              <button key={cat || '__all'} onClick={() => setMyBorrowCat(cat)} className="mb-btn" style={{ padding:'6px 16px', borderRadius:20, flexShrink:0, background: myBorrowCat === cat ? '#10b981' : 'rgba(16,185,129,0.1)', color: myBorrowCat === cat ? '#fff' : '#065f46', fontSize:13 }}>
-                {cat || 'All Books'}
-              </button>
-            ))}
-          </div>
-
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(210px, 1fr))', gap:16 }}>
-            {allBooks
-              .filter(b => !myBorrowCat || b.CategoryName === myBorrowCat)
-              .filter(b => !searchQuery || [b.Title, b.Authors, b.CategoryName, b.ISBN].some(v => String(v||'').toLowerCase().includes(searchQuery.toLowerCase())))
-              .map((book, idx) => {
-                const available = Number(book.AvailableCopies) > 0;
-                const inCart = myBorrowCart.some(i => String(i.bookId) === String(book.BookID));
-                return (
-                  <div key={book.BookID} className="mb-card" style={{ animationDelay: idx * 0.04 + 's', background: cardBg, border:`1px solid ${border}`, borderRadius:14, overflow:'hidden', display:'flex', flexDirection:'column' }}>
-                    {book.CoverImage
-                      ? <img src={book.CoverImage.startsWith('/') ? `http://localhost:4000${book.CoverImage}` : book.CoverImage} alt={book.Title} style={{ width:'100%', height:130, objectFit:'cover' }} />
-                      : <div style={{ width:'100%', height:130, background:'linear-gradient(135deg,rgba(16,185,129,0.15),rgba(5,150,105,0.08))', display:'flex', alignItems:'center', justifyContent:'center', fontSize:42 }}>&#x1F4D7;</div>
-                    }
-                    <div style={{ padding:12, flex:1, display:'flex', flexDirection:'column', gap:4 }}>
-                      <div style={{ fontWeight:800, fontSize:13, color:textPrimary, lineHeight:1.3 }}>{book.Title}</div>
-                      {book.Authors && <div style={{ fontSize:11, color:textMuted }}>{book.Authors}</div>}
-                      <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:'auto', paddingTop:10 }}>
-                        <span style={{ fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:20, background: available ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.1)', color: available ? '#10b981' : '#ef4444' }}>
-                          {available ? book.AvailableCopies + ' avail.' : 'None'}
-                        </span>
-                        <button onClick={() => addToMyCart(book)} disabled={!available || inCart} className="mb-btn" style={{ marginLeft:'auto', background: inCart ? 'rgba(16,185,129,0.15)' : available ? '#10b981' : 'rgba(150,150,150,0.12)', color: inCart ? '#10b981' : '#fff', padding:'5px 11px', fontSize:12 }}>
-                          {inCart ? 'Added' : '+ Borrow'}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-
-          {myBorrows.length > 0 && (
-            <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:16, overflow:'hidden' }}>
-              <div style={{ padding:'14px 20px', borderBottom:`1px solid ${border}`, display:'flex', alignItems:'center', gap:10 }}>
-                <span style={{ fontWeight:800, fontSize:16, color:textPrimary }}>My Borrow History</span>
-                <span style={{ marginLeft:'auto', fontSize:12, color:textMuted }}>{myBorrows.length} record{myBorrows.length !== 1 ? 's' : ''}</span>
+          {/* ── My Borrow History ── */}
+          <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:16, overflow:'hidden' }}>
+            <div style={{ padding:'14px 20px', borderBottom:`1px solid ${border}`, display:'flex', alignItems:'center', justifyContent:'space-between', gap:10 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <span style={{ fontSize:20 }}>📖</span>
+                <span style={{ fontWeight:800, fontSize:15, color:textPrimary }}>My Borrow History</span>
+                {myBorrows.length > 0 && (
+                  <span style={{ background:'rgba(99,102,241,0.12)', color:'#6366f1', borderRadius:20, fontSize:11, fontWeight:800, padding:'2px 10px', border:'1px solid rgba(99,102,241,0.25)' }}>
+                    {myBorrows.length} record{myBorrows.length !== 1 ? 's' : ''}
+                  </span>
+                )}
               </div>
+              <button onClick={() => setTab('browse')} style={{ background:'linear-gradient(135deg,#8b5cf6,#6d28d9)', color:'#fff', border:'none', padding:'8px 16px', borderRadius:9, fontWeight:700, fontSize:12, cursor:'pointer' }}>
+                + Borrow More Books
+              </button>
+            </div>
+
+            {myBorrows.length === 0 ? (
+              <div style={{ padding:60, textAlign:'center', color:textMuted }}>
+                <div style={{ fontSize:48, marginBottom:12 }}>📭</div>
+                <div style={{ fontWeight:700, fontSize:16, marginBottom:6 }}>No borrow records yet</div>
+                <div style={{ fontSize:13, marginBottom:20 }}>Browse the catalog to find books and add them to your cart.</div>
+                <button onClick={() => setTab('browse')} style={{ background:'linear-gradient(135deg,#6366f1,#4f46e5)', color:'#fff', border:'none', padding:'12px 28px', borderRadius:12, fontWeight:800, fontSize:14, cursor:'pointer', boxShadow:'0 4px 14px rgba(99,102,241,0.3)' }}>
+                  📚 Browse Catalog
+                </button>
+              </div>
+            ) : (
               <div style={{ overflowX:'auto' }}>
                 <table style={{ width:'100%', borderCollapse:'collapse' }}>
-                  <thead><tr style={{ background:'rgba(0,0,0,0.03)' }}>
-                    {['Book','Code','Date','Due','Status',''].map(h => (
-                      <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontSize:11, fontWeight:700, color:textMuted, textTransform:'uppercase', letterSpacing:0.5, whiteSpace:'nowrap' }}>{h}</th>
-                    ))}
-                  </tr></thead>
+                  <thead>
+                    <tr style={{ background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)' }}>
+                      {['BOOK','REQUEST CODE','BORROWED','DUE DATE','RETURN DATE','STATUS','ACTION'].map(h => (
+                        <th key={h} style={{ padding:'12px 16px', textAlign:'left', fontSize:11, fontWeight:900, color:textMuted, textTransform:'uppercase', letterSpacing:0.8, whiteSpace:'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
                   <tbody>
                     {myBorrows.map(b => {
                       const st = b.status || b.Status || '';
                       const isPending = st === 'Pending';
-                      const col = isPending ? '#f59e0b' : st === 'Borrowed' ? '#10b981' : st === 'Overdue' ? '#ef4444' : '#64748b';
+                      const isBorrowed = st === 'Borrowed';
+                      const isOverdue = st === 'Overdue';
+                      const isReturned = st === 'Returned' || st === 'returned';
+                      const col = isPending ? '#f59e0b' : isBorrowed ? '#10b981' : isOverdue ? '#ef4444' : isReturned ? '#64748b' : '#94a3b8';
+                      
+                      let subtitleText = '';
+                      if (isPending) {
+                        subtitleText = '⌛ Awaiting admin approval at the desk';
+                      } else if (isBorrowed) {
+                        subtitleText = '📖 Active borrow session';
+                      } else if (isOverdue) {
+                        subtitleText = '⚠️ Overdue - Return immediately';
+                      } else if (isReturned) {
+                        subtitleText = '↩ Returned successfully';
+                      }
+
                       return (
-                        <tr key={b.BorrowID || b.borrowId} className="table-row" style={{ borderBottom:`1px solid ${border}` }}>
-                          <td style={{ padding:'11px 14px', color:textPrimary, fontWeight:600, fontSize:13, maxWidth:180 }}><div style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{b.Title || b.bookTitle || '�'}</div></td>
-                          <td style={{ padding:'11px 14px', fontSize:12, color:textMuted, fontFamily:'monospace' }}>{b.RequestCode || b.requestCode || '�'}</td>
-                          <td style={{ padding:'11px 14px', fontSize:12, color:textMuted, whiteSpace:'nowrap' }}>{b.BorrowDate || b.borrowDate ? new Date(b.BorrowDate || b.borrowDate).toLocaleDateString() : '�'}</td>
-                          <td style={{ padding:'11px 14px', fontSize:12, color: st === 'Overdue' ? '#ef4444' : textMuted, whiteSpace:'nowrap' }}>{b.DueDate || b.dueDate ? new Date(b.DueDate || b.dueDate).toLocaleDateString() : '�'}</td>
-                          <td style={{ padding:'11px 14px' }}><span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background:col+'18', color:col, border:`1px solid ${col}40` }}>{st}</span></td>
-                          <td style={{ padding:'11px 14px' }}>
-                            {isPending && (
-                              <div style={{ display:'flex', flexDirection:'column', gap:3 }}>
-                                <button onClick={() => retractMyBorrow(b.BorrowID || b.borrowId)} style={{ fontSize:12, padding:'4px 10px', background:'rgba(239,68,68,0.1)', color:'#ef4444', border:'1px solid rgba(239,68,68,0.3)', borderRadius:7, fontWeight:700, cursor:'pointer' }}>Retract</button>
-                                <div style={{ fontSize:10, color:'#f59e0b' }}>Awaiting Admin</div>
+                        <tr key={b.borrowId || b.BorrowID} style={{ borderBottom:`1px solid ${border}`, transition:'background-color 0.2s' }}>
+                          <td style={{ padding:'16px', color:textPrimary, fontWeight:700, fontSize:14, maxWidth:240 }}>
+                            <div style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginBottom:4 }}>{b.bookTitle || b.Title || '—'}</div>
+                            {subtitleText && (
+                              <div style={{ fontSize:11, color: isPending ? '#f59e0b' : isOverdue ? '#ef4444' : textMuted, fontWeight: isPending || isOverdue ? 700 : 500 }}>
+                                {subtitleText}
                               </div>
+                            )}
+                          </td>
+                          <td style={{ padding:'16px', fontSize:13, color:'#3b82f6', fontWeight:700, fontFamily:'monospace' }}>
+                            {b.requestCode || b.RequestCode || '—'}
+                          </td>
+                          <td style={{ padding:'16px', fontSize:13, color:textMuted, whiteSpace:'nowrap' }}>
+                            {b.borrowDate ? new Date(b.borrowDate).toLocaleDateString() : '—'}
+                          </td>
+                          <td style={{ padding:'16px', fontSize:13, color: isOverdue ? '#ef4444' : textMuted, fontWeight: isOverdue ? 700 : 400, whiteSpace:'nowrap' }}>
+                            {b.dueDate && !isPending && !isReturned ? new Date(b.dueDate).toLocaleDateString() : '—'}
+                          </td>
+                          <td style={{ padding:'16px', fontSize:13, color:textMuted, whiteSpace:'nowrap' }}>
+                            {b.returnDate ? new Date(b.returnDate).toLocaleDateString() : '—'}
+                          </td>
+                          <td style={{ padding:'16px' }}>
+                            <span style={{ fontSize:11, fontWeight:800, padding:'4px 12px', borderRadius:20, background:col+'18', color:col, border:`1px solid ${col}40`, whiteSpace:'nowrap', display:'inline-block' }}>
+                              {isPending ? 'Pending' : isBorrowed ? 'Borrowed' : isOverdue ? 'Overdue' : isReturned ? 'Returned' : st}
+                            </span>
+                          </td>
+                          <td style={{ padding:'16px' }}>
+                            {isPending && (
+                              <button 
+                                onClick={() => retractMyBorrow(b.borrowId || b.BorrowID)} 
+                                style={{ 
+                                  fontSize:12, 
+                                  padding:'6px 12px', 
+                                  background:'rgba(239,68,68,0.08)', 
+                                  color:'#ef4444', 
+                                  border:'1px solid rgba(239,68,68,0.25)', 
+                                  borderRadius:8, 
+                                  fontWeight:700, 
+                                  cursor:'pointer',
+                                  display:'flex',
+                                  alignItems:'center',
+                                  gap:4,
+                                  transition:'all 0.15s ease'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.background = 'rgba(239,68,68,0.15)';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.background = 'rgba(239,68,68,0.08)';
+                                }}
+                              >
+                                ✕ Retract
+                              </button>
                             )}
                           </td>
                         </tr>
@@ -1397,8 +1470,8 @@ export default function StaffDashboard() {
                   </tbody>
                 </table>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
 

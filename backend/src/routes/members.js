@@ -369,8 +369,8 @@ router.delete('/borrows/:id/retract', memberOnly, async (req, res) => {
 
     // Release the copy back to Available
     await conn.execute("UPDATE BookCopies SET Status = 'Available' WHERE CopyID = ?", [borrow.CopyID]);
-    // Mark the borrow record as Cancelled
-    await conn.execute("UPDATE BorrowingRecords SET Status = 'Cancelled' WHERE BorrowID = ?", [id]);
+    // Mark the borrow record as Expired (cancelled/retracted status allowed by chk_borrow_status)
+    await conn.execute("UPDATE BorrowingRecords SET Status = 'Expired' WHERE BorrowID = ?", [id]);
 
     await conn.commit();
     return ok(res, 'Borrow request retracted. Book is available again.');

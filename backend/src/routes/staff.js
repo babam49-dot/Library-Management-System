@@ -6,7 +6,7 @@ const { authenticate, requireRole } = require('../middleware/auth');
 const ok = (res, message, data = null) => res.json({ success: true, message, data });
 const fail = (res, message, status = 400) => res.status(status).json({ success: false, message, data: null });
 
-const auth = [authenticate, requireRole(2)];
+const auth = [authenticate, requireRole(1, 2)];
 
 // GET /api/staff/dashboard
 router.get('/dashboard', auth, async (req, res) => {
@@ -360,6 +360,33 @@ router.patch('/all-reservations/:id', auth, async (req, res) => {
     if (!allowed.includes(status)) return fail(res, 'Invalid status');
     await pool.execute('UPDATE Reservations SET Status=? WHERE ResID=? OR ReservationID=?', [status, req.params.id, req.params.id]);
     return ok(res, 'Reservation updated');
+  } catch (err) { return fail(res, err.message, 500); }
+});
+
+// GET /api/staff/my-borrows — returns only THIS staff member's own borrow records
+router.get('/my-borrows', auth, async (req, res) => {
+  try {
+    const userID = req.user.userID || req.user.UserID;
+    // Find this staff user's MemberID (staff get a Members row on first login)
+    const [mRows] = await pool.execute(
+      'SELECT MemberID FROM Members WHERE UserID = ?', [userID]
+    );
+    if (!mRows.length) return ok(res, 'No borrow records', []);
+    const memberID = mRows[0].MemberID;
+
+    const [rows] = await pool.execute(
+      `SELECT br.BorrowID as borrowId, br.RequestCode as requestCode, br.CopyID as copyId,
+              b.Title as bookTitle, b.ISBN as isbn, b.CoverImage as coverImage,
+              br.BorrowDate as borrowDate, br.DueDate as dueDate, br.ReturnDate as returnDate,
+              br.Status as status, br.PickupDeadline as pickupDeadline
+       FROM BorrowingRecords br
+       JOIN BookCopies bc ON br.CopyID = bc.CopyID
+       JOIN Books b ON bc.BookID = b.BookID
+       WHERE br.MemberID = ?
+       ORDER BY br.BorrowDate DESC LIMIT 100`,
+      [memberID]
+    );
+    return ok(res, 'Staff personal borrow records', rows);
   } catch (err) { return fail(res, err.message, 500); }
 });
 

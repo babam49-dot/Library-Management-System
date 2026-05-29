@@ -183,7 +183,6 @@ export default function MemberDashboard() {
   }
 
   const retractBorrow = async (borrowId) => {
-    if (!window.confirm('Retract this pending borrow request? The book will go back to available.')) return
     try {
       await api.delete(`/member/borrows/${borrowId}/retract`)
       setNotice('✅ Request retracted. Book is now available again.')

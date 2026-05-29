@@ -19,24 +19,28 @@ export default function MyBorrowsPage() {
     else if (tab === 'reservations') fetchMyReservations();
   }, [tab, fetchMyBorrows, fetchMyReservations]);
 
+  const [notice, setNotice] = useState({ text: '', ok: true });
+  const showNotice = (text, ok = true) => {
+    setNotice({ text, ok });
+    setTimeout(() => setNotice({ text: '', ok: true }), 4000);
+  };
+
   const handleCancelRequest = async (code) => {
-    if (window.confirm(`Cancel request ${code}?`)) {
-      try {
-        await cancelRequest(code);
-        fetchMyBorrows({ status: 'Pending,Borrowed,Overdue' });
-      } catch (err) {
-        alert("Failed to cancel: " + err);
-      }
+    try {
+      await cancelRequest(code);
+      showNotice(`✅ Request ${code} cancelled. The book copy is available again.`);
+      fetchMyBorrows({ status: 'Pending,Borrowed,Overdue' });
+    } catch (err) {
+      showNotice('❌ Failed to cancel: ' + (err?.response?.data?.message || err?.message || err), false);
     }
   };
 
   const handleCancelReservation = async (id) => {
-    if (window.confirm("Cancel this reservation?")) {
-      try {
-        await cancelReservation(id);
-      } catch (err) {
-        alert("Failed to cancel: " + err);
-      }
+    try {
+      await cancelReservation(id);
+      showNotice('✅ Reservation cancelled successfully.');
+    } catch (err) {
+      showNotice('❌ Failed to cancel: ' + (err?.response?.data?.message || err?.message || err), false);
     }
   };
 
@@ -54,6 +58,22 @@ export default function MyBorrowsPage() {
 
   return (
     <DashboardShell role="member" navItems={MEMBER_NAV_ITEMS} activeTab="my-borrows" tabLabel="My Borrows">
+
+      {/* ── Inline action notice ── */}
+      {notice.text && (
+        <div style={{
+          marginBottom: 16, padding: '12px 18px', borderRadius: 12, fontWeight: 700, fontSize: 14,
+          background: notice.ok ? 'rgba(16,185,129,0.10)' : 'rgba(239,68,68,0.10)',
+          border: `1px solid ${notice.ok ? 'rgba(16,185,129,0.35)' : 'rgba(239,68,68,0.35)'}`,
+          color: notice.ok ? '#065f46' : '#991b1b',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+        }}>
+          <span>{notice.text}</span>
+          <button onClick={() => setNotice({ text: '', ok: true })}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 900, color: 'inherit', fontSize: 16 }}>✕</button>
+        </div>
+      )}
+
       {readyReservations.length > 0 && (
         <div className="mb-6 p-4 bg-green-100 border border-green-300 text-green-800 rounded-xl flex items-center shadow">
           <span className="text-2xl mr-3">📗</span>

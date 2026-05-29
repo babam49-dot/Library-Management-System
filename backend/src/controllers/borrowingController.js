@@ -400,9 +400,13 @@ exports.processReturn = async (req, res) => {
 exports.getMyBorrows = async (req, res) => {
   try {
     const memberId = req.user.MemberID || req.user.memberID || req.user.extensionId;
+    const roleId = req.user.roleID || req.user.RoleID || 3;
     const { status, page = 1, limit = 50 } = req.query;
     const offset = (page - 1) * limit;
 
+    // Filter by the actual role of the current user:
+    //   - Students (RoleID=3) see only records where the borrower is a student
+    //   - Staff/Admin (RoleID=1 or 2) see only their OWN records (no cross-contamination)
     let query = `
       SELECT 
         br.BorrowID as borrowId, br.RequestCode as requestCode, br.CopyID as copyId,
@@ -414,9 +418,11 @@ exports.getMyBorrows = async (req, res) => {
       FROM BorrowingRecords br
       JOIN BookCopies bc ON br.CopyID = bc.CopyID
       JOIN Books b ON bc.BookID = b.BookID
-      WHERE br.MemberID = ?
+      JOIN Members m ON br.MemberID = m.MemberID
+      JOIN Users u ON m.UserID = u.UserID
+      WHERE br.MemberID = ? AND u.RoleID = ?
     `;
-    const params = [memberId];
+    const params = [memberId, roleId];
 
     if (status) {
       const statuses = status.split(',').map(s => s.trim());
