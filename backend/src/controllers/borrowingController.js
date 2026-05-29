@@ -843,13 +843,13 @@ exports.getSessions = async (req, res) => {
     const [rows] = await pool.query(`
       SELECT br.BorrowID as id, br.RequestCode as code, br.Status as status, br.BorrowDate as requestDate,
              br.PickupDeadline as pickupDeadline,
-             u.FullName as memberName, b.Title as bookTitle, bc.CopyID as copyId
+             u.FullName as memberName, u.RoleID as roleId, b.Title as bookTitle, bc.CopyID as copyId
       FROM BorrowingRecords br
       JOIN Members m ON m.MemberID = br.MemberID
       JOIN Users u ON u.UserID = m.UserID
       JOIN BookCopies bc ON bc.CopyID = br.CopyID
       JOIN Books b ON b.BookID = bc.BookID
-      ORDER BY br.BorrowDate DESC LIMIT 100
+      ORDER BY br.BorrowDate DESC LIMIT 200
     `);
     res.json({ success: true, data: rows });
   } catch (err) {
