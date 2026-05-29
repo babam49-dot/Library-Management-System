@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import DashboardShell from '../components/DashboardShell';
 import { useTheme } from '../context/ThemeContext';
 import DeskLookupBar from '../components/desk/DeskLookupBar';
+import { useAuth } from '../context/AuthContext';
 import SessionCard from '../components/desk/SessionCard';
 import ReturnConditionSelect from '../components/desk/ReturnConditionSelect';
 import { useDeskSession } from '../hooks/useDeskSession';
@@ -50,6 +51,7 @@ function CountdownTimer({ deadline, onExpire }) {
 
 export default function LibrarianDeskPage() {
   const { isDark } = useTheme();
+  const { user } = useAuth();
   const location = useLocation();
   const initialTab = location.state?.subTab || 'pickup';
   const [tab, setTab] = useState(initialTab);
@@ -82,6 +84,7 @@ export default function LibrarianDeskPage() {
             code: r.code,
             memberName: r.memberName,
             pickupDeadline: r.pickupDeadline,
+            roleId: r.roleId,
             books: []
           };
         }
@@ -235,22 +238,30 @@ export default function LibrarianDeskPage() {
                   >
                     View Details
                   </button>
-                  <button
-                    onClick={() => handleQuickApprove(sess.code)}
-                    className="interactive-btn"
-                    style={{ 
-                      background: '#10b981', 
-                      color: '#fff', 
-                      border: 'none', 
-                      borderRadius: 8, 
-                      padding: '8px 16px', 
-                      fontSize: 13, 
-                      fontWeight: 700, 
-                      cursor: 'pointer' 
-                    }}
-                  >
-                    Approve Request
-                  </button>
+                  {(() => {
+                    const isStaffReq = sess.roleId === 1 || sess.roleId === 2;
+                    const curUserIsAdmin = user?.RoleID === 1 || user?.roleId === 1 || user?.role === 'admin';
+                    const allowedToApprove = !isStaffReq || curUserIsAdmin;
+                    return (
+                      <button
+                        onClick={() => allowedToApprove && handleQuickApprove(sess.code)}
+                        className="interactive-btn"
+                        disabled={!allowedToApprove}
+                        style={{ 
+                          background: allowedToApprove ? '#10b981' : '#64748b', 
+                          color: '#fff', 
+                          border: 'none', 
+                          borderRadius: 8, 
+                          padding: '8px 16px', 
+                          fontSize: 13, 
+                          fontWeight: 700, 
+                          cursor: allowedToApprove ? 'pointer' : 'not-allowed' 
+                        }}
+                      >
+                        {allowedToApprove ? 'Approve Request' : '🔒 Admin Required'}
+                      </button>
+                    );
+                  })()}
                 </div>
               </div>
             );
@@ -406,25 +417,33 @@ export default function LibrarianDeskPage() {
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: `1px solid ${c.border}`, paddingTop: 8, marginTop: 4 }}>
                       <span style={{ fontSize: 12 }}><CountdownTimer deadline={sess.pickupDeadline} onExpire={loadPendingSessions} /></span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleQuickApprove(sess.code);
-                        }}
-                        className="interactive-btn"
-                        style={{
-                          background: '#10b981',
-                          color: '#fff',
-                          border: 'none',
-                          borderRadius: 6,
-                          padding: '4px 10px',
-                          fontSize: 11,
-                          fontWeight: 700,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Approve
-                      </button>
+                      {(() => {
+                        const isStaffReq = sess.roleId === 1 || sess.roleId === 2;
+                        const curUserIsAdmin = user?.RoleID === 1 || user?.roleId === 1 || user?.role === 'admin';
+                        const allowedToApprove = !isStaffReq || curUserIsAdmin;
+                        return (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (allowedToApprove) handleQuickApprove(sess.code);
+                            }}
+                            className="interactive-btn"
+                            disabled={!allowedToApprove}
+                            style={{
+                              background: allowedToApprove ? '#10b981' : '#64748b',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: 6,
+                              padding: '4px 10px',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              cursor: allowedToApprove ? 'pointer' : 'not-allowed'
+                            }}
+                          >
+                            {allowedToApprove ? 'Approve' : '🔒 Admin'}
+                          </button>
+                        );
+                      })()}
                     </div>
                   </div>
                 ))}

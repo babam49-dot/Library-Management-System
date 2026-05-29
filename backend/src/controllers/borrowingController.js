@@ -513,7 +513,7 @@ exports.getSessions = async (req, res) => {
     let query = `
       SELECT 
         br.RequestCode as requestCode,
-        u.FullName as memberName, u.Email as memberEmail,
+        u.FullName as memberName, u.Email as memberEmail, u.RoleID as roleId,
         COUNT(br.CopyID) as totalCopies,
         SUM(IF(br.Status = 'Pending', 1, 0)) as pendingCount,
         SUM(IF(br.Status = 'Borrowed', 1, 0)) as borrowedCount,
@@ -537,7 +537,7 @@ exports.getSessions = async (req, res) => {
       query += ' WHERE ' + conditions.join(' AND ');
     }
 
-    query += ' GROUP BY br.RequestCode, u.FullName, u.Email';
+    query += ' GROUP BY br.RequestCode, u.FullName, u.Email, u.RoleID';
 
     if (sort === 'recent') {
       query += ' ORDER BY borrowDate DESC';
