@@ -635,7 +635,7 @@ export default function StaffDashboard() {
           </div>
 
           {/* ── Recent Borrowings preview ── */}
-          {borrowingRecords.length > 0 && (
+          {false && (
             <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 14, overflow: 'hidden' }}>
               <div style={{ padding: '14px 18px', borderBottom: `1px solid ${border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: textPrimary }}>📋 Recent Activity</div>
