@@ -51,7 +51,7 @@ function NoticeBanner({ notice, onDismiss }) {
   );
 }
 
-export default function LibrarianDeskPage() {
+export default function LibrarianDeskPage({ isTab = false }) {
   const { isDark } = useTheme();
   const { user } = useAuth();
   const location = useLocation();
@@ -85,15 +85,24 @@ export default function LibrarianDeskPage() {
   /* ── Load all pending sessions ── */
   const loadPendingSessions = async () => {
     try {
-      const res = await borrowApi.getAllSessions();
+      const res = await borrowApi.getAllSessions({ status: 'Pending' });
       const rows = res.data.data || [];
-      const pending = rows.filter(r => r.status === 'Pending');
+      // Group flat rows by request code
       const grouped = {};
-      pending.forEach(r => {
-        if (!grouped[r.code]) {
-          grouped[r.code] = { code: r.code, memberName: r.memberName, pickupDeadline: r.pickupDeadline, roleId: r.roleId, books: [] };
+      rows.forEach(r => {
+        const key = r.code;
+        if (!grouped[key]) {
+          grouped[key] = {
+            code: key,
+            memberName: r.memberName,
+            pickupDeadline: r.pickupDeadline,
+            roleId: r.roleId,
+            books: []
+          };
         }
-        if (!grouped[r.code].books.includes(r.bookTitle)) grouped[r.code].books.push(r.bookTitle);
+        if (r.bookTitle && !grouped[key].books.includes(r.bookTitle)) {
+          grouped[key].books.push(r.bookTitle);
+        }
       });
       setPendingSessions(Object.values(grouped));
     } catch (e) { console.error('Failed to load sessions', e); }
@@ -164,8 +173,8 @@ export default function LibrarianDeskPage() {
   /* ── Styles ── */
   const btnBase = { border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13, padding: '8px 16px', color: '#fff', transition: 'filter 0.15s' };
 
-  return (
-    <DashboardShell role="staff" navItems={STAFF_NAV_ITEMS} activeTab="desk" tabLabel="Librarian Desk">
+  const innerContent = (
+    <>
       <style>{`
         @keyframes fadeIn { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
         .ldesk-card { transition: border-color 0.2s, background 0.2s; }
@@ -176,62 +185,6 @@ export default function LibrarianDeskPage() {
 
       {/* ── Inline Notice ── */}
       <NoticeBanner notice={notice} onDismiss={() => setNotice({ text: '', ok: true })} />
-
-      {/* ── Live Pending Banners (top) ── */}
-      {pendingSessions.filter(s => new Date(s.pickupDeadline) > new Date()).length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 22 }}>
-          {pendingSessions.map(sess => {
-            const isExpired = new Date(sess.pickupDeadline) < new Date();
-            if (isExpired) return null;
-            const isStaffReq = sess.roleId === 1 || sess.roleId === 2;
-            const canApprove = !isStaffReq || curUserIsAdmin;
-            return (
-              <div key={`banner-${sess.code}`} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12,
-                background: isDark ? 'rgba(212,175,55,0.12)' : '#fffbeb',
-                border: `1.5px solid ${isStaffReq ? '#8b5cf6' : '#d4af37'}`,
-                borderRadius: 12, padding: '13px 20px',
-                boxShadow: `0 4px 16px ${isStaffReq ? 'rgba(139,92,246,0.08)' : 'rgba(212,175,55,0.08)'}`,
-                animation: 'fadeIn 0.3s ease'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <span style={{ fontSize: 22 }}>🔔</span>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <strong style={{ color: c.text, fontSize: 15 }}>
-                        Pending: <span style={{ fontFamily: 'monospace', color: isStaffReq ? '#8b5cf6' : '#d4af37', fontSize: 16 }}>{sess.code}</span>
-                      </strong>
-                      {isStaffReq && (
-                        <span style={{ background: '#8b5cf6', color: '#fff', fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 20 }}>
-                          🔒 STAFF — Admin Approval Required
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: 13, color: c.muted, marginTop: 2 }}>
-                      {sess.memberName} • {sess.books.join(', ')}
-                    </div>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  <div style={{ fontSize: 13, background: isDark ? '#1a2236' : '#f1f5f9', padding: '5px 12px', borderRadius: 20, border: `1px solid ${c.border}` }}>
-                    <CountdownTimer deadline={sess.pickupDeadline} onExpire={loadPendingSessions} />
-                  </div>
-                  <button onClick={() => handleLookup(sess.code)} className="ldesk-btn"
-                    style={{ ...btnBase, background: '#3b82f6' }}>View Details</button>
-                  <button
-                    onClick={() => handleQuickApprove(sess.code, isStaffReq)}
-                    disabled={approvingCode === sess.code || (!canApprove)}
-                    className="ldesk-btn"
-                    title={!canApprove ? 'Only Admin can approve staff requests' : 'Approve this request'}
-                    style={{ ...btnBase, background: canApprove ? '#10b981' : '#64748b', cursor: canApprove ? 'pointer' : 'not-allowed' }}>
-                    {approvingCode === sess.code ? '⏳ Approving...' : canApprove ? '✓ Approve' : '🔒 Admin Only'}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
 
       {/* ── Sub-tabs ── */}
       <div style={{ display: 'flex', borderBottom: `1px solid ${c.border}`, marginBottom: 24 }}>
@@ -380,6 +333,14 @@ export default function LibrarianDeskPage() {
           </div>
         </div>
       </div>
+    </>
+  );
+
+  if (isTab) return innerContent;
+
+  return (
+    <DashboardShell role="staff" navItems={STAFF_NAV_ITEMS} activeTab="desk" tabLabel="Librarian Desk">
+      {innerContent}
     </DashboardShell>
   );
 }

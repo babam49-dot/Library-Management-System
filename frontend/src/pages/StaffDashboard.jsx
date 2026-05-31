@@ -1562,7 +1562,19 @@ export default function StaffDashboard() {
                       const isExpired = st === 'Expired';
                       const col = isPending ? '#f59e0b' : isBorrowed ? '#10b981' : isOverdue ? '#ef4444' : isReturned ? '#6366f1' : isExpired ? '#ef4444' : '#94a3b8';
                       const statusLabel = isPending ? 'Pending' : isBorrowed ? 'Active' : isOverdue ? 'Overdue' : isReturned ? 'Returned' : isExpired ? 'Expired' : st;
-                      const fmt = (d) => d ? new Date(d).toLocaleDateString() : '—';
+                      const fmt = (d) => {
+                        if (!d) return '—';
+                        const dateObj = new Date(d);
+                        if (isNaN(dateObj.getTime())) return '—';
+                        return dateObj.toLocaleString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: true
+                        });
+                      };
 
                       return (
                         <tr key={borrowId || i} style={{ borderTop: `1px solid ${border}`, background: isPending ? (isDark ? 'rgba(245,158,11,0.07)' : '#fffbeb') : 'transparent' }}>

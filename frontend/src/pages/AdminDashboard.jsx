@@ -8,9 +8,22 @@ import BookCard from '../components/BookCard'
 import axios from 'axios'
 import Barcode from 'react-barcode'
 import BubblePopup from '../components/BubblePopup'
+import LibrarianDeskPage from './LibrarianDeskPage'
 
 const API = 'http://localhost:4000/api'
-const fmt = (d) => d ? new Date(d).toLocaleDateString() : '—'
+const fmt = (d) => {
+  if (!d) return '—';
+  const dateObj = new Date(d);
+  if (isNaN(dateObj.getTime())) return '—';
+  return dateObj.toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+};
 const fmtCurrency = (n) => `${Number(n||0).toFixed(2)} ETB`
 const statusColor = (s) => ({ active:'#10b981', pending:'#f59e0b', rejected:'#ef4444', suspended:'#6b7280', inactive:'#ef4444', Active:'#10b981', Pending:'#f59e0b', Rejected:'#ef4444', Suspended:'#6b7280', Inactive:'#ef4444', Unpaid:'#ef4444', Partial:'#f59e0b', Paid:'#10b981', Waived:'#8b5cf6', Overdue:'#ef4444', Borrowed:'#3b82f6', Returned:'#10b981' }[s] || '#94a3b8')
 
@@ -25,6 +38,7 @@ export default function AdminDashboard() {
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
   const [toast, setToast] = useState('')
+  const [confirmModal, setConfirmModal] = useState(null)
   const [modal, setModal] = useState(null) // { type, item }
   const [categories, setCategories] = useState([])
   const [publishers, setPublishers] = useState([])
@@ -157,6 +171,7 @@ export default function AdminDashboard() {
     { key: 'all-users', label: 'All Users', icon: '👥' },
     { key: 'books', label: 'Books', icon: '📚' },
     { key: 'borrowings', label: 'Borrowings', icon: '📖' },
+    { key: 'desk', label: 'Librarian Desk', icon: '🖥️' },
     { key: 'fines', label: 'Fines', icon: '💰' },
     { key: 'fine-types', label: 'Fine Types', icon: '⚙️' },
     { key: 'damage', label: 'Damage Reports', icon: '🔍' },
@@ -320,6 +335,7 @@ export default function AdminDashboard() {
     if (tab === 'create-user') return <CreateUserTab c={c} act={act} />
     if (tab === 'profile') return <ProfileTab user={user} act={act} c={c} />
     if (tab === 'config') return <ConfigTab c={c} act={act} />
+    if (tab === 'desk') return <LibrarianDeskPage isTab={true} />
 
     const cols = {
       'pending-staff': ['Name','Email','Job Title','Phone','Actions'],
@@ -348,7 +364,11 @@ export default function AdminDashboard() {
           <Td>{row.Phone || '—'}</Td>
           <Td>
             <Btn color='#10b981' onClick={() => act('patch',`/admin/approve-staff/${row.UserID}`,{},'Staff approved!')}>Approve</Btn>
-            <Btn color='#ef4444' onClick={() => { if(window.confirm('Reject staff member?')) act('patch',`/admin/reject-staff/${row.UserID}`,{},'Staff rejected.') }}>Reject</Btn>
+            <Btn color='#ef4444' onClick={() => setConfirmModal({
+              title: 'Reject Staff Application',
+              text: `Are you sure you want to reject ${row.FullName}'s application to join the staff?`,
+              onConfirm: () => act('patch', `/admin/reject-staff/${row.UserID}`, {}, 'Staff rejected.')
+            })}>Reject</Btn>
           </Td>
         </tr>
       )
@@ -360,7 +380,11 @@ export default function AdminDashboard() {
           <Td>{row.Department || '—'}</Td>
           <Td>
             <Btn color='#10b981' onClick={() => act('patch',`/admin/approve-member/${row.UserID}`,{},'Member approved! They can now log in.')}>Approve</Btn>
-            <Btn color='#ef4444' onClick={() => { if(window.confirm(`Reject ${row.FullName}'s application?`)) act('patch',`/admin/reject-member/${row.UserID}`,{},'Member rejected.') }}>Reject</Btn>
+            <Btn color='#ef4444' onClick={() => setConfirmModal({
+              title: 'Reject Member Application',
+              text: `Are you sure you want to reject ${row.FullName}'s application?`,
+              onConfirm: () => act('patch', `/admin/reject-member/${row.UserID}`, {}, 'Member rejected.')
+            })}>Reject</Btn>
           </Td>
         </tr>
       )

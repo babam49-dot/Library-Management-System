@@ -5,6 +5,20 @@ import { useTheme } from '../../context/ThemeContext';
 export default function MyBorrowTable({ borrows, onCancel }) {
   const { isDark } = useTheme();
 
+  const formatDateTime = (d) => {
+    if (!d) return '-';
+    const dateObj = new Date(d);
+    if (isNaN(dateObj.getTime())) return '-';
+    return dateObj.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left text-sm whitespace-nowrap">
@@ -25,10 +39,21 @@ export default function MyBorrowTable({ borrows, onCancel }) {
               <td className="p-3 font-mono">{row.requestCode}</td>
               <td className="p-3 font-bold">{row.bookTitle}</td>
               <td className="p-3"><BorrowStatusBadge status={row.status} /></td>
-              <td className="p-3">{row.borrowDate ? new Date(row.borrowDate).toLocaleDateString() : '-'}</td>
+              <td className="p-3">{formatDateTime(row.borrowDate)}</td>
               <td className="p-3">
-                {row.returnDate ? new Date(row.returnDate).toLocaleDateString() 
-                  : row.dueDate ? new Date(row.dueDate).toLocaleDateString() : '-'}
+                {row.returnDate ? (
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{formatDateTime(row.returnDate)}</div>
+                    <div style={{ fontSize: 11, color: '#10b981', marginTop: 2 }}>Returned</div>
+                  </div>
+                ) : row.dueDate ? (
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{formatDateTime(row.dueDate)}</div>
+                    <div style={{ fontSize: 11, color: row.isOverdue ? '#ef4444' : '#64748b', marginTop: 2 }}>
+                      {row.isOverdue ? '⚠️ Overdue' : 'Active Due Date'}
+                    </div>
+                  </div>
+                ) : '-'}
               </td>
               <td className="p-3">
                 {row.status === 'Borrowed' && !row.isOverdue && (

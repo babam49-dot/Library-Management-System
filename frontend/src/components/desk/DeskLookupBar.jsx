@@ -7,7 +7,18 @@ export default function DeskLookupBar({ onLookup, isLoading }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (code.trim()) onLookup(code.trim().toUpperCase());
+    const raw = code.trim().toUpperCase();
+    if (!raw) return;
+    // Normalize: if user types just digits (e.g. "46" or "0046"), prepend "BR-" and zero-pad to 4 digits
+    let normalized = raw;
+    if (/^\d+$/.test(raw)) {
+      normalized = 'BR-' + raw.padStart(4, '0');
+    } else if (/^BR-?\d+$/i.test(raw)) {
+      // Handle "BR46" without dash
+      const num = raw.replace(/^BR-?/i, '');
+      normalized = 'BR-' + num.padStart(4, '0');
+    }
+    onLookup(normalized);
   };
 
   return (

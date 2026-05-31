@@ -8,10 +8,9 @@ const getConnection = async () => await db.getConnection();
 exports.submitRequest = async (req, res) => {
   const { copyIds } = req.body;
   const memberId = req.user.MemberID || req.user.memberID || req.user.extensionId;
-  const roleId = req.user.RoleID || req.user.roleID || 3; // 1=Admin, 2=Staff, 3=Member
-  // Members (RoleID=3) and Staff (RoleID=2) get a 5-minute pickup window; admin gets 30 minutes
-  const pickupInterval = (roleId === 2 || roleId === 3) ? 'INTERVAL 5 MINUTE' : 'INTERVAL 30 MINUTE';
-  const pickupMs = (roleId === 2 || roleId === 3) ? 5 * 60 * 1000 : 30 * 60 * 1000;
+  // Members (RoleID=3) and Staff (RoleID=2) get a 30-minute pickup window; admin gets 60 minutes
+  const pickupInterval = (roleId === 2 || roleId === 3) ? 'INTERVAL 30 MINUTE' : 'INTERVAL 60 MINUTE';
+  const pickupMs = (roleId === 2 || roleId === 3) ? 30 * 60 * 1000 : 60 * 60 * 1000;
 
   if (!copyIds || !Array.isArray(copyIds) || copyIds.length === 0) {
     return res.status(400).json({ success: false, message: "copyIds must be a non-empty array" });
@@ -85,7 +84,7 @@ exports.submitRequest = async (req, res) => {
         // Rule A
         await conn.query(`
           INSERT INTO BorrowingRecords (MemberID, CopyID, RequestCode, BorrowDate, Status, PickupDeadline)
-          VALUES (?, ?, ?, CURDATE(), 'Pending', DATE_ADD(NOW(), ${pickupInterval}))
+          VALUES (?, ?, ?, NOW(), 'Pending', DATE_ADD(NOW(), ${pickupInterval}))
         `, [memberId, copyId, requestCode]);
 
         await conn.query(`UPDATE BookCopies SET Status = 'Reserved_on_Shelf' WHERE CopyID = ?`, [copyId]);
@@ -261,7 +260,7 @@ exports.confirmCollection = async (req, res) => {
       await conn.query(`
         UPDATE BorrowingRecords SET
           Status = 'Borrowed',
-          DueDate = DATE_ADD(CURDATE(), INTERVAL ? DAY),
+          DueDate = DATE_ADD(NOW(), INTERVAL ? DAY),
           ProcessedByStaffID = ?
         WHERE BorrowID = ?
       `, [loanPeriodDays, staffId, bid]);
@@ -514,42 +513,43 @@ exports.getOverdue = async (req, res) => {
 
 exports.getSessions = async (req, res) => {
   try {
-    const { status, limit = 50, sort } = req.query;
+    const { status, limit = 200 } = req.query;
 
+    // Return flat per-row results so frontend can group/filter as needed.
+    // Includes all fields the LibrarianDeskPage expects: code, status, memberName,
+    // pickupDeadline, bookTitle, roleId.
     let query = `
       SELECT 
-        br.RequestCode as requestCode,
-        u.FullName as memberName, u.Email as memberEmail, u.RoleID as roleId,
-        COUNT(br.CopyID) as totalCopies,
-        SUM(IF(br.Status = 'Pending', 1, 0)) as pendingCount,
-        SUM(IF(br.Status = 'Borrowed', 1, 0)) as borrowedCount,
-        SUM(IF(br.Status = 'Returned', 1, 0)) as returnedCount,
-        SUM(IF(br.Status = 'Overdue', 1, 0)) as overdueCount,
-        MIN(br.BorrowDate) as borrowDate,
-        MAX(br.DueDate) as latestDueDate
+        br.RequestCode as code,
+        br.BorrowID as borrowId,
+        br.Status as status,
+        br.PickupDeadline as pickupDeadline,
+        br.DueDate as dueDate,
+        u.FullName as memberName,
+        u.Email as memberEmail,
+        u.RoleID as roleId,
+        m.MemberID as memberId,
+        b.Title as bookTitle
       FROM BorrowingRecords br
       JOIN Members m ON br.MemberID = m.MemberID
       JOIN Users u ON m.UserID = u.UserID
+      JOIN BookCopies bc ON br.CopyID = bc.CopyID
+      JOIN Books b ON bc.BookID = b.BookID
     `;
     const params = [];
     const conditions = [];
 
     if (status) {
-      conditions.push(`br.Status = ?`);
-      params.push(status);
+      const statuses = status.split(',').map(s => s.trim());
+      conditions.push(`br.Status IN (?)`);
+      params.push(statuses);
     }
 
     if (conditions.length > 0) {
       query += ' WHERE ' + conditions.join(' AND ');
     }
 
-    query += ' GROUP BY br.RequestCode, u.FullName, u.Email, u.RoleID';
-
-    if (sort === 'recent') {
-      query += ' ORDER BY borrowDate DESC';
-    }
-
-    query += ' LIMIT ?';
+    query += ' ORDER BY br.BorrowDate DESC LIMIT ?';
     params.push(parseInt(limit));
 
     const [rows] = await db.query(query, params);
@@ -632,7 +632,7 @@ exports.getSession = async (req, res) => {
     const [rows] = await db.query(`
       SELECT 
         br.BorrowID as borrowId, br.RequestCode as requestCode, br.Status as status,
-        br.BorrowDate as borrowDate, br.DueDate as dueDate, br.PickupDeadline as pickupDeadline,
+        br.BorrowDate as borrowDate, br.DueDate as dueDate, br.PickupDeadline as pickupDeadline, br.ReturnDate as returnDate,
         b.Title as bookTitle, bc.CopyID as copyId, bc.ShelfLocation as shelfLocation,
         m.MemberID as memberId, m.StudentID as studentId, u.FullName as fullName, u.Email as email, u.RoleID as roleId
       FROM BorrowingRecords br
@@ -649,18 +649,36 @@ exports.getSession = async (req, res) => {
 
     const member = {
       memberId: rows[0].memberId,
+      memberID: rows[0].memberId,
       studentId: rows[0].studentId,
+      studentID: rows[0].studentId,
       fullName: rows[0].fullName,
       email: rows[0].email,
       roleId: rows[0].roleId  // 1=Admin, 2=Staff, 3=Member
     };
+
+    const sessionRows = rows.map(r => {
+      const isPending = r.status === 'Pending';
+      const isNotExpired = !r.pickupDeadline || new Date(r.pickupDeadline) > new Date();
+      return {
+        borrowId: r.borrowId,
+        copyId: r.copyId,
+        bookTitle: r.bookTitle,
+        shelfLocation: r.shelfLocation,
+        status: r.status,
+        pickupDeadline: r.pickupDeadline,
+        dueDate: r.dueDate,
+        returnDate: r.returnDate,
+        eligibleForConfirmation: isPending && isNotExpired
+      };
+    });
 
     res.json({
       success: true,
       data: {
         requestCode: code,
         member,
-        rows
+        rows: sessionRows
       }
     });
   } catch (err) {
