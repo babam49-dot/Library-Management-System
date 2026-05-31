@@ -1548,10 +1548,10 @@ export default function StaffDashboard() {
                           </span>
                           {borrowDate && (
                             <span style={{ fontSize: 12, color: textMuted }}>
-                              📅 {new Date(borrowDate).toLocaleDateString()}
+                              📅 Borrowed: {new Date(borrowDate).toLocaleDateString()}
                             </span>
                           )}
-                          {dueDate && !isPending && !isReturned && !isExpired && (
+                          {dueDate && (
                             <span style={{ fontSize: 12, color: isOverdue ? '#ef4444' : textMuted, fontWeight: isOverdue ? 700 : 400 }}>
                               🗓 Due: {new Date(dueDate).toLocaleDateString()}
                             </span>
