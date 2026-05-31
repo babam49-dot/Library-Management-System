@@ -51,7 +51,7 @@ function NoticeBanner({ notice, onDismiss }) {
   );
 }
 
-export default function LibrarianDeskPage({ isTab = false }) {
+export default function LibrarianDeskPage({ isTab = false, onBack }) {
   const { isDark } = useTheme();
   const { user } = useAuth();
   const location = useLocation();
@@ -185,6 +185,24 @@ export default function LibrarianDeskPage({ isTab = false }) {
 
       {/* ── Inline Notice ── */}
       <NoticeBanner notice={notice} onDismiss={() => setNotice({ text: '', ok: true })} />
+
+      {/* ── Top Header / Back Button ── */}
+      {isTab && onBack && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+          <button 
+            onClick={onBack}
+            className="interactive-btn"
+            style={{ 
+              display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', 
+              borderRadius: 10, border: `1.5px solid ${c.border}`, background: 'rgba(255, 255, 255, 0.05)', 
+              color: c.text, cursor: 'pointer', fontWeight: 700, fontSize: 13, transition: 'all 0.2s'
+            }}>
+            ← Back to Management Menu
+          </button>
+          <div style={{ height: 24, width: 1.5, background: c.border }} />
+          <span style={{ fontSize: 14, color: c.muted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>Librarian Circulation Desk</span>
+        </div>
+      )}
 
       {/* ── Sub-tabs ── */}
       <div style={{ display: 'flex', borderBottom: `1px solid ${c.border}`, marginBottom: 24 }}>

@@ -335,7 +335,7 @@ export default function AdminDashboard() {
     if (tab === 'create-user') return <CreateUserTab c={c} act={act} />
     if (tab === 'profile') return <ProfileTab user={user} act={act} c={c} />
     if (tab === 'config') return <ConfigTab c={c} act={act} />
-    if (tab === 'desk') return <LibrarianDeskPage isTab={true} />
+    if (tab === 'desk') return <LibrarianDeskPage isTab={true} onBack={() => setTab('overview')} />
 
     const cols = {
       'pending-staff': ['Name','Email','Job Title','Phone','Actions'],
@@ -1135,30 +1135,32 @@ export default function AdminDashboard() {
 
       <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
         {/* Vertical Sidebar Navigation */}
-        <div style={{ width: 260, background: c.card, borderRadius: 16, border: `1px solid ${c.border}`, padding: 16, display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0, position: 'sticky', top: 90 }}>
-          <h3 style={{ fontSize: 12, color: c.muted, textTransform: 'uppercase', letterSpacing: 1, margin: '8px 8px 16px', fontWeight: 700 }}>Management Menu</h3>
-          {TABS.map(t => (
-            <button 
-              key={t.key} 
-              onClick={() => setTab(t.key)}
-              style={{ 
-                display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 10,
-                background: tab === t.key ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
-                color: tab === t.key ? '#3b82f6' : c.text,
-                border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: tab === t.key ? 700 : 500,
-                transition: 'all 0.2s', textAlign: 'left'
-              }}>
-              <span style={{ fontSize: 18 }}>{t.icon}</span>
-              {t.label}
-              {t.key === 'pending-staff' && stats?.pendingStaff > 0 && (
-                <span style={{ marginLeft:'auto', background:'#f59e0b', color:'#fff', fontSize:11, padding:'2px 8px', borderRadius:20, fontWeight:700 }}>{stats.pendingStaff}</span>
-              )}
-              {t.key === 'pending-members' && stats?.pendingMembers > 0 && (
-                <span style={{ marginLeft:'auto', background:'#ec4899', color:'#fff', fontSize:11, padding:'2px 8px', borderRadius:20, fontWeight:700 }}>{stats.pendingMembers}</span>
-              )}
-            </button>
-          ))}
-        </div>
+        {tab !== 'desk' && (
+          <div style={{ width: 260, background: c.card, borderRadius: 16, border: `1px solid ${c.border}`, padding: 16, display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0, position: 'sticky', top: 90 }}>
+            <h3 style={{ fontSize: 12, color: c.muted, textTransform: 'uppercase', letterSpacing: 1, margin: '8px 8px 16px', fontWeight: 700 }}>Management Menu</h3>
+            {TABS.map(t => (
+              <button 
+                key={t.key} 
+                onClick={() => setTab(t.key)}
+                style={{ 
+                  display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 10,
+                  background: tab === t.key ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+                  color: tab === t.key ? '#3b82f6' : c.text,
+                  border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: tab === t.key ? 700 : 500,
+                  transition: 'all 0.2s', textAlign: 'left'
+                }}>
+                <span style={{ fontSize: 18 }}>{t.icon}</span>
+                {t.label}
+                {t.key === 'pending-staff' && stats?.pendingStaff > 0 && (
+                  <span style={{ marginLeft:'auto', background:'#f59e0b', color:'#fff', fontSize:11, padding:'2px 8px', borderRadius:20, fontWeight:700 }}>{stats.pendingStaff}</span>
+                )}
+                {t.key === 'pending-members' && stats?.pendingMembers > 0 && (
+                  <span style={{ marginLeft:'auto', background:'#ec4899', color:'#fff', fontSize:11, padding:'2px 8px', borderRadius:20, fontWeight:700 }}>{stats.pendingMembers}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
         
         {/* Active Tab Content */}
         <div style={{ flex: 1, minWidth: 0 }}>
