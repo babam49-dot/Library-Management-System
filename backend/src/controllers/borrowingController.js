@@ -9,9 +9,9 @@ exports.submitRequest = async (req, res) => {
   const { copyIds } = req.body;
   const memberId = req.user.MemberID || req.user.memberID || req.user.extensionId;
   const roleId = req.user.RoleID || req.user.roleID || 3; // 1=Admin, 2=Staff, 3=Member
-  // Members (RoleID=3) get a 5-minute pickup window; staff/admin get 30 minutes
-  const pickupInterval = roleId === 3 ? 'INTERVAL 5 MINUTE' : 'INTERVAL 30 MINUTE';
-  const pickupMs = roleId === 3 ? 5 * 60 * 1000 : 30 * 60 * 1000;
+  // Members (RoleID=3) and Staff (RoleID=2) get a 5-minute pickup window; admin gets 30 minutes
+  const pickupInterval = (roleId === 2 || roleId === 3) ? 'INTERVAL 5 MINUTE' : 'INTERVAL 30 MINUTE';
+  const pickupMs = (roleId === 2 || roleId === 3) ? 5 * 60 * 1000 : 30 * 60 * 1000;
 
   if (!copyIds || !Array.isArray(copyIds) || copyIds.length === 0) {
     return res.status(400).json({ success: false, message: "copyIds must be a non-empty array" });

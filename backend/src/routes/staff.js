@@ -363,16 +363,24 @@ router.patch('/all-reservations/:id', auth, async (req, res) => {
   } catch (err) { return fail(res, err.message, 500); }
 });
 
+// ── Helper: guarantee a Members row exists for a staff user ──────────────
+async function ensureStaffMember(userID) {
+  const [mRows] = await pool.execute('SELECT MemberID FROM Members WHERE UserID = ?', [userID]);
+  if (mRows.length) return mRows[0].MemberID;
+  // Auto-create shadow member record for first-time borrowing
+  const [[{ nextId }]] = await pool.execute('SELECT COALESCE(MAX(MemberID),0)+1 AS nextId FROM Members');
+  await pool.execute(
+    'INSERT INTO Members (MemberID, UserID, StudentID, Department, RegistrationDate, MaxBooksAllowed) VALUES (?,?,?,?,NOW(),?)',
+    [nextId, userID, `STAFF-${userID}`, 'Staff Department', 5]
+  );
+  return nextId;
+}
+
 // GET /api/staff/my-borrows — returns only THIS staff member's own borrow records
 router.get('/my-borrows', auth, async (req, res) => {
   try {
     const userID = req.user.userID || req.user.UserID;
-    // Find this staff user's MemberID (staff get a Members row on first login)
-    const [mRows] = await pool.execute(
-      'SELECT MemberID FROM Members WHERE UserID = ?', [userID]
-    );
-    if (!mRows.length) return ok(res, 'No borrow records', []);
-    const memberID = mRows[0].MemberID;
+    const memberID = await ensureStaffMember(userID);
 
     const [rows] = await pool.execute(
       `SELECT br.BorrowID as borrowId, br.RequestCode as requestCode, br.CopyID as copyId,
@@ -398,21 +406,15 @@ router.get('/my-borrows', auth, async (req, res) => {
 router.post('/my-borrows/request', auth, async (req, res) => {
   const userID = req.user.userID || req.user.UserID;
   try {
-    // Always resolve MemberID from DB — never trust the token for this
-    const [mRows] = await pool.execute(
-      'SELECT MemberID FROM Members WHERE UserID = ?', [userID]
-    );
-    if (!mRows.length) {
-      return fail(res, 'No member record found. Please log out and log back in to refresh your session.', 404);
-    }
-    // Override req.user MemberID fields so the borrowing controller uses the correct staff MemberID
-    req.user.MemberID = mRows[0].MemberID;
-    req.user.memberID = mRows[0].MemberID;
-    req.user.extensionId = mRows[0].MemberID;
+    // Guarantee a Members record exists (auto-creates on first use)
+    const memberID = await ensureStaffMember(userID);
+    // Override req.user MemberID so the borrowing controller uses the correct staff MemberID
+    req.user.MemberID = memberID;
+    req.user.memberID = memberID;
+    req.user.extensionId = memberID;
   } catch (err) {
     return fail(res, err.message, 500);
   }
-  // Delegate to the shared borrow submission controller
   return require('../controllers/borrowingController').submitRequest(req, res);
 });
 

@@ -1511,8 +1511,8 @@ export default function StaffDashboard() {
                   const isOverdue = st === 'Overdue';
                   const isReturned = st === 'Returned' || st === 'returned';
                   const isExpired = st === 'Expired';
-                  const col = isPending ? '#f59e0b' : isBorrowed ? '#10b981' : isOverdue ? '#ef4444' : isReturned ? '#6366f1' : isExpired ? '#64748b' : '#94a3b8';
-                  const statusLabel = isPending ? 'Pending' : isBorrowed ? 'Active' : isOverdue ? 'Overdue' : isReturned ? 'Returned' : isExpired ? 'Cancelled' : st;
+                  const col = isPending ? '#f59e0b' : isBorrowed ? '#10b981' : isOverdue ? '#ef4444' : isReturned ? '#6366f1' : isExpired ? '#ef4444' : '#94a3b8';
+                  const statusLabel = isPending ? 'Pending' : isBorrowed ? 'Active' : isOverdue ? 'Overdue' : isReturned ? 'Returned' : isExpired ? 'Expired' : st;
 
                   return (
                     <div key={borrowId} style={{
