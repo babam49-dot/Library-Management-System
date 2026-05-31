@@ -398,7 +398,10 @@ export default function StaffDashboard() {
     setMyBorrowLoading(true)
     setMyBorrowMsg({ text: '', ok: true })
     try {
-      const res = await axios.post(`${API}/borrowing/request`, { copyIds: myBorrowCart.map(i => i.copyId) }, getHeaders())
+      // Use the staff-specific endpoint — resolves MemberID from DB, not from the JWT token.
+      // This prevents shared-localStorage cross-contamination when both student and staff
+      // accounts are logged in on different tabs in the same browser.
+      const res = await axios.post(`${API}/staff/my-borrows/request`, { copyIds: myBorrowCart.map(i => i.copyId) }, getHeaders())
       const code = res.data.data?.requestCode || res.data.requestCode || ''
       setMyBorrowMsg({ text: '✅ Submitted! Show code "' + code + '" to an Admin at the desk.', ok: true })
       setMyBorrowCart([])
@@ -409,7 +412,7 @@ export default function StaffDashboard() {
   }
   const retractMyBorrow = async (borrowId) => {
     try {
-      await axios.delete(`${API}/member/borrows/${borrowId}/retract`, getHeaders())
+      await axios.delete(`${API}/staff/my-borrows/${borrowId}/retract`, getHeaders())
       setMyBorrowMsg({ text: '✅ Request retracted. Copy is available again.', ok: true })
       fetchData()
     } catch (err) { setMyBorrowMsg({ text: 'Error: ' + (err.response?.data?.message || err.message), ok: false }) }
@@ -1388,96 +1391,118 @@ export default function StaffDashboard() {
                 </button>
               </div>
             ) : (
-              <div style={{ overflowX:'auto', maxWidth:'100%' }}>
-                <table style={{ width:'100%', borderCollapse:'collapse', minWidth: 600 }}>
-                  <thead>
-                    <tr style={{ background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)' }}>
-                      {['BOOK','REQUEST CODE','BORROWED','DUE DATE','RETURN DATE','STATUS','ACTION'].map(h => (
-                        <th key={h} style={{ padding:'12px 16px', textAlign:'left', fontSize:11, fontWeight:900, color:textMuted, textTransform:'uppercase', letterSpacing:0.8, whiteSpace:'nowrap' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {myBorrows.map(b => {
-                      const st = b.status || b.Status || '';
-                      const isPending = st === 'Pending';
-                      const isBorrowed = st === 'Borrowed';
-                      const isOverdue = st === 'Overdue';
-                      const isReturned = st === 'Returned' || st === 'returned';
-                      const col = isPending ? '#f59e0b' : isBorrowed ? '#10b981' : isOverdue ? '#ef4444' : isReturned ? '#64748b' : '#94a3b8';
-                      
-                      let subtitleText = '';
-                      if (isPending) {
-                        subtitleText = '⌛ Awaiting admin approval at the desk';
-                      } else if (isBorrowed) {
-                        subtitleText = '📖 Active borrow session';
-                      } else if (isOverdue) {
-                        subtitleText = '⚠️ Overdue - Return immediately';
-                      } else if (isReturned) {
-                        subtitleText = '↩ Returned successfully';
-                      }
+              <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                {myBorrows.map(b => {
+                  const title = b.bookTitle || b.Title || b.title || '—';
+                  const requestCode = b.requestCode || b.RequestCode || '—';
+                  const borrowDate = b.borrowDate || b.BorrowDate;
+                  const dueDate = b.dueDate || b.DueDate;
+                  const returnDate = b.returnDate || b.ReturnDate;
+                  const st = b.status || b.Status || '';
+                  const borrowId = b.borrowId || b.BorrowID;
+                  const isPending = st === 'Pending';
+                  const isBorrowed = st === 'Borrowed';
+                  const isOverdue = st === 'Overdue';
+                  const isReturned = st === 'Returned' || st === 'returned';
+                  const isExpired = st === 'Expired';
+                  const col = isPending ? '#f59e0b' : isBorrowed ? '#10b981' : isOverdue ? '#ef4444' : isReturned ? '#6366f1' : isExpired ? '#64748b' : '#94a3b8';
+                  const statusLabel = isPending ? 'Pending' : isBorrowed ? 'Active' : isOverdue ? 'Overdue' : isReturned ? 'Returned' : isExpired ? 'Cancelled' : st;
 
-                      return (
-                        <tr key={b.borrowId || b.BorrowID} style={{ borderBottom:`1px solid ${border}`, transition:'background-color 0.2s' }}>
-                          <td style={{ padding:'16px', color:textPrimary, fontWeight:700, fontSize:14, maxWidth:240 }}>
-                            <div style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginBottom:4 }}>{b.bookTitle || b.Title || '—'}</div>
-                            {subtitleText && (
-                              <div style={{ fontSize:11, color: isPending ? '#f59e0b' : isOverdue ? '#ef4444' : textMuted, fontWeight: isPending || isOverdue ? 700 : 500 }}>
-                                {subtitleText}
-                              </div>
-                            )}
-                          </td>
-                          <td style={{ padding:'16px', fontSize:13, color:'#3b82f6', fontWeight:700, fontFamily:'monospace' }}>
-                            {b.requestCode || b.RequestCode || '—'}
-                          </td>
-                          <td style={{ padding:'16px', fontSize:13, color:textMuted, whiteSpace:'nowrap' }}>
-                            {b.borrowDate ? new Date(b.borrowDate).toLocaleDateString() : '—'}
-                          </td>
-                          <td style={{ padding:'16px', fontSize:13, color: isOverdue ? '#ef4444' : textMuted, fontWeight: isOverdue ? 700 : 400, whiteSpace:'nowrap' }}>
-                            {b.dueDate && !isPending && !isReturned ? new Date(b.dueDate).toLocaleDateString() : '—'}
-                          </td>
-                          <td style={{ padding:'16px', fontSize:13, color:textMuted, whiteSpace:'nowrap' }}>
-                            {b.returnDate ? new Date(b.returnDate).toLocaleDateString() : '—'}
-                          </td>
-                          <td style={{ padding:'16px' }}>
-                            <span style={{ fontSize:11, fontWeight:800, padding:'4px 12px', borderRadius:20, background:col+'18', color:col, border:`1px solid ${col}40`, whiteSpace:'nowrap', display:'inline-block' }}>
-                              {isPending ? 'Pending' : isBorrowed ? 'Borrowed' : isOverdue ? 'Overdue' : isReturned ? 'Returned' : st}
+                  return (
+                    <div key={borrowId} style={{
+                      background: cardBg,
+                      border: `1px solid ${isPending ? 'rgba(245,158,11,0.3)' : isOverdue ? 'rgba(239,68,68,0.3)' : border}`,
+                      borderRadius: 14,
+                      padding: '16px 20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 16,
+                      flexWrap: 'wrap',
+                      boxShadow: isPending ? '0 0 0 2px rgba(245,158,11,0.1)' : 'none',
+                      transition: 'box-shadow 0.2s'
+                    }}>
+                      {/* Book Icon */}
+                      <div style={{
+                        width: 44, height: 44, borderRadius: 12,
+                        background: `${col}18`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 22, flexShrink: 0, border: `1px solid ${col}30`
+                      }}>
+                        {isPending ? '⏳' : isBorrowed ? '📖' : isOverdue ? '⚠️' : isReturned ? '✅' : '📚'}
+                      </div>
+
+                      {/* Book Info */}
+                      <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+                        <div style={{ fontWeight: 800, fontSize: 15, color: textPrimary, marginBottom: 3, wordBreak: 'break-word' }}>
+                          {title}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 12, color: '#3b82f6', fontWeight: 700, fontFamily: 'monospace', background: 'rgba(59,130,246,0.1)', padding: '2px 8px', borderRadius: 6 }}>
+                            {requestCode}
+                          </span>
+                          {borrowDate && (
+                            <span style={{ fontSize: 12, color: textMuted }}>
+                              📅 {new Date(borrowDate).toLocaleDateString()}
                             </span>
-                          </td>
-                          <td style={{ padding:'16px' }}>
-                            {isPending && (
-                              <button 
-                                onClick={() => retractMyBorrow(b.borrowId || b.BorrowID)} 
-                                style={{ 
-                                  fontSize:12, 
-                                  padding:'6px 12px', 
-                                  background:'rgba(239,68,68,0.08)', 
-                                  color:'#ef4444', 
-                                  border:'1px solid rgba(239,68,68,0.25)', 
-                                  borderRadius:8, 
-                                  fontWeight:700, 
-                                  cursor:'pointer',
-                                  display:'flex',
-                                  alignItems:'center',
-                                  gap:4,
-                                  transition:'all 0.15s ease'
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.background = 'rgba(239,68,68,0.15)';
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.background = 'rgba(239,68,68,0.08)';
-                                }}
-                              >
-                                ✕ Retract
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                          )}
+                          {dueDate && !isPending && !isReturned && !isExpired && (
+                            <span style={{ fontSize: 12, color: isOverdue ? '#ef4444' : textMuted, fontWeight: isOverdue ? 700 : 400 }}>
+                              🗓 Due: {new Date(dueDate).toLocaleDateString()}
+                            </span>
+                          )}
+                          {returnDate && (
+                            <span style={{ fontSize: 12, color: textMuted }}>
+                              ↩ Returned: {new Date(returnDate).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                        {isPending && (
+                          <div style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700, marginTop: 4 }}>
+                            ⌛ Awaiting admin approval at the desk
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Status Badge */}
+                      <div style={{ flexShrink: 0 }}>
+                        <span style={{
+                          fontSize: 11, fontWeight: 800, padding: '5px 14px',
+                          borderRadius: 20, background: `${col}18`, color: col,
+                          border: `1px solid ${col}40`, whiteSpace: 'nowrap', display: 'inline-block'
+                        }}>
+                          {statusLabel}
+                        </span>
+                      </div>
+
+                      {/* Retract Button — only for Pending */}
+                      {isPending && (
+                        <button
+                          onClick={() => retractMyBorrow(borrowId)}
+                          style={{
+                            flexShrink: 0,
+                            background: 'rgba(239,68,68,0.08)',
+                            color: '#ef4444',
+                            border: '1.5px solid rgba(239,68,68,0.3)',
+                            borderRadius: 10,
+                            padding: '8px 16px',
+                            fontWeight: 700,
+                            fontSize: 13,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            transition: 'all 0.15s ease',
+                            whiteSpace: 'nowrap'
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.16)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; e.currentTarget.style.transform = 'none'; }}
+                        >
+                          ✕ Retract Request
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

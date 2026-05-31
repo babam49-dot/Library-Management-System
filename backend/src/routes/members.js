@@ -140,13 +140,17 @@ router.get('/books', memberOnly, async (req, res) => {
 
 router.get('/my-borrowings', memberOnly, async (req, res) => {
   try {
+    // Strictly only return records where the borrower is a student (RoleID = 3).
+    // This prevents staff shadow-member borrowings from ever appearing on the student dashboard.
     const [rows] = await pool.execute(
       `SELECT br.BorrowID, br.RequestCode, br.BorrowDate, br.DueDate, br.ReturnDate, br.Status,
               b.Title, b.ISBN, bc.CopyID, bc.BarcodeNumber, bc.ShelfLocation
        FROM BorrowingRecords br
        JOIN BookCopies bc ON bc.CopyID = br.CopyID
        JOIN Books b ON b.BookID = bc.BookID
-       WHERE br.MemberID = ?
+       JOIN Members m ON m.MemberID = br.MemberID
+       JOIN Users u ON u.UserID = m.UserID
+       WHERE br.MemberID = ? AND u.RoleID = 3
        ORDER BY br.BorrowDate DESC, br.BorrowID DESC`,
       [getMemberId(req)]
     );

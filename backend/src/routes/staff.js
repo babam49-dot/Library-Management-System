@@ -390,6 +390,75 @@ router.get('/my-borrows', auth, async (req, res) => {
   } catch (err) { return fail(res, err.message, 500); }
 });
 
+// POST /api/staff/my-borrows/request — staff submits a borrow request FOR THEMSELVES
+// Resolves MemberID from the database using UserID (not from JWT token).
+// This prevents the shared-localStorage bug: if the user is logged in as both staff and
+// student in different tabs, the student token could overwrite localStorage. By resolving
+// MemberID from DB with the authenticated UserID, we always use the correct staff member record.
+router.post('/my-borrows/request', auth, async (req, res) => {
+  const userID = req.user.userID || req.user.UserID;
+  try {
+    // Always resolve MemberID from DB — never trust the token for this
+    const [mRows] = await pool.execute(
+      'SELECT MemberID FROM Members WHERE UserID = ?', [userID]
+    );
+    if (!mRows.length) {
+      return fail(res, 'No member record found. Please log out and log back in to refresh your session.', 404);
+    }
+    // Override req.user MemberID fields so the borrowing controller uses the correct staff MemberID
+    req.user.MemberID = mRows[0].MemberID;
+    req.user.memberID = mRows[0].MemberID;
+    req.user.extensionId = mRows[0].MemberID;
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+  // Delegate to the shared borrow submission controller
+  return require('../controllers/borrowingController').submitRequest(req, res);
+});
+
+// DELETE /api/staff/my-borrows/:borrowId/retract — staff retracts their own pending borrow
+router.delete('/my-borrows/:borrowId/retract', auth, async (req, res) => {
+  const { borrowId } = req.params;
+  const userID = req.user.userID || req.user.UserID;
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // Resolve staff member's own MemberID from DB (safer than from token)
+    const [[staffMember]] = await conn.execute(
+      'SELECT MemberID FROM Members WHERE UserID = ?', [userID]
+    );
+    if (!staffMember) {
+      await conn.rollback();
+      return fail(res, 'No member record found for this staff user.', 404);
+    }
+    const memberID = staffMember.MemberID;
+
+    // Confirm borrow belongs to this staff member and is still Pending
+    const [[borrow]] = await conn.execute(
+      "SELECT BorrowID, CopyID FROM BorrowingRecords WHERE BorrowID = ? AND MemberID = ? AND Status = 'Pending' FOR UPDATE",
+      [borrowId, memberID]
+    );
+    if (!borrow) {
+      await conn.rollback();
+      return fail(res, 'Pending borrow not found or cannot be retracted.', 404);
+    }
+
+    // Release the copy back to Available
+    await conn.execute("UPDATE BookCopies SET Status = 'Available' WHERE CopyID = ?", [borrow.CopyID]);
+    // Cancel the borrow record
+    await conn.execute("UPDATE BorrowingRecords SET Status = 'Expired' WHERE BorrowID = ?", [borrowId]);
+
+    await conn.commit();
+    return ok(res, 'Borrow request retracted. Book is now available again.');
+  } catch (err) {
+    await conn.rollback();
+    return fail(res, err.message, 500);
+  } finally {
+    conn.release();
+  }
+});
+
 // POST /api/staff/self-reserve — staff member reserves a book for personal borrowing
 router.post('/self-reserve', auth, async (req, res) => {
   const { bookId } = req.body;
