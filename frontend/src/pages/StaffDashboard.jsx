@@ -40,9 +40,9 @@ export default function StaffDashboard() {
   useEffect(() => {
     setSearchQuery('');
   }, [tab]);
-  
+
   // Catalog Form States
-  const [bookForm, setBookForm] = useState({ 
+  const [bookForm, setBookForm] = useState({
     title: '', isbn: '', year: '', edition: '', language: 'English', description: '',
     publisherId: '', categoryId: '', authorIds: [], numberOfCopies: 1, shelfLocation: ''
   })
@@ -83,7 +83,7 @@ export default function StaffDashboard() {
   const [authorMsg, setAuthorMsg] = useState('')
   const [publisherMsg, setPublisherMsg] = useState('')
   const [editModal, setEditModal] = useState(null)
-  
+
   const [barcodesModal, setBarcodesModal] = useState(null)
   const [bookCopies, setBookCopies] = useState([])
 
@@ -155,19 +155,19 @@ export default function StaffDashboard() {
       try {
         const myB = await axios.get(`${API}/staff/my-borrows`, headers)
         setMyBorrows(myB.data.data || [])
-      } catch (_) {}
+      } catch (_) { }
 
       try {
         const myR = await axios.get(`${API}/member/my-reservations`, headers)
         setMyReservations(myR.data.data || [])
-      } catch (_) {}
+      } catch (_) { }
 
       try {
         const res = await axios.get(`${API}/borrowing/sessions`, headers)
         const rows = res.data.data || [];
         const pendingCount = rows.filter(r => r.status === 'Pending').length;
         setPendingDeskSessionsCount(pendingCount);
-      } catch (_) {}
+      } catch (_) { }
 
       refetchStaffCounts();
     } catch (err) { console.error(err) }
@@ -175,21 +175,33 @@ export default function StaffDashboard() {
 
   useEffect(() => {
     fetchData();
+    // Poll dashboard stats every 10s
     const interval = setInterval(async () => {
       try {
         const s = await axios.get(`${API}/staff/dashboard`, getHeaders())
         setStats(s.data.data)
-        const myB = await axios.get(`${API}/staff/my-borrows`, getHeaders())
-        setMyBorrows(myB.data.data || [])
+      } catch (_) {}
+      try {
         const myR = await axios.get(`${API}/member/my-reservations`, getHeaders())
         setMyReservations(myR.data.data || [])
+      } catch (_) {}
+      try {
         const res = await axios.get(`${API}/borrowing/sessions`, getHeaders())
         const rows = res.data.data || [];
         const pendingCount = rows.filter(r => r.status === 'Pending').length;
         setPendingDeskSessionsCount(pendingCount);
       } catch (_) {}
     }, 10000);
-    return () => clearInterval(interval);
+
+    // Poll my-borrows every 15s independently — shows Expired status as soon as it changes
+    const borrowInterval = setInterval(async () => {
+      try {
+        const myB = await axios.get(`${API}/staff/my-borrows`, getHeaders())
+        setMyBorrows(myB.data.data || [])
+      } catch (_) {}
+    }, 15000);
+
+    return () => { clearInterval(interval); clearInterval(borrowInterval); };
   }, [])
 
 
@@ -205,7 +217,7 @@ export default function StaffDashboard() {
       setBookForm({ ...bookForm, [e.target.name]: e.target.value })
     }
   }
-  
+
   const submitBook = async (e) => {
     e.preventDefault()
     setBookLoading(true)
@@ -233,7 +245,7 @@ export default function StaffDashboard() {
       await axios.post(`${API}/books`, fd, { headers })
       setBookMsg('Book and copies added successfully!')
       setRegisterStep(1)
-      setBookForm({ 
+      setBookForm({
         title: '', isbn: '', year: '', edition: '', language: 'English', description: '',
         publisherId: '', categoryId: '', authorIds: [], numberOfCopies: 1, shelfLocation: ''
       })
@@ -263,21 +275,21 @@ export default function StaffDashboard() {
       const d = res.data.data
       setIsbnPreview(d)
       setIsbnMsg({ text: `✅ Book found via ${d.source === 'openlibrary' ? 'Open Library' : 'Google Books'}! Fields auto-filled. Redirecting to details...`, ok: true })
-      
+
       // Refresh options to include any auto-registered publisher, category, or authors
       await fetchData()
 
       setBookForm(prev => ({
         ...prev,
-        title:       d.title        || prev.title,
-        isbn:        d.isbn         || prev.isbn,
-        year:        d.year         ? String(d.year) : prev.year,
-        edition:     d.edition      || prev.edition,
-        language:    d.language     || prev.language,
-        description: d.description  || prev.description,
-        publisherId: d.publisherId  ? String(d.publisherId) : prev.publisherId,
-        categoryId:  d.categoryId   ? String(d.categoryId) : prev.categoryId,
-        authorIds:   d.authorIds    ? d.authorIds.map(String) : prev.authorIds
+        title: d.title || prev.title,
+        isbn: d.isbn || prev.isbn,
+        year: d.year ? String(d.year) : prev.year,
+        edition: d.edition || prev.edition,
+        language: d.language || prev.language,
+        description: d.description || prev.description,
+        publisherId: d.publisherId ? String(d.publisherId) : prev.publisherId,
+        categoryId: d.categoryId ? String(d.categoryId) : prev.categoryId,
+        authorIds: d.authorIds ? d.authorIds.map(String) : prev.authorIds
       }))
       setTimeout(() => {
         setRegisterStep(2)
@@ -305,7 +317,7 @@ export default function StaffDashboard() {
           await lookupIsbn(raw)
           return
         }
-      } catch (_) {}
+      } catch (_) { }
     }
     // Fallback: read as data URL and try to extract from filename
     const nameMatch = file.name.replace(/[^0-9X]/gi, '')
@@ -382,11 +394,11 @@ export default function StaffDashboard() {
       await axios.put(`${API}/catalog/${type}/${id}`, payload, getHeaders())
       setEditModal(null)
       fetchData()
-      if(type === 'books') setBookMsg('Book updated successfully!')
+      if (type === 'books') setBookMsg('Book updated successfully!')
       else setMetaMsg('Updated successfully!')
     } catch (err) {
       const msg = 'Error: ' + (err.response?.data?.message || err.message);
-      if(type === 'books') setBookMsg(msg)
+      if (type === 'books') setBookMsg(msg)
       else setMetaMsg(msg)
     }
   }
@@ -403,6 +415,23 @@ export default function StaffDashboard() {
     setTimeout(() => setMyBorrowMsg({ text: '', ok: true }), 3000)
   }
   const removeFromMyCart = (copyId) => setMyBorrowCart(prev => prev.filter(i => i.copyId !== copyId))
+
+  // Fast dedicated refresh — only fetches the staff's own borrow records
+  const refreshMyBorrows = async () => {
+    try {
+      const res = await axios.get(`${API}/staff/my-borrows`, getHeaders())
+      const records = res.data.data || []
+      setMyBorrows(records)
+      return records
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Network error'
+      console.error('[refreshMyBorrows] Failed:', msg, err.response?.status)
+      // Surface the error so user/developer can see it
+      setMyBorrowMsg({ text: `⚠️ Could not load borrow history: ${msg}`, ok: false })
+      return []
+    }
+  }
+
   const submitMyBorrow = async () => {
     if (!myBorrowCart.length) return setMyBorrowMsg({ text: 'Add at least one book first.', ok: false })
     setMyBorrowLoading(true)
@@ -411,18 +440,20 @@ export default function StaffDashboard() {
       // Use the staff-specific endpoint — resolves MemberID from DB, not from the JWT token.
       const res = await axios.post(`${API}/staff/my-borrows/request`, { copyIds: myBorrowCart.map(i => i.copyId) }, getHeaders())
       const data = res.data.data || {}
-      setMyBorrowResult(data)   // show success screen
       setMyBorrowCart([])
-      fetchData()
+      // Refresh borrows FIRST so the table is populated before success screen shows
+      await refreshMyBorrows()
+      setMyBorrowResult(data)   // show success screen
     } catch (err) {
       setMyBorrowMsg({ text: 'Error: ' + (err.response?.data?.message || err.message), ok: false })
     } finally { setMyBorrowLoading(false) }
   }
+
   const retractMyBorrow = async (borrowId) => {
     try {
       await axios.delete(`${API}/staff/my-borrows/${borrowId}/retract`, getHeaders())
       setMyBorrowMsg({ text: '✅ Request retracted. Copy is available again.', ok: true })
-      fetchData()
+      await refreshMyBorrows()
     } catch (err) { setMyBorrowMsg({ text: 'Error: ' + (err.response?.data?.message || err.message), ok: false }) }
   }
 
@@ -471,43 +502,43 @@ export default function StaffDashboard() {
 
           {/* ── Key Metrics Row ── */}
           {stats && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))', gap: 14 }}>
-            {[
-              { label: 'Active Borrows',  value: stats.activeBorrowings,  color: '#10b981', icon: '📖', note: 'Currently checked out', tab: 'desk' },
-              { label: 'Returns Today',   value: stats.returnsToday,       color: '#3b82f6', icon: '↩️', note: 'Processed today',       tab: null },
-              { label: 'Overdue Books',   value: stats.overdueCount,       color: '#ef4444', icon: '📚', note: 'Past due date',         tab: 'overdue', alert: stats.overdueCount > 0 },
-              { label: 'Pending Members', value: stats.pendingMembers,     color: '#f59e0b', icon: '👤', note: 'Awaiting approval',     tab: null, alert: stats.pendingMembers > 0 },
-            ].map(({ label, value, color, icon, note, tab: goTab, alert }, i) => (
-              <div
-                key={label}
-                className="ov-card"
-                onClick={() => goTab && handleNav(goTab)}
-                style={{
-                  animationDelay: `${i * 0.07}s`,
-                  background: cardBg,
-                  border: alert ? `2px solid ${color}` : `1px solid ${border}`,
-                  borderRadius: 14,
-                  padding: '16px 18px',
-                  boxShadow: alert ? `0 0 22px ${color}33` : '0 2px 8px rgba(0,0,0,0.06)',
-                  cursor: goTab ? 'pointer' : 'default',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, color: alert ? color : textMuted, marginBottom: 4 }}>{label}</div>
-                    <div style={{ fontSize: 32, fontWeight: 900, color: alert ? color : textPrimary, lineHeight: 1 }}>{value ?? '—'}</div>
-                    <div style={{ fontSize: 11, color: textMuted, marginTop: 4 }}>{note}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))', gap: 14 }}>
+              {[
+                { label: 'Active Borrows', value: stats.activeBorrowings, color: '#10b981', icon: '📖', note: 'Currently checked out', tab: 'desk' },
+                { label: 'Returns Today', value: stats.returnsToday, color: '#3b82f6', icon: '↩️', note: 'Processed today', tab: null },
+                { label: 'Overdue Books', value: stats.overdueCount, color: '#ef4444', icon: '📚', note: 'Past due date', tab: 'overdue', alert: stats.overdueCount > 0 },
+                { label: 'Pending Members', value: stats.pendingMembers, color: '#f59e0b', icon: '👤', note: 'Awaiting approval', tab: null, alert: stats.pendingMembers > 0 },
+              ].map(({ label, value, color, icon, note, tab: goTab, alert }, i) => (
+                <div
+                  key={label}
+                  className="ov-card"
+                  onClick={() => goTab && handleNav(goTab)}
+                  style={{
+                    animationDelay: `${i * 0.07}s`,
+                    background: cardBg,
+                    border: alert ? `2px solid ${color}` : `1px solid ${border}`,
+                    borderRadius: 14,
+                    padding: '16px 18px',
+                    boxShadow: alert ? `0 0 22px ${color}33` : '0 2px 8px rgba(0,0,0,0.06)',
+                    cursor: goTab ? 'pointer' : 'default',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, color: alert ? color : textMuted, marginBottom: 4 }}>{label}</div>
+                      <div style={{ fontSize: 32, fontWeight: 900, color: alert ? color : textPrimary, lineHeight: 1 }}>{value ?? '—'}</div>
+                      <div style={{ fontSize: 11, color: textMuted, marginTop: 4 }}>{note}</div>
+                    </div>
+                    <div style={{ fontSize: 24, opacity: 0.75 }}>{icon}</div>
                   </div>
-                  <div style={{ fontSize: 24, opacity: 0.75 }}>{icon}</div>
+                  {goTab && (
+                    <div style={{ marginTop: 10, fontSize: 11, color, fontWeight: 700 }}>
+                      View →
+                    </div>
+                  )}
                 </div>
-                {goTab && (
-                  <div style={{ marginTop: 10, fontSize: 11, color, fontWeight: 700 }}>
-                    View → 
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
           )}
 
           {/* ── Navigation Cards Grid ── */}
@@ -729,12 +760,12 @@ export default function StaffDashboard() {
               const q = searchQuery.toLowerCase();
               return b.Title?.toLowerCase().includes(q) || b.Authors?.toLowerCase().includes(q) || b.CategoryName?.toLowerCase().includes(q);
             }).length === 0 && (
-              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 60, color: textMuted }}>
-                <div style={{ fontSize: 48, marginBottom: 12 }}>📭</div>
-                <div style={{ fontWeight: 700, fontSize: 16 }}>No books found</div>
-                <div style={{ fontSize: 13 }}>Try a different search or category.</div>
-              </div>
-            )}
+                <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 60, color: textMuted }}>
+                  <div style={{ fontSize: 48, marginBottom: 12 }}>📭</div>
+                  <div style={{ fontWeight: 700, fontSize: 16 }}>No books found</div>
+                  <div style={{ fontSize: 13 }}>Try a different search or category.</div>
+                </div>
+              )}
           </div>
         </div>
       )}
@@ -757,7 +788,7 @@ export default function StaffDashboard() {
             .wiz-btn-primary { background: linear-gradient(135deg,#10b981,#059669); color:#fff; border:none; padding:11px 24px; border-radius:10px; font-weight:800; font-size:14px; cursor:pointer; transition:all .2s; }
             .wiz-btn-primary:hover { filter:brightness(1.1); transform:translateY(-2px); box-shadow:0 8px 20px rgba(16,185,129,0.3); }
             .wiz-btn-primary:active { transform:scale(0.97); }
-            .wiz-btn-secondary { background: ${isDark?'rgba(255,255,255,0.07)':'#f1f5f9'}; color:${textMuted}; border:none; padding:11px 20px; border-radius:10px; font-weight:700; font-size:13px; cursor:pointer; transition:all .2s; }
+            .wiz-btn-secondary { background: ${isDark ? 'rgba(255,255,255,0.07)' : '#f1f5f9'}; color:${textMuted}; border:none; padding:11px 20px; border-radius:10px; font-weight:700; font-size:13px; cursor:pointer; transition:all .2s; }
             .wiz-btn-secondary:hover { filter:brightness(1.08); transform:translateY(-1px); }
           `}</style>
 
@@ -813,13 +844,13 @@ export default function StaffDashboard() {
                 htmlFor="barcode-upload"
                 style={{
                   display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  border: `2px dashed ${isDark?'#10b981':'#059669'}`, borderRadius: 12, padding: '28px 16px',
+                  border: `2px dashed ${isDark ? '#10b981' : '#059669'}`, borderRadius: 12, padding: '28px 16px',
                   background: isDark ? 'rgba(16,185,129,0.04)' : 'rgba(5,150,105,0.04)',
                   cursor: 'pointer', transition: 'background .2s'
                 }}
               >
                 <span style={{ fontSize: 32 }}>{isbnLoading ? '⏳' : '🖼️'}</span>
-                <div style={{ fontSize: 13, fontWeight: 700, color: isDark?'#34d399':'#065f46' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: isDark ? '#34d399' : '#065f46' }}>
                   {isbnLoading ? 'Scanning barcode...' : 'Click or drop a barcode image here'}
                 </div>
                 <div style={{ fontSize: 11, color: textMuted }}>Supports EAN-13, EAN-8, Code-128, UPC</div>
@@ -849,7 +880,8 @@ export default function StaffDashboard() {
               </div>
 
               {isbnMsg.text && (
-                <div style={{ padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600,
+                <div style={{
+                  padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600,
                   background: isbnMsg.ok ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
                   color: isbnMsg.ok ? '#10b981' : '#ef4444',
                   border: `1px solid ${isbnMsg.ok ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`
@@ -859,10 +891,10 @@ export default function StaffDashboard() {
               )}
 
               {isbnPreview && (
-                <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', background: isDark?'rgba(16,185,129,0.06)':'rgba(5,150,105,0.06)', borderRadius: 12, padding: 14 }}>
+                <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', background: isDark ? 'rgba(16,185,129,0.06)' : 'rgba(5,150,105,0.06)', borderRadius: 12, padding: 14 }}>
                   {isbnPreview.coverUrl && <img src={isbnPreview.coverUrl} alt="cover" style={{ width: 60, height: 88, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }} />}
                   <div style={{ fontSize: 13, color: textPrimary, lineHeight: 1.7 }}>
-                    <div style={{ fontWeight: 800, fontSize: 15, color: isDark?'#34d399':'#065f46' }}>{isbnPreview.title}</div>
+                    <div style={{ fontWeight: 800, fontSize: 15, color: isDark ? '#34d399' : '#065f46' }}>{isbnPreview.title}</div>
                     {isbnPreview.authors?.length > 0 && <div>✍️ {isbnPreview.authors.join(', ')}</div>}
                     {isbnPreview.publisher && <div>🏢 {isbnPreview.publisher}</div>}
                     {isbnPreview.year && <div>📅 {isbnPreview.year}</div>}
@@ -907,7 +939,7 @@ export default function StaffDashboard() {
                     <option value="">-- Select Publisher --</option>
                     {publishers.map(p => <option key={p.PublisherID} value={p.PublisherID}>{p.PublisherName}</option>)}
                   </select>
-                  {isbnPreview?.publisher && !publishers.find(p => p.PublisherName?.toLowerCase().includes((isbnPreview.publisher||'').toLowerCase().substring(0,6))) && (
+                  {isbnPreview?.publisher && !publishers.find(p => p.PublisherName?.toLowerCase().includes((isbnPreview.publisher || '').toLowerCase().substring(0, 6))) && (
                     <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 4 }}>📌 "{isbnPreview.publisher}" not in list � add in Manage Metadata</div>
                   )}
                 </div>
@@ -971,7 +1003,7 @@ export default function StaffDashboard() {
                   ['Publisher', publishers.find(p => String(p.PublisherID) === String(bookForm.publisherId))?.PublisherName || '�'],
                   ['Category', categories.find(c => String(c.CategoryID) === String(bookForm.categoryId))?.CategoryName || '�'],
                 ].map(([k, v]) => v ? (
-                  <div key={k} style={{ background: isDark?'rgba(255,255,255,0.04)':'#f8fafc', borderRadius: 8, padding: '8px 12px' }}>
+                  <div key={k} style={{ background: isDark ? 'rgba(255,255,255,0.04)' : '#f8fafc', borderRadius: 8, padding: '8px 12px' }}>
                     <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: textMuted, letterSpacing: 0.8 }}>{k}</div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: textPrimary }}>{String(v)}</div>
                   </div>
@@ -988,7 +1020,7 @@ export default function StaffDashboard() {
                 <div style={{ position: 'relative' }}>
                   <button
                     type="button" className="wiz-btn-primary" disabled={bookLoading}
-                    onClick={e => submitBook({ preventDefault: () => {} })}
+                    onClick={e => submitBook({ preventDefault: () => { } })}
                     style={{ opacity: bookLoading ? 0.7 : 1, cursor: bookLoading ? 'not-allowed' : 'pointer' }}
                   >
                     {bookLoading ? '⏳ Registering...' : '🚀 Register Book & Copies'}
@@ -1004,13 +1036,13 @@ export default function StaffDashboard() {
 
       {tab === 'metadata' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
-          
+
           {/* Categories */}
-          <div style={{ background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, padding: 24 }}>
+          <div style={{ background: cardBg, backdropFilter: 'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, padding: 24 }}>
             <h3 style={{ color: textPrimary, marginBottom: 16 }}>Manage Categories</h3>
-            <form onSubmit={(e) => handleAddMeta(e, 'categories', categoryForm, setCategoryForm, {CategoryName:'', Description:''}, setCategoryMsg)} style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-              <input required type="text" placeholder="Category Name" value={categoryForm.CategoryName} onChange={e => setCategoryForm({...categoryForm, CategoryName: e.target.value})} style={dynInputStyle} />
-              <input type="text" placeholder="Description" value={categoryForm.Description} onChange={e => setCategoryForm({...categoryForm, Description: e.target.value})} className="interactive-input" style={dynInputStyle} />
+            <form onSubmit={(e) => handleAddMeta(e, 'categories', categoryForm, setCategoryForm, { CategoryName: '', Description: '' }, setCategoryMsg)} style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+              <input required type="text" placeholder="Category Name" value={categoryForm.CategoryName} onChange={e => setCategoryForm({ ...categoryForm, CategoryName: e.target.value })} style={dynInputStyle} />
+              <input type="text" placeholder="Description" value={categoryForm.Description} onChange={e => setCategoryForm({ ...categoryForm, Description: e.target.value })} className="interactive-input" style={dynInputStyle} />
               <div style={{ position: 'relative' }}>
                 <button type="submit" className="interactive-btn btn-pulse" style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}>Add Category</button>
                 <BubblePopup msg={categoryMsg} onClear={() => setCategoryMsg('')} />
@@ -1024,7 +1056,7 @@ export default function StaffDashboard() {
                     <td style={{ padding: 12 }}>{c.CategoryName}</td>
                     <td style={{ padding: 12, color: '#94a3b8' }}>{c.Description || '�'}</td>
                     <td style={{ padding: 12, textAlign: 'right' }}>
-                      <button className="interactive-btn" onClick={() => setEditModal({type:'categories', item:c})} style={{ background: 'transparent', color: '#3b82f6', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Edit</button>
+                      <button className="interactive-btn" onClick={() => setEditModal({ type: 'categories', item: c })} style={{ background: 'transparent', color: '#3b82f6', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Edit</button>
                     </td>
                   </tr>
                 ))}
@@ -1033,13 +1065,13 @@ export default function StaffDashboard() {
           </div>
 
           {/* Authors */}
-          <div style={{ background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, padding: 24 }}>
+          <div style={{ background: cardBg, backdropFilter: 'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, padding: 24 }}>
             <h3 style={{ color: textPrimary, marginBottom: 16 }}>Manage Authors</h3>
-            <form onSubmit={(e) => handleAddMeta(e, 'authors', authorForm, setAuthorForm, {FirstName:'', LastName:'', Bio:'', Nationality:''}, setAuthorMsg)} style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-              <input required type="text" placeholder="First Name" value={authorForm.FirstName} onChange={e => setAuthorForm({...authorForm, FirstName: e.target.value})} style={{...dynInputStyle, flex:1, minWidth:120}} />
-              <input required type="text" placeholder="Last Name" value={authorForm.LastName} onChange={e => setAuthorForm({...authorForm, LastName: e.target.value})} style={{...dynInputStyle, flex:1, minWidth:120}} />
-              <input type="text" placeholder="Nationality" value={authorForm.Nationality} onChange={e => setAuthorForm({...authorForm, Nationality: e.target.value})} style={{...dynInputStyle, flex:1, minWidth:120}} />
-              <input type="text" placeholder="Bio" value={authorForm.Bio} onChange={e => setAuthorForm({...authorForm, Bio: e.target.value})} style={{...dynInputStyle, flex:2, minWidth:200}} />
+            <form onSubmit={(e) => handleAddMeta(e, 'authors', authorForm, setAuthorForm, { FirstName: '', LastName: '', Bio: '', Nationality: '' }, setAuthorMsg)} style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+              <input required type="text" placeholder="First Name" value={authorForm.FirstName} onChange={e => setAuthorForm({ ...authorForm, FirstName: e.target.value })} style={{ ...dynInputStyle, flex: 1, minWidth: 120 }} />
+              <input required type="text" placeholder="Last Name" value={authorForm.LastName} onChange={e => setAuthorForm({ ...authorForm, LastName: e.target.value })} style={{ ...dynInputStyle, flex: 1, minWidth: 120 }} />
+              <input type="text" placeholder="Nationality" value={authorForm.Nationality} onChange={e => setAuthorForm({ ...authorForm, Nationality: e.target.value })} style={{ ...dynInputStyle, flex: 1, minWidth: 120 }} />
+              <input type="text" placeholder="Bio" value={authorForm.Bio} onChange={e => setAuthorForm({ ...authorForm, Bio: e.target.value })} style={{ ...dynInputStyle, flex: 2, minWidth: 200 }} />
               <div style={{ position: 'relative' }}>
                 <button type="submit" style={{ background: '#10b981', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Add Author</button>
                 <BubblePopup msg={authorMsg} onClear={() => setAuthorMsg('')} />
@@ -1053,7 +1085,7 @@ export default function StaffDashboard() {
                     <td style={{ padding: 12 }}>{a.Name}</td>
                     <td style={{ padding: 12, color: '#94a3b8' }}>{a.Nationality || '�'}</td>
                     <td style={{ padding: 12, textAlign: 'right' }}>
-                      <button className="interactive-btn" onClick={() => setEditModal({type:'authors', item:a})} style={{ background: 'transparent', color: '#3b82f6', border: 'none', cursor: 'pointer', fontWeight: 600, marginRight: 12 }}>Edit</button>
+                      <button className="interactive-btn" onClick={() => setEditModal({ type: 'authors', item: a })} style={{ background: 'transparent', color: '#3b82f6', border: 'none', cursor: 'pointer', fontWeight: 600, marginRight: 12 }}>Edit</button>
                       <button className="interactive-btn" onClick={() => handleDeleteMeta('authors', a.AuthorID, setAuthorMsg)} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', padding: '4px 10px', borderRadius: 6, cursor: 'pointer' }}>Delete</button>
                     </td>
                   </tr>
@@ -1063,12 +1095,12 @@ export default function StaffDashboard() {
           </div>
 
           {/* Publishers */}
-          <div style={{ background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, padding: 24 }}>
+          <div style={{ background: cardBg, backdropFilter: 'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, padding: 24 }}>
             <h3 style={{ color: textPrimary, marginBottom: 16 }}>Manage Publishers</h3>
-            <form onSubmit={(e) => handleAddMeta(e, 'publishers', publisherForm, setPublisherForm, {PublisherName:'', Email:'', Phone:'', Address:''}, setPublisherMsg)} style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-              <input required type="text" placeholder="Publisher Name" value={publisherForm.PublisherName} onChange={e => setPublisherForm({...publisherForm, PublisherName: e.target.value})} style={{...dynInputStyle, flex:2, minWidth:200}} />
-              <input type="email" placeholder="Email" value={publisherForm.Email} onChange={e => setPublisherForm({...publisherForm, Email: e.target.value})} style={{...dynInputStyle, flex:1, minWidth:150}} />
-              <input type="text" placeholder="Phone" value={publisherForm.Phone} onChange={e => setPublisherForm({...publisherForm, Phone: e.target.value})} style={{...dynInputStyle, flex:1, minWidth:120}} />
+            <form onSubmit={(e) => handleAddMeta(e, 'publishers', publisherForm, setPublisherForm, { PublisherName: '', Email: '', Phone: '', Address: '' }, setPublisherMsg)} style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+              <input required type="text" placeholder="Publisher Name" value={publisherForm.PublisherName} onChange={e => setPublisherForm({ ...publisherForm, PublisherName: e.target.value })} style={{ ...dynInputStyle, flex: 2, minWidth: 200 }} />
+              <input type="email" placeholder="Email" value={publisherForm.Email} onChange={e => setPublisherForm({ ...publisherForm, Email: e.target.value })} style={{ ...dynInputStyle, flex: 1, minWidth: 150 }} />
+              <input type="text" placeholder="Phone" value={publisherForm.Phone} onChange={e => setPublisherForm({ ...publisherForm, Phone: e.target.value })} style={{ ...dynInputStyle, flex: 1, minWidth: 120 }} />
               <div style={{ position: 'relative' }}>
                 <button type="submit" style={{ background: '#8b5cf6', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>Add Publisher</button>
                 <BubblePopup msg={publisherMsg} onClear={() => setPublisherMsg('')} />
@@ -1083,7 +1115,7 @@ export default function StaffDashboard() {
                     <td style={{ padding: 12, color: '#94a3b8' }}>{p.ContactEmail || '�'}</td>
                     <td style={{ padding: 12, color: '#94a3b8' }}>{p.Phone || '�'}</td>
                     <td style={{ padding: 12, textAlign: 'right' }}>
-                      <button onClick={() => setEditModal({type:'publishers', item:p})} style={{ background: 'transparent', color: '#3b82f6', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Edit</button>
+                      <button onClick={() => setEditModal({ type: 'publishers', item: p })} style={{ background: 'transparent', color: '#3b82f6', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Edit</button>
                     </td>
                   </tr>
                 ))}
@@ -1094,37 +1126,37 @@ export default function StaffDashboard() {
       )}
 
       {tab === 'circulation' && (
-        <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap:'wrap' }}>
-          <div style={{ flex: 1, minWidth:280, background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, padding: 28 }}>
-            <h3 style={{ fontSize: 18, marginBottom: 4, color:textPrimary, fontWeight:700 }}>📤 Issue Book</h3>
-            <p style={{ color:textMuted, fontSize:13, marginBottom:20 }}>Issue a book copy to a member</p>
+        <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 280, background: cardBg, backdropFilter: 'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, padding: 28 }}>
+            <h3 style={{ fontSize: 18, marginBottom: 4, color: textPrimary, fontWeight: 700 }}>📤 Issue Book</h3>
+            <p style={{ color: textMuted, fontSize: 13, marginBottom: 20 }}>Issue a book copy to a member</p>
             <form onSubmit={handleIssue} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
                 <label style={lblStyle}>Member ID</label>
-                <input required type="number" value={issueForm.memberId} onChange={e => setIssueForm({...issueForm, memberId: e.target.value})} style={dynInputStyle} placeholder="Numeric Member ID" />
+                <input required type="number" value={issueForm.memberId} onChange={e => setIssueForm({ ...issueForm, memberId: e.target.value })} style={dynInputStyle} placeholder="Numeric Member ID" />
               </div>
               <div>
                 <label style={lblStyle}>Copy ID</label>
-                <input required type="number" value={issueForm.copyId} onChange={e => setIssueForm({...issueForm, copyId: e.target.value})} className="interactive-input" style={dynInputStyle} placeholder="Specific Copy ID" />
+                <input required type="number" value={issueForm.copyId} onChange={e => setIssueForm({ ...issueForm, copyId: e.target.value })} className="interactive-input" style={dynInputStyle} placeholder="Specific Copy ID" />
               </div>
               <div style={{ position: 'relative' }}>
-                <button type="submit" className="interactive-btn btn-pulse" style={{ background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: 10, fontWeight: 700, cursor: 'pointer', boxShadow:'0 4px 16px rgba(16,185,129,0.25)', width: '100%' }}>Issue Book →</button>
+                <button type="submit" className="interactive-btn btn-pulse" style={{ background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: 10, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 16px rgba(16,185,129,0.25)', width: '100%' }}>Issue Book →</button>
                 <BubblePopup msg={issueMsg} onClear={() => setIssueMsg('')} />
               </div>
             </form>
           </div>
 
-          <div style={{ flex: 1, minWidth:280, background: cardBg, backdropFilter:'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, padding: 28 }}>
-            <h3 style={{ fontSize: 18, marginBottom: 4, color:textPrimary, fontWeight:700 }}>📥 Process Return</h3>
-            <p style={{ color:textMuted, fontSize:13, marginBottom:20 }}>Record a book return and log its condition</p>
+          <div style={{ flex: 1, minWidth: 280, background: cardBg, backdropFilter: 'blur(12px)', borderRadius: 16, border: `1px solid ${border}`, padding: 28 }}>
+            <h3 style={{ fontSize: 18, marginBottom: 4, color: textPrimary, fontWeight: 700 }}>📥 Process Return</h3>
+            <p style={{ color: textMuted, fontSize: 13, marginBottom: 20 }}>Record a book return and log its condition</p>
             <form onSubmit={handleReturn} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
                 <label style={lblStyle}>Borrow ID</label>
-                <input required type="number" value={returnForm.borrowId} onChange={e => setReturnForm({...returnForm, borrowId: e.target.value})} style={dynInputStyle} placeholder="Borrow Record ID" />
+                <input required type="number" value={returnForm.borrowId} onChange={e => setReturnForm({ ...returnForm, borrowId: e.target.value })} style={dynInputStyle} placeholder="Borrow Record ID" />
               </div>
               <div>
                 <label style={lblStyle}>Condition on Return</label>
-                <select value={returnForm.condition} onChange={e => setReturnForm({...returnForm, condition: e.target.value})} style={dynInputStyle}>
+                <select value={returnForm.condition} onChange={e => setReturnForm({ ...returnForm, condition: e.target.value })} style={dynInputStyle}>
                   <option value="Good">Good</option>
                   <option value="Damaged">Damaged � requires photo proof</option>
                   <option value="Lost">Lost � requires report</option>
@@ -1138,7 +1170,7 @@ export default function StaffDashboard() {
                 </div>
               )}
               <div style={{ position: 'relative' }}>
-                <button type="submit" style={{ background: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: 10, fontWeight: 700, cursor: 'pointer', boxShadow:'0 4px 16px rgba(59,130,246,0.25)', width: '100%' }}>Process Return →</button>
+                <button type="submit" style={{ background: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: 10, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 16px rgba(59,130,246,0.25)', width: '100%' }}>Process Return →</button>
                 <BubblePopup msg={returnMsg} onClear={() => setReturnMsg('')} />
               </div>
             </form>
@@ -1150,8 +1182,8 @@ export default function StaffDashboard() {
 
       {/* Edit Modals */}
       {editModal && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(4px)' }}>
-          <div style={{ background: cardBg, borderRadius: 20, padding: 32, width: editModal.type === 'books' ? 600 : 400, border:`1px solid ${border}`, boxShadow:'0 30px 80px rgba(0,0,0,0.5)', color: textPrimary }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
+          <div style={{ background: cardBg, borderRadius: 20, padding: 32, width: editModal.type === 'books' ? 600 : 400, border: `1px solid ${border}`, boxShadow: '0 30px 80px rgba(0,0,0,0.5)', color: textPrimary }}>
             <h3 style={{ margin: '0 0 16px', fontSize: 20, fontWeight: 700 }}>Edit {editModal.type.slice(0, -1).toUpperCase()}</h3>
             <form onSubmit={(e) => {
               const fd = new FormData(e.target);
@@ -1159,7 +1191,7 @@ export default function StaffDashboard() {
               let idField = { books: 'BookID', categories: 'CategoryID', authors: 'AuthorID', publishers: 'PublisherID' }[editModal.type];
               handleUpdateItem(e, editModal.type, editModal.item[idField], payload);
             }}>
-              
+
               {editModal.type === 'books' && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <div style={{ gridColumn: 'span 2' }}>
@@ -1228,7 +1260,7 @@ export default function StaffDashboard() {
                   </div>
                   <div>
                     <label style={lblStyle}>Bio</label>
-                    <textarea name="Bio" defaultValue={editModal.item.Bio} style={{...dynInputStyle, minHeight: 60}} />
+                    <textarea name="Bio" defaultValue={editModal.item.Bio} style={{ ...dynInputStyle, minHeight: 60 }} />
                   </div>
                 </div>
               )}
@@ -1254,9 +1286,9 @@ export default function StaffDashboard() {
                 </div>
               )}
 
-              <div style={{ display:'flex', gap:10, marginTop: 24 }}>
-                <button type="button" onClick={() => setEditModal(null)} style={{ flex:1, padding:11, borderRadius:10, border:`1px solid ${border}`, background:'transparent', color:textMuted, cursor:'pointer', fontWeight:600 }}>Cancel</button>
-                <button type="submit" style={{ flex:1, padding:11, borderRadius:10, border:'none', background:'linear-gradient(135deg,#3b82f6,#1d4ed8)', color:'#fff', fontWeight:700, cursor:'pointer' }}>Save Changes</button>
+              <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
+                <button type="button" onClick={() => setEditModal(null)} style={{ flex: 1, padding: 11, borderRadius: 10, border: `1px solid ${border}`, background: 'transparent', color: textMuted, cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
+                <button type="submit" style={{ flex: 1, padding: 11, borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#3b82f6,#1d4ed8)', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>Save Changes</button>
               </div>
             </form>
           </div>
@@ -1265,19 +1297,19 @@ export default function StaffDashboard() {
 
       {/* Barcodes Modal */}
       {barcodesModal && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:9200, display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(6px)', padding:24 }}>
-          <div style={{ background:cardBg, borderRadius:24, padding:36, width:'100%', maxWidth:720, maxHeight:'90vh', overflowY:'auto', border:`1px solid ${border}`, boxShadow:'0 40px 100px rgba(0,0,0,0.6)', animation:'fadeInScale 0.25s ease' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:28 }}>
-              <div style={{ display:'flex', alignItems:'center', gap:14 }}>
-                <div style={{ width:50, height:50, borderRadius:14, background:'linear-gradient(135deg,#10b981,#059669)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, boxShadow:'0 4px 16px rgba(16,185,129,0.4)' }}>🏷️</div>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9200, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(6px)', padding: 24 }}>
+          <div style={{ background: cardBg, borderRadius: 24, padding: 36, width: '100%', maxWidth: 720, maxHeight: '90vh', overflowY: 'auto', border: `1px solid ${border}`, boxShadow: '0 40px 100px rgba(0,0,0,0.6)', animation: 'fadeInScale 0.25s ease' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{ width: 50, height: 50, borderRadius: 14, background: 'linear-gradient(135deg,#10b981,#059669)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, boxShadow: '0 4px 16px rgba(16,185,129,0.4)' }}>🏷️</div>
                 <div>
-                  <h2 style={{ color:textPrimary, margin:0, fontSize:22, fontWeight:800 }}>Barcodes: {barcodesModal.Title}</h2>
-                  <p style={{ color:textMuted, margin:0, fontSize:13 }}>Printable labels for physical copies</p>
+                  <h2 style={{ color: textPrimary, margin: 0, fontSize: 22, fontWeight: 800 }}>Barcodes: {barcodesModal.Title}</h2>
+                  <p style={{ color: textMuted, margin: 0, fontSize: 13 }}>Printable labels for physical copies</p>
                 </div>
               </div>
-              <button onClick={() => setBarcodesModal(null)} style={{ background:'transparent', border:'none', color:textMuted, fontSize:24, cursor:'pointer', lineHeight:1 }}>✖</button>
+              <button onClick={() => setBarcodesModal(null)} style={{ background: 'transparent', border: 'none', color: textMuted, fontSize: 24, cursor: 'pointer', lineHeight: 1 }}>✖</button>
             </div>
-            
+
             <div id="print-barcode-area" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 20 }}>
               {bookCopies.map(copy => (
                 <div key={copy.CopyID} style={{ background: '#fff', border: `1px solid ${border}`, padding: 16, borderRadius: 12, textAlign: 'center' }}>
@@ -1292,7 +1324,7 @@ export default function StaffDashboard() {
 
             <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
               <button type="button" onClick={() => setBarcodesModal(null)} style={{ padding: '10px 16px', borderRadius: 10, border: `1px solid ${border}`, background: 'transparent', color: textMuted, cursor: 'pointer', fontWeight: 600 }}>Close</button>
-              <button 
+              <button
                 onClick={() => {
                   const printWin = window.open('', '', 'width=800,height=600');
                   printWin.document.write('<html><head><title>Print Barcodes</title></head><body style="font-family: sans-serif; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; padding: 20px;">');
@@ -1311,9 +1343,9 @@ export default function StaffDashboard() {
         </div>
       )}
 
-      
+
       {tab === 'myborrow' && (
-        <div style={{ display:'flex', flexDirection:'column', gap:20, maxWidth:'100%', boxSizing:'border-box', overflowX:'hidden' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
           <style>{`
             @keyframes mbIn { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:translateY(0)} }
             @keyframes mbCardIn { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
@@ -1325,15 +1357,15 @@ export default function StaffDashboard() {
           `}</style>
 
           {/* ── Policy banner ── */}
-          <div style={{ display:'flex', flexDirection:'row', alignItems:'center', flexWrap:'wrap', gap:16, background: isDark ? 'rgba(99,102,241,0.08)' : 'linear-gradient(135deg,rgba(99,102,241,0.1),rgba(139,92,246,0.06))', border: isDark ? '1px solid rgba(99,102,241,0.3)' : '2px solid rgba(99,102,241,0.3)', borderRadius:14, padding:'16px 20px', boxSizing:'border-box' }}>
-            <span style={{ fontSize:22, flexShrink:0 }}>ℹ️</span>
-            <div style={{ flex:'1 1 280px', minWidth:0 }}>
-              <div style={{ fontWeight:800, color: isDark ? '#818cf8' : '#4338ca', fontSize:14, marginBottom:4 }}>Staff Borrow Policy</div>
-              <div style={{ fontSize:13, color: isDark ? '#a5b4fc' : '#4f46e5', lineHeight:1.6 }}>As a staff member you may borrow books for personal use. Browse the catalog, add books to your cart, then submit a borrow request. Your request must be approved by an <strong>Administrator</strong> at the desk.</div>
+          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 16, background: isDark ? 'rgba(99,102,241,0.08)' : 'linear-gradient(135deg,rgba(99,102,241,0.1),rgba(139,92,246,0.06))', border: isDark ? '1px solid rgba(99,102,241,0.3)' : '2px solid rgba(99,102,241,0.3)', borderRadius: 14, padding: '16px 20px', boxSizing: 'border-box' }}>
+            <span style={{ fontSize: 22, flexShrink: 0 }}>ℹ️</span>
+            <div style={{ flex: '1 1 280px', minWidth: 0 }}>
+              <div style={{ fontWeight: 800, color: isDark ? '#818cf8' : '#4338ca', fontSize: 14, marginBottom: 4 }}>Staff Borrow Policy</div>
+              <div style={{ fontSize: 13, color: isDark ? '#a5b4fc' : '#4f46e5', lineHeight: 1.6 }}>As a staff member you may borrow books for personal use. Browse the catalog, add books to your cart, then submit a borrow request. Your request must be approved by an <strong>Administrator</strong> at the desk.</div>
             </div>
             <button
               onClick={() => setTab('browse')}
-              style={{ flexShrink:0, background:'linear-gradient(135deg,#6366f1,#4f46e5)', color:'#fff', border:'none', padding:'10px 20px', borderRadius:10, fontWeight:800, fontSize:13, cursor:'pointer', whiteSpace:'nowrap', boxShadow:'0 4px 14px rgba(99,102,241,0.35)', margin: '4px 0' }}
+              style={{ flexShrink: 0, background: 'linear-gradient(135deg,#6366f1,#4f46e5)', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 10, fontWeight: 800, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 4px 14px rgba(99,102,241,0.35)', margin: '4px 0' }}
             >
               📚 Browse Catalog →
             </button>
@@ -1341,39 +1373,46 @@ export default function StaffDashboard() {
 
           {/* ── Error message (non-ok only) ── */}
           {myBorrowMsg.text && !myBorrowMsg.ok && (
-            <div style={{ animation:'mbIn 0.3s ease', padding:'12px 18px', borderRadius:12, fontWeight:700, fontSize:14, background: isDark ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.35)', color: isDark ? '#f87171' : '#991b1b', display:'flex', justifyContent:'space-between', alignItems:'center', gap:10, wordBreak:'break-word', boxSizing:'border-box' }}>
+            <div style={{ animation: 'mbIn 0.3s ease', padding: '12px 18px', borderRadius: 12, fontWeight: 700, fontSize: 14, background: isDark ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.35)', color: isDark ? '#f87171' : '#991b1b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, wordBreak: 'break-word', boxSizing: 'border-box' }}>
               <span>⚠️ {myBorrowMsg.text}</span>
-              <button onClick={() => setMyBorrowMsg({ text:'', ok:true })} style={{ background:'none', border:'none', cursor:'pointer', fontWeight:900, color:'inherit', fontSize:16, flexShrink:0 }}>✕</button>
+              <button onClick={() => setMyBorrowMsg({ text: '', ok: true })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 900, color: 'inherit', fontSize: 16, flexShrink: 0 }}>✕</button>
             </div>
           )}
 
           {/* ── Success Screen (shown after submit) ── */}
           {myBorrowResult && (
-            <div style={{ animation:'mbIn 0.4s ease', background:cardBg, border:`1px solid ${border}`, borderRadius:20, padding:'40px 32px', textAlign:'center' }}>
-              <div style={{ fontSize:64, marginBottom:16 }}>🎉</div>
-              <h2 style={{ fontSize:24, fontWeight:900, color:textPrimary, marginBottom:8 }}>Request Submitted!</h2>
-              <p style={{ color:textMuted, fontSize:14, marginBottom:28 }}>Show the code below to an Admin at the library desk for approval.</p>
+            <div style={{ animation: 'mbIn 0.4s ease', background: cardBg, border: `1px solid ${border}`, borderRadius: 20, padding: '40px 32px', textAlign: 'center' }}>
+              <div style={{ fontSize: 64, marginBottom: 16 }}>🎉</div>
+              <h2 style={{ fontSize: 24, fontWeight: 900, color: textPrimary, marginBottom: 8 }}>Request Submitted!</h2>
+              <p style={{ color: textMuted, fontSize: 14, marginBottom: 28 }}>Show the code below to an Admin at the library desk for approval.</p>
 
-              <div style={{ background:'linear-gradient(135deg,#4f46e5,#7c3aed)', borderRadius:20, padding:'32px 36px', marginBottom:28, boxShadow:'0 16px 48px rgba(79,70,229,0.4)', display:'inline-block', minWidth:280 }}>
-                <div style={{ color:'rgba(255,255,255,0.65)', fontSize:12, fontWeight:700, letterSpacing:2, textTransform:'uppercase', marginBottom:10 }}>Your Request Code</div>
-                <div style={{ fontSize:42, fontWeight:900, fontFamily:'monospace', color:'#fff', letterSpacing:5 }}>{myBorrowResult.requestCode || '—'}</div>
+              <div style={{ background: 'linear-gradient(135deg,#4f46e5,#7c3aed)', borderRadius: 20, padding: '32px 36px', marginBottom: 28, boxShadow: '0 16px 48px rgba(79,70,229,0.4)', display: 'inline-block', minWidth: 280 }}>
+                <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>Your Request Code</div>
+                <div style={{ fontSize: 42, fontWeight: 900, fontFamily: 'monospace', color: '#fff', letterSpacing: 5 }}>{myBorrowResult.requestCode || '—'}</div>
                 {myBorrowResult.pickupDeadline && (
-                  <div style={{ marginTop:14, color:'rgba(255,255,255,0.7)', fontSize:12 }}>
+                  <div style={{ marginTop: 14, color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>
                     Pick up before: {new Date(myBorrowResult.pickupDeadline).toLocaleString()}
                   </div>
                 )}
               </div>
 
-              <div style={{ display:'flex', gap:12, justifyContent:'center', flexWrap:'wrap' }}>
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button
-                  onClick={() => { setMyBorrowResult(null); fetchData(); }}
-                  style={{ padding:'12px 26px', background:'linear-gradient(135deg,#6366f1,#4f46e5)', color:'#fff', border:'none', borderRadius:12, fontWeight:800, cursor:'pointer', fontSize:14, boxShadow:'0 4px 14px rgba(99,102,241,0.35)' }}
+                  onClick={() => {
+                    setMyBorrowResult(null)
+                    // Data is already loaded by refreshMyBorrows() before this screen appeared
+                    // Scroll to history section smoothly
+                    setTimeout(() => {
+                      document.getElementById('staff-borrow-history')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                    }, 100)
+                  }}
+                  style={{ padding: '12px 26px', background: 'linear-gradient(135deg,#6366f1,#4f46e5)', color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, cursor: 'pointer', fontSize: 14, boxShadow: '0 4px 14px rgba(99,102,241,0.35)' }}
                 >
                   📖 View My Borrowings
                 </button>
                 <button
                   onClick={() => { setMyBorrowResult(null); setTab('browse'); }}
-                  style={{ padding:'12px 26px', background:'transparent', color:textMuted, border:`1px solid ${border}`, borderRadius:12, fontWeight:700, cursor:'pointer', fontSize:14 }}
+                  style={{ padding: '12px 26px', background: 'transparent', color: textMuted, border: `1px solid ${border}`, borderRadius: 12, fontWeight: 700, cursor: 'pointer', fontSize: 14 }}
                 >
                   Browse More Books
                 </button>
@@ -1383,87 +1422,87 @@ export default function StaffDashboard() {
 
           {/* ── Cart (BorrowCartPage-style) ── */}
           {!myBorrowResult && myBorrowCart.length > 0 && (
-            <div style={{ animation:'mbIn 0.35s ease' }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:12, marginBottom:20 }}>
+            <div style={{ animation: 'mbIn 0.35s ease' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
                 <div>
-                  <h2 style={{ margin:0, fontSize:20, fontWeight:900, color:textPrimary }}>🛒 Borrow Cart</h2>
-                  <p style={{ margin:'4px 0 0', color:textMuted, fontSize:13 }}>{myBorrowCart.length} book{myBorrowCart.length !== 1 ? 's' : ''} ready to borrow</p>
+                  <h2 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: textPrimary }}>🛒 Borrow Cart</h2>
+                  <p style={{ margin: '4px 0 0', color: textMuted, fontSize: 13 }}>{myBorrowCart.length} book{myBorrowCart.length !== 1 ? 's' : ''} ready to borrow</p>
                 </div>
-                <button onClick={() => setTab('browse')} style={{ padding:'9px 18px', background:'transparent', color:textMuted, border:`1px solid ${border}`, borderRadius:10, fontWeight:700, cursor:'pointer', fontSize:13 }}>
+                <button onClick={() => setTab('browse')} style={{ padding: '9px 18px', background: 'transparent', color: textMuted, border: `1px solid ${border}`, borderRadius: 10, fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
                   ← Continue Browsing
                 </button>
               </div>
 
-              <div style={{ display:'grid', gridTemplateColumns:'1fr min(320px,100%)', gap:20, alignItems:'start' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr min(320px,100%)', gap: 20, alignItems: 'start' }}>
                 {/* Book cards */}
-                <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {myBorrowCart.map((item, i) => (
-                    <div key={item.copyId} style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:16, overflow:'hidden', display:'flex', transition:'all 0.2s ease' }}
+                    <div key={item.copyId} style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 16, overflow: 'hidden', display: 'flex', transition: 'all 0.2s ease' }}
                       onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-3px)'}
                       onMouseLeave={e => e.currentTarget.style.transform = 'none'}
                     >
-                      <div style={{ width:7, flexShrink:0, background:CART_GRADIENTS[i % CART_GRADIENTS.length] }} />
-                      <div style={{ width:84, flexShrink:0, background:CART_GRADIENTS[i % CART_GRADIENTS.length], display:'flex', alignItems:'center', justifyContent:'center' }}>
-                        <span style={{ fontSize:32 }}>📚</span>
+                      <div style={{ width: 7, flexShrink: 0, background: CART_GRADIENTS[i % CART_GRADIENTS.length] }} />
+                      <div style={{ width: 84, flexShrink: 0, background: CART_GRADIENTS[i % CART_GRADIENTS.length], display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ fontSize: 32 }}>📚</span>
                       </div>
-                      <div style={{ flex:1, padding:'16px 18px' }}>
-                        <div style={{ fontWeight:800, fontSize:15, color:textPrimary, marginBottom:4 }}>{item.title}</div>
-                        {item.authors && <div style={{ color:'#3b82f6', fontSize:13, fontWeight:600, marginBottom:8 }}>By {item.authors}</div>}
-                        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                          {item.category && <span style={{ fontSize:11, background:isDark?'rgba(255,255,255,0.06)':'#f1f5f9', color:textMuted, padding:'3px 10px', borderRadius:20, fontWeight:700 }}>{item.category}</span>}
-                          <span style={{ fontSize:11, background:'rgba(16,185,129,0.12)', color:'#10b981', padding:'3px 10px', borderRadius:20, fontWeight:700, border:'1px solid rgba(16,185,129,0.25)' }}>Copy #{item.copyId}</span>
+                      <div style={{ flex: 1, padding: '16px 18px' }}>
+                        <div style={{ fontWeight: 800, fontSize: 15, color: textPrimary, marginBottom: 4 }}>{item.title}</div>
+                        {item.authors && <div style={{ color: '#3b82f6', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>By {item.authors}</div>}
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          {item.category && <span style={{ fontSize: 11, background: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9', color: textMuted, padding: '3px 10px', borderRadius: 20, fontWeight: 700 }}>{item.category}</span>}
+                          <span style={{ fontSize: 11, background: 'rgba(16,185,129,0.12)', color: '#10b981', padding: '3px 10px', borderRadius: 20, fontWeight: 700, border: '1px solid rgba(16,185,129,0.25)' }}>Copy #{item.copyId}</span>
                         </div>
                       </div>
-                      <div style={{ display:'flex', alignItems:'center', padding:'0 16px' }}>
-                        <button onClick={() => removeFromMyCart(item.copyId)} style={{ background:isDark?'rgba(239,68,68,0.12)':'#fee2e2', color:'#ef4444', border:'none', borderRadius:9, padding:'7px 13px', fontWeight:800, cursor:'pointer', fontSize:13, transition:'all 0.15s' }}
-                          onMouseEnter={e => { e.currentTarget.style.background='#fca5a5'; e.currentTarget.style.color='#7f1d1d'; }}
-                          onMouseLeave={e => { e.currentTarget.style.background=isDark?'rgba(239,68,68,0.12)':'#fee2e2'; e.currentTarget.style.color='#ef4444'; }}
+                      <div style={{ display: 'flex', alignItems: 'center', padding: '0 16px' }}>
+                        <button onClick={() => removeFromMyCart(item.copyId)} style={{ background: isDark ? 'rgba(239,68,68,0.12)' : '#fee2e2', color: '#ef4444', border: 'none', borderRadius: 9, padding: '7px 13px', fontWeight: 800, cursor: 'pointer', fontSize: 13, transition: 'all 0.15s' }}
+                          onMouseEnter={e => { e.currentTarget.style.background = '#fca5a5'; e.currentTarget.style.color = '#7f1d1d'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = isDark ? 'rgba(239,68,68,0.12)' : '#fee2e2'; e.currentTarget.style.color = '#ef4444'; }}
                         >
                           ✕ Remove
                         </button>
                       </div>
                     </div>
                   ))}
-                  <button onClick={() => setMyBorrowCart([])} style={{ alignSelf:'flex-start', background:'transparent', color:textMuted, border:'none', cursor:'pointer', fontSize:13, fontWeight:700, textDecoration:'underline', padding:0 }}>
+                  <button onClick={() => setMyBorrowCart([])} style={{ alignSelf: 'flex-start', background: 'transparent', color: textMuted, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, textDecoration: 'underline', padding: 0 }}>
                     Clear all books
                   </button>
                 </div>
 
                 {/* Summary Panel */}
-                <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:18, padding:24, position:'sticky', top:80 }}>
-                  <div style={{ fontWeight:900, fontSize:17, color:textPrimary, marginBottom:18 }}>Order Summary</div>
-                  <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:20 }}>
+                <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 18, padding: 24, position: 'sticky', top: 80 }}>
+                  <div style={{ fontWeight: 900, fontSize: 17, color: textPrimary, marginBottom: 18 }}>Order Summary</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
                     {myBorrowCart.map(item => (
-                      <div key={item.copyId} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8 }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:8, flex:1, minWidth:0 }}>
-                          <span style={{ fontSize:15 }}>📖</span>
-                          <span style={{ fontSize:13, fontWeight:700, color:textPrimary, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.title}</span>
+                      <div key={item.copyId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                          <span style={{ fontSize: 15 }}>📖</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
                         </div>
-                        <span style={{ fontSize:11, color:textMuted, flexShrink:0 }}>#{item.copyId}</span>
+                        <span style={{ fontSize: 11, color: textMuted, flexShrink: 0 }}>#{item.copyId}</span>
                       </div>
                     ))}
                   </div>
-                  <div style={{ borderTop:`1px solid ${border}`, paddingTop:14, marginBottom:18 }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', color:textMuted, fontSize:13, marginBottom:6 }}><span>Books</span><span>{myBorrowCart.length}</span></div>
-                    <div style={{ display:'flex', justifyContent:'space-between', color:textMuted, fontSize:13, marginBottom:6 }}><span>Loan period</span><span>7 days</span></div>
-                    <div style={{ display:'flex', justifyContent:'space-between', fontSize:14, fontWeight:800, color:textPrimary, marginTop:10 }}><span>Total</span><span>{myBorrowCart.length} book{myBorrowCart.length!==1?'s':''}</span></div>
+                  <div style={{ borderTop: `1px solid ${border}`, paddingTop: 14, marginBottom: 18 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: textMuted, fontSize: 13, marginBottom: 6 }}><span>Books</span><span>{myBorrowCart.length}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: textMuted, fontSize: 13, marginBottom: 6 }}><span>Loan period</span><span>7 days</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 800, color: textPrimary, marginTop: 10 }}><span>Total</span><span>{myBorrowCart.length} book{myBorrowCart.length !== 1 ? 's' : ''}</span></div>
                   </div>
-                  <div style={{ background:isDark?'rgba(99,102,241,0.08)':'#eff6ff', border:'1px solid rgba(99,102,241,0.2)', borderRadius:11, padding:'11px 14px', marginBottom:18 }}>
-                    <div style={{ fontSize:12, color:'#6366f1', fontWeight:700, marginBottom:3 }}>📋 How it works</div>
-                    <div style={{ fontSize:12, color:textMuted, lineHeight:1.6 }}>
+                  <div style={{ background: isDark ? 'rgba(99,102,241,0.08)' : '#eff6ff', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 11, padding: '11px 14px', marginBottom: 18 }}>
+                    <div style={{ fontSize: 12, color: '#6366f1', fontWeight: 700, marginBottom: 3 }}>📋 How it works</div>
+                    <div style={{ fontSize: 12, color: textMuted, lineHeight: 1.6 }}>
                       After submitting, show your <strong>request code</strong> to an <strong>Admin</strong> at the desk for approval.
                     </div>
                   </div>
                   <button
                     onClick={submitMyBorrow}
                     disabled={myBorrowLoading}
-                    style={{ width:'100%', padding:'14px', background:myBorrowLoading?'#64748b':'linear-gradient(135deg,#6366f1,#4f46e5)', color:'#fff', border:'none', borderRadius:13, fontWeight:900, fontSize:15, cursor:myBorrowLoading?'not-allowed':'pointer', boxShadow:'0 8px 24px rgba(99,102,241,0.35)', transition:'all 0.2s ease' }}
-                    onMouseEnter={e => { if(!myBorrowLoading) e.currentTarget.style.filter='brightness(1.08)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.filter='none'; }}
+                    style={{ width: '100%', padding: '14px', background: myBorrowLoading ? '#64748b' : 'linear-gradient(135deg,#6366f1,#4f46e5)', color: '#fff', border: 'none', borderRadius: 13, fontWeight: 900, fontSize: 15, cursor: myBorrowLoading ? 'not-allowed' : 'pointer', boxShadow: '0 8px 24px rgba(99,102,241,0.35)', transition: 'all 0.2s ease' }}
+                    onMouseEnter={e => { if (!myBorrowLoading) e.currentTarget.style.filter = 'brightness(1.08)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
                   >
-                    {myBorrowLoading ? '⏳ Submitting...' : `🚀 Submit Request (${myBorrowCart.length} book${myBorrowCart.length!==1?'s':''})`}
+                    {myBorrowLoading ? '⏳ Submitting...' : `🚀 Submit Request (${myBorrowCart.length} book${myBorrowCart.length !== 1 ? 's' : ''})`}
                   </button>
-                  <p style={{ margin:'10px 0 0', color:textMuted, fontSize:11, textAlign:'center' }}>Admin approval required at the desk.</p>
+                  <p style={{ margin: '10px 0 0', color: textMuted, fontSize: 11, textAlign: 'center' }}>Admin approval required at the desk.</p>
                 </div>
               </div>
             </div>
@@ -1471,144 +1510,109 @@ export default function StaffDashboard() {
 
 
           {/* ── My Borrow History ── */}
-          <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:16, overflow:'hidden', maxWidth:'100%', boxSizing:'border-box' }}>
-            <div style={{ padding:'14px 20px', borderBottom:`1px solid ${border}`, display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12 }}>
-              <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
-                <span style={{ fontSize:20 }}>📖</span>
-                <span style={{ fontWeight:800, fontSize:15, color:textPrimary }}>My Borrow History</span>
+          <div id="staff-borrow-history" style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 16, overflow: 'hidden', maxWidth: '100%', boxSizing: 'border-box' }}>
+            <div style={{ padding: '14px 20px', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 20 }}>📖</span>
+                <span style={{ fontWeight: 800, fontSize: 15, color: textPrimary }}>My Borrow History</span>
                 {myBorrows.length > 0 && (
-                  <span style={{ background:'rgba(99,102,241,0.12)', color:'#6366f1', borderRadius:20, fontSize:11, fontWeight:800, padding:'2px 10px', border:'1px solid rgba(99,102,241,0.25)' }}>
+                  <span style={{ background: 'rgba(99,102,241,0.12)', color: '#6366f1', borderRadius: 20, fontSize: 11, fontWeight: 800, padding: '2px 10px', border: '1px solid rgba(99,102,241,0.25)' }}>
                     {myBorrows.length} record{myBorrows.length !== 1 ? 's' : ''}
                   </span>
                 )}
               </div>
-              <button onClick={() => setTab('browse')} style={{ background:'linear-gradient(135deg,#8b5cf6,#6d28d9)', color:'#fff', border:'none', padding:'8px 16px', borderRadius:9, fontWeight:700, fontSize:12, cursor:'pointer' }}>
+              <button onClick={() => setTab('browse')} style={{ background: 'linear-gradient(135deg,#8b5cf6,#6d28d9)', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 9, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
                 + Borrow More Books
               </button>
             </div>
 
             {myBorrows.length === 0 ? (
-              <div style={{ padding:60, textAlign:'center', color:textMuted }}>
-                <div style={{ fontSize:48, marginBottom:12 }}>📭</div>
-                <div style={{ fontWeight:700, fontSize:16, marginBottom:6 }}>No borrow records yet</div>
-                <div style={{ fontSize:13, marginBottom:20 }}>Browse the catalog to find books and add them to your cart.</div>
-                <button onClick={() => setTab('browse')} style={{ background:'linear-gradient(135deg,#6366f1,#4f46e5)', color:'#fff', border:'none', padding:'12px 28px', borderRadius:12, fontWeight:800, fontSize:14, cursor:'pointer', boxShadow:'0 4px 14px rgba(99,102,241,0.3)' }}>
+              <div style={{ padding: 60, textAlign: 'center', color: textMuted }}>
+                <div style={{ fontSize: 48, marginBottom: 12 }}>📭</div>
+                <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>No borrow records yet</div>
+                <div style={{ fontSize: 13, marginBottom: 20 }}>Browse the catalog to find books and add them to your cart.</div>
+                <button onClick={() => setTab('browse')} style={{ background: 'linear-gradient(135deg,#6366f1,#4f46e5)', color: '#fff', border: 'none', padding: '12px 28px', borderRadius: 12, fontWeight: 800, fontSize: 14, cursor: 'pointer', boxShadow: '0 4px 14px rgba(99,102,241,0.3)' }}>
                   📚 Browse Catalog
                 </button>
               </div>
             ) : (
-              <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-                {myBorrows.map(b => {
-                  const title = b.bookTitle || b.Title || b.title || '—';
-                  const requestCode = b.requestCode || b.RequestCode || '—';
-                  const borrowDate = b.borrowDate || b.BorrowDate;
-                  const dueDate = b.dueDate || b.DueDate;
-                  const returnDate = b.returnDate || b.ReturnDate;
-                  const st = b.status || b.Status || '';
-                  const borrowId = b.borrowId || b.BorrowID;
-                  const isPending = st === 'Pending';
-                  const isBorrowed = st === 'Borrowed';
-                  const isOverdue = st === 'Overdue';
-                  const isReturned = st === 'Returned' || st === 'returned';
-                  const isExpired = st === 'Expired';
-                  const col = isPending ? '#f59e0b' : isBorrowed ? '#10b981' : isOverdue ? '#ef4444' : isReturned ? '#6366f1' : isExpired ? '#ef4444' : '#94a3b8';
-                  const statusLabel = isPending ? 'Pending' : isBorrowed ? 'Active' : isOverdue ? 'Overdue' : isReturned ? 'Returned' : isExpired ? 'Expired' : st;
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
+                  <thead style={{ background: tableHead }}>
+                    <tr>
+                      {['Book', 'Request Code', 'Borrowed', 'Due Date', 'Return Date', 'Status', 'Action'].map(h => (
+                        <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: textMuted, textTransform: 'uppercase', letterSpacing: .6, borderBottom: `1px solid ${border}` }}>
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {myBorrows.map((b, i) => {
+                      const title = b.bookTitle || b.Title || b.title || '—';
+                      const requestCode = b.requestCode || b.RequestCode || '—';
+                      const borrowDate = b.borrowDate || b.BorrowDate;
+                      const dueDate = b.dueDate || b.DueDate;
+                      const returnDate = b.returnDate || b.ReturnDate;
+                      const st = b.status || b.Status || '';
+                      const borrowId = b.borrowId || b.BorrowID;
+                      const isPending = st === 'Pending';
+                      const isBorrowed = st === 'Borrowed';
+                      const isOverdue = st === 'Overdue';
+                      const isReturned = st === 'Returned' || st === 'returned';
+                      const isExpired = st === 'Expired';
+                      const col = isPending ? '#f59e0b' : isBorrowed ? '#10b981' : isOverdue ? '#ef4444' : isReturned ? '#6366f1' : isExpired ? '#ef4444' : '#94a3b8';
+                      const statusLabel = isPending ? 'Pending' : isBorrowed ? 'Active' : isOverdue ? 'Overdue' : isReturned ? 'Returned' : isExpired ? 'Expired' : st;
+                      const fmt = (d) => d ? new Date(d).toLocaleDateString() : '—';
 
-                  return (
-                    <div key={borrowId} style={{
-                      background: cardBg,
-                      border: `1px solid ${isPending ? 'rgba(245,158,11,0.3)' : isOverdue ? 'rgba(239,68,68,0.3)' : border}`,
-                      borderRadius: 14,
-                      padding: '16px 20px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 16,
-                      flexWrap: 'wrap',
-                      boxShadow: isPending ? '0 0 0 2px rgba(245,158,11,0.1)' : 'none',
-                      transition: 'box-shadow 0.2s'
-                    }}>
-                      {/* Book Icon */}
-                      <div style={{
-                        width: 44, height: 44, borderRadius: 12,
-                        background: `${col}18`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 22, flexShrink: 0, border: `1px solid ${col}30`
-                      }}>
-                        {isPending ? '⏳' : isBorrowed ? '📖' : isOverdue ? '⚠️' : isReturned ? '✅' : '📚'}
-                      </div>
-
-                      {/* Book Info */}
-                      <div style={{ flex: '1 1 200px', minWidth: 0 }}>
-                        <div style={{ fontWeight: 800, fontSize: 15, color: textPrimary, marginBottom: 3, wordBreak: 'break-word' }}>
-                          {title}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 12, color: '#3b82f6', fontWeight: 700, fontFamily: 'monospace', background: 'rgba(59,130,246,0.1)', padding: '2px 8px', borderRadius: 6 }}>
-                            {requestCode}
-                          </span>
-                          {borrowDate && (
-                            <span style={{ fontSize: 12, color: textMuted }}>
-                              📅 Borrowed: {new Date(borrowDate).toLocaleDateString()}
+                      return (
+                        <tr key={borrowId || i} style={{ borderTop: `1px solid ${border}`, background: isPending ? (isDark ? 'rgba(245,158,11,0.07)' : '#fffbeb') : 'transparent' }}>
+                          <td style={{ padding: '14px 16px', fontWeight: 700, color: textPrimary }}>
+                            <div style={{ fontSize: 14 }}>{title}</div>
+                            {isPending && <div style={{ color: '#d97706', fontSize: 11, marginTop: 2, fontWeight: 600 }}>⏳ Awaiting admin approval at the desk</div>}
+                            {isExpired && <div style={{ color: '#ef4444', fontSize: 11, marginTop: 2, fontWeight: 600 }}>⌛ Request expired (not picked up within 5 mins)</div>}
+                          </td>
+                          <td style={{ padding: '14px 16px', fontFamily: 'monospace', color: '#3b82f6', fontSize: 13, fontWeight: 700 }}>{requestCode}</td>
+                          <td style={{ padding: '14px 16px', color: textMuted, fontSize: 13 }}>{fmt(borrowDate)}</td>
+                          <td style={{ padding: '14px 16px', color: isOverdue ? '#ef4444' : textMuted, fontWeight: isOverdue ? 800 : 400, fontSize: 13 }}>{fmt(dueDate)}</td>
+                          <td style={{ padding: '14px 16px', color: textMuted, fontSize: 13 }}>{fmt(returnDate)}</td>
+                          <td style={{ padding: '14px 16px' }}>
+                            <span style={{
+                              fontSize: 11, fontWeight: 800, padding: '5px 12px',
+                              borderRadius: 20, background: `${col}18`, color: col,
+                              border: `1px solid ${col}40`, whiteSpace: 'nowrap', display: 'inline-block'
+                            }}>
+                              {statusLabel}
                             </span>
-                          )}
-                          {dueDate && (
-                            <span style={{ fontSize: 12, color: isOverdue ? '#ef4444' : textMuted, fontWeight: isOverdue ? 700 : 400 }}>
-                              🗓 Due: {new Date(dueDate).toLocaleDateString()}
-                            </span>
-                          )}
-                          {returnDate && (
-                            <span style={{ fontSize: 12, color: textMuted }}>
-                              ↩ Returned: {new Date(returnDate).toLocaleDateString()}
-                            </span>
-                          )}
-                        </div>
-                        {isPending && (
-                          <div style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700, marginTop: 4 }}>
-                            ⌛ Awaiting admin approval at the desk
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Status Badge */}
-                      <div style={{ flexShrink: 0 }}>
-                        <span style={{
-                          fontSize: 11, fontWeight: 800, padding: '5px 14px',
-                          borderRadius: 20, background: `${col}18`, color: col,
-                          border: `1px solid ${col}40`, whiteSpace: 'nowrap', display: 'inline-block'
-                        }}>
-                          {statusLabel}
-                        </span>
-                      </div>
-
-                      {/* Retract Button — only for Pending */}
-                      {isPending && (
-                        <button
-                          onClick={() => retractMyBorrow(borrowId)}
-                          style={{
-                            flexShrink: 0,
-                            background: 'rgba(239,68,68,0.08)',
-                            color: '#ef4444',
-                            border: '1.5px solid rgba(239,68,68,0.3)',
-                            borderRadius: 10,
-                            padding: '8px 16px',
-                            fontWeight: 700,
-                            fontSize: 13,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            transition: 'all 0.15s ease',
-                            whiteSpace: 'nowrap'
-                          }}
-                          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.16)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-                          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; e.currentTarget.style.transform = 'none'; }}
-                        >
-                          ✕ Retract Request
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
+                          </td>
+                          <td style={{ padding: '14px 16px' }}>
+                            {isPending && (
+                              <button
+                                onClick={() => retractMyBorrow(borrowId)}
+                                style={{
+                                  background: 'rgba(239,68,68,0.08)',
+                                  color: '#ef4444',
+                                  border: '1.5px solid rgba(239,68,68,0.3)',
+                                  borderRadius: 8,
+                                  padding: '5px 12px',
+                                  fontWeight: 700,
+                                  fontSize: 12,
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease',
+                                  whiteSpace: 'nowrap'
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.16)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; }}
+                              >
+                                ✕ Retract
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
@@ -1794,7 +1798,7 @@ function FinesTab({ getHeaders, c }) {
       setMsg(res.data.message);
       setPaymentForm({ fineId: null, amount: '', method: 'Cash' });
       // Refresh fines
-      lookupMember({ preventDefault: () => {} });
+      lookupMember({ preventDefault: () => { } });
     } catch (err) {
       setMsg('Error: ' + (err.response?.data?.message || err.message));
     }
@@ -1805,12 +1809,12 @@ function FinesTab({ getHeaders, c }) {
       <div style={{ background: c.cardBg, borderRadius: 16, border: `1px solid ${c.border}`, padding: 24 }}>
         <h2 style={{ margin: '0 0 16px', color: c.textPrimary, fontSize: 20 }}>Fine Payments Desk</h2>
         <form onSubmit={lookupMember} style={{ display: 'flex', gap: 12 }}>
-          <input 
-            type="text" 
-            placeholder="Enter Member ID or Student ID..." 
-            value={memberId} 
-            onChange={e => setMemberId(e.target.value)} 
-            required 
+          <input
+            type="text"
+            placeholder="Enter Member ID or Student ID..."
+            value={memberId}
+            onChange={e => setMemberId(e.target.value)}
+            required
             style={{ flex: 1, padding: '12px 16px', borderRadius: 8, border: `1px solid ${c.border}`, background: c.inputBg, color: c.textPrimary, outline: 'none' }}
           />
           <button type="submit" disabled={loading} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '0 24px', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>
@@ -1826,7 +1830,7 @@ function FinesTab({ getHeaders, c }) {
             <h3 style={{ margin: 0, color: c.textPrimary }}>Outstanding Fines - {fines[0].FullName}</h3>
             <span style={{ fontWeight: 700, color: '#ef4444' }}>Total: {fines.reduce((acc, f) => acc + Number(f.Balance), 0).toFixed(2)} ETB</span>
           </div>
-          
+
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {fines.map((fine, idx) => (
               <div key={fine.FineID} style={{ padding: 24, borderBottom: idx === fines.length - 1 ? 'none' : `1px solid ${c.border}`, display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1845,20 +1849,20 @@ function FinesTab({ getHeaders, c }) {
                 {paymentForm.fineId === fine.FineID ? (
                   <form onSubmit={processPayment} style={{ display: 'flex', gap: 12, background: 'rgba(59, 130, 246, 0.05)', padding: 16, borderRadius: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     <div style={{ fontWeight: 700, color: '#3b82f6' }}>Process Payment</div>
-                    <input 
-                      type="number" 
-                      step="0.01" 
-                      min="0.01" 
-                      max={fine.Balance} 
-                      value={paymentForm.amount} 
-                      onChange={e => setPaymentForm({...paymentForm, amount: e.target.value})} 
-                      placeholder="Amount" 
-                      required 
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      max={fine.Balance}
+                      value={paymentForm.amount}
+                      onChange={e => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                      placeholder="Amount"
+                      required
                       style={{ padding: '8px 12px', borderRadius: 6, border: `1px solid #93c5fd`, width: 120, outline: 'none' }}
                     />
-                    <select 
-                      value={paymentForm.method} 
-                      onChange={e => setPaymentForm({...paymentForm, method: e.target.value})}
+                    <select
+                      value={paymentForm.method}
+                      onChange={e => setPaymentForm({ ...paymentForm, method: e.target.value })}
                       style={{ padding: '8px 12px', borderRadius: 6, border: `1px solid #93c5fd`, outline: 'none' }}
                     >
                       <option value="Cash">Cash</option>
@@ -1872,7 +1876,7 @@ function FinesTab({ getHeaders, c }) {
                   </form>
                 ) : (
                   <div style={{ textAlign: 'right' }}>
-                    <button 
+                    <button
                       onClick={() => setPaymentForm({ fineId: fine.FineID, amount: fine.Balance, method: 'Cash' })}
                       style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 6, fontWeight: 600, cursor: 'pointer' }}
                     >
@@ -1923,7 +1927,7 @@ function ProfileTab({ user, c }) {
 
   return (
     <div style={{ maxWidth: 600, margin: '0 auto' }}>
-      <div style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 32, marginBottom: 24, backdropFilter:'blur(12px)' }}>
+      <div style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 32, marginBottom: 24, backdropFilter: 'blur(12px)' }}>
         <h3 style={{ color: c.text, margin: '0 0 20px', fontSize: 20, fontWeight: 700 }}>Staff Information</h3>
         <div style={{ display: 'grid', gap: 20 }}>
           <div>
@@ -1941,7 +1945,7 @@ function ProfileTab({ user, c }) {
         </div>
       </div>
 
-      <div style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 32, backdropFilter:'blur(12px)' }}>
+      <div style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 32, backdropFilter: 'blur(12px)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <h3 style={{ color: c.text, margin: 0, fontSize: 20, fontWeight: 700 }}>Security Center</h3>
           <button type="button" onClick={() => setShowPw(v => !v)}
@@ -1996,7 +2000,7 @@ const lblStyle = { display: 'block', fontSize: 13, fontWeight: 600, color: '#94a
 const inputStyle = { width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(150,150,150,0.2)', fontSize: 14, outline: 'none', boxSizing: 'border-box', background: 'transparent', color: 'inherit', transition: 'all 0.3s' }
 
 const StatCard = ({ title, value, color = '#10b981', highlight, cardBg, textPrimary, border }) => (
-  <div className="stat-card interactive-card" style={{ background: cardBg, backdropFilter:'blur(12px)', border: highlight ? `2px solid ${color}` : `1px solid ${border}`, borderRadius: 12, padding: '14px 18px', boxShadow: highlight ? `0 0 24px ${color}22` : 'none' }}>
+  <div className="stat-card interactive-card" style={{ background: cardBg, backdropFilter: 'blur(12px)', border: highlight ? `2px solid ${color}` : `1px solid ${border}`, borderRadius: 12, padding: '14px 18px', boxShadow: highlight ? `0 0 24px ${color}22` : 'none' }}>
     <div style={{ fontSize: 11, color: highlight ? color : '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>{title}</div>
     <div style={{ fontSize: 26, fontWeight: 800, color: highlight ? color : textPrimary }}>{value ?? '�'}</div>
   </div>

@@ -24,14 +24,15 @@ app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173', cred
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// ─── Existing routes (legacy - consider removing once migration is verified) ──
+app.use('/api/staff',  require('./src/routes/staff')); // Placed first to avoid conflict with users.routes /staff/:id
+
 // ─── Module 2: Users & Roles (Consolidated) ──────────────────────────────────
 app.use('/api', require('./src/modules/users/users.routes'));
 
-// ─── Existing routes (legacy - consider removing once migration is verified) ──
+// ─── Other legacy routes ──
 app.use('/api/auth',   require('./src/routes/auth'));  // legacy auth: /api/auth/change-password etc.
 app.use('/api/admin',  require('./src/routes/admin'));
-app.use('/api/staff',  require('./src/routes/staff'));
-// app.use('/api/member', require('./src/routes/members'));
 app.use('/api/books',  require('./src/routes/books'));
 app.use('/api/member', require('./src/routes/members'));
 

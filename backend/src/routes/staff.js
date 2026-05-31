@@ -356,7 +356,7 @@ router.get('/all-reservations', auth, async (req, res) => {
 router.patch('/all-reservations/:id', auth, async (req, res) => {
   try {
     const { status } = req.body;
-    const allowed = ['Queued','Ready','Fulfilled','Cancelled'];
+    const allowed = ['Queued', 'Ready', 'Fulfilled', 'Cancelled'];
     if (!allowed.includes(status)) return fail(res, 'Invalid status');
     await pool.execute('UPDATE Reservations SET Status=? WHERE ResID=? OR ReservationID=?', [status, req.params.id, req.params.id]);
     return ok(res, 'Reservation updated');
@@ -367,35 +367,40 @@ router.patch('/all-reservations/:id', auth, async (req, res) => {
 async function ensureStaffMember(userID) {
   const [mRows] = await pool.execute('SELECT MemberID FROM Members WHERE UserID = ?', [userID]);
   if (mRows.length) return mRows[0].MemberID;
-  // Auto-create shadow member record for first-time borrowing
-  const [[{ nextId }]] = await pool.execute('SELECT COALESCE(MAX(MemberID),0)+1 AS nextId FROM Members');
-  await pool.execute(
-    'INSERT INTO Members (MemberID, UserID, StudentID, Department, RegistrationDate, MaxBooksAllowed) VALUES (?,?,?,?,NOW(),?)',
-    [nextId, userID, `STAFF-${userID}`, 'Staff Department', 5]
+  // Auto-create shadow member record — let AUTO_INCREMENT assign the ID safely
+  const [result] = await pool.execute(
+    'INSERT INTO Members (UserID, StudentID, Department, RegistrationDate, MaxBooksAllowed) VALUES (?,?,?,NOW(),?)',
+    [userID, `STAFF-${userID}`, 'Staff Department', 5]
   );
-  return nextId;
+  return result.insertId;
 }
 
 // GET /api/staff/my-borrows — returns only THIS staff member's own borrow records
 router.get('/my-borrows', auth, async (req, res) => {
   try {
     const userID = req.user.userID || req.user.UserID;
-    const memberID = await ensureStaffMember(userID);
+    if (!userID) return fail(res, 'Cannot identify user from token', 401);
 
+    // Query directly by UserID via Members JOIN — no need to call ensureStaffMember
+    // This avoids any INSERT race-conditions and is simpler / more reliable
     const [rows] = await pool.execute(
       `SELECT br.BorrowID as borrowId, br.RequestCode as requestCode, br.CopyID as copyId,
-              b.Title as bookTitle, b.ISBN as isbn, b.CoverImage as coverImage,
+              b.Title as bookTitle, b.ISBN as isbn,
               br.BorrowDate as borrowDate, br.DueDate as dueDate, br.ReturnDate as returnDate,
               br.Status as status, br.PickupDeadline as pickupDeadline
        FROM BorrowingRecords br
+       JOIN Members m ON br.MemberID = m.MemberID
        JOIN BookCopies bc ON br.CopyID = bc.CopyID
        JOIN Books b ON bc.BookID = b.BookID
-       WHERE br.MemberID = ?
-       ORDER BY br.BorrowDate DESC LIMIT 100`,
-      [memberID]
+       WHERE m.UserID = ?
+       ORDER BY br.BorrowDate DESC, br.BorrowID DESC LIMIT 100`,
+      [userID]
     );
     return ok(res, 'Staff personal borrow records', rows);
-  } catch (err) { return fail(res, err.message, 500); }
+  } catch (err) {
+    console.error('[GET /api/staff/my-borrows] ERROR:', err.message, err.stack);
+    return fail(res, err.message, 500);
+  }
 });
 
 // POST /api/staff/my-borrows/request — staff submits a borrow request FOR THEMSELVES

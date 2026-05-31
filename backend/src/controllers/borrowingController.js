@@ -40,11 +40,11 @@ exports.submitRequest = async (req, res) => {
       SELECT CopyID FROM BorrowingRecords
       WHERE MemberID = ? AND CopyID IN (?) AND Status IN ('Pending', 'Borrowed')
     `, [memberId, copyIds]);
-    
+
     if (existing.length > 0) {
       await conn.rollback();
-      return res.status(400).json({ 
-        success: false, 
+      return res.status(400).json({
+        success: false,
         message: "You already have an active request or borrow for one or more of these copies.",
         code: "DUPLICATE_BORROW"
       });
@@ -61,7 +61,7 @@ exports.submitRequest = async (req, res) => {
     for (const copyId of copyIds) {
       // Lock row
       const [copies] = await conn.query('SELECT Status, BookID FROM BookCopies WHERE CopyID = ? FOR UPDATE', [copyId]);
-      
+
       if (copies.length === 0) {
         skipped.push({ copyId, reason: "Copy not found" });
         continue;
@@ -71,13 +71,13 @@ exports.submitRequest = async (req, res) => {
       const bookId = copies[0].BookID;
 
       // Get Book Info for response
-    const [books] = await conn.query(
-      `SELECT b.Title, bc.ShelfLocation
+      const [books] = await conn.query(
+        `SELECT b.Title, bc.ShelfLocation
        FROM Books b
        LEFT JOIN BookCopies bc ON bc.BookID = b.BookID AND bc.CopyID = ?
        WHERE b.BookID = ?`,
-      [copyId, bookId]
-    );
+        [copyId, bookId]
+      );
       const bookTitle = books[0]?.Title || 'Unknown';
       const shelfLocation = books[0]?.ShelfLocation || 'Unknown';
 
@@ -98,7 +98,7 @@ exports.submitRequest = async (req, res) => {
           SELECT MAX(Priority) as maxPrio FROM Reservations
           WHERE CopyID = ? AND Status = 'Queued'
         `, [copyId]);
-        
+
         const nextPriority = (prioRows[0].maxPrio || 0) + 1;
 
         await conn.query(`
@@ -124,7 +124,7 @@ exports.submitRequest = async (req, res) => {
         pending,
         queued,
         skipped,
-        message: pending.length > 0 
+        message: pending.length > 0
           ? `Your request has been submitted. Present code ${requestCode} at the desk.`
           : `Your request has been queued. Code: ${requestCode}`
       }
@@ -142,7 +142,7 @@ exports.submitRequest = async (req, res) => {
 exports.getSession = async (req, res) => {
   try {
     const { code } = req.params;
-    
+
     // Check BorrowingRecords
     const [rows] = await db.query(`
       SELECT 
@@ -226,9 +226,9 @@ exports.confirmCollection = async (req, res) => {
       `, [bid]);
 
       if (rows.length === 0) continue;
-      
+
       const record = rows[0];
-      
+
       if (record.RequestCode !== code || record.Status !== 'Pending') {
         continue;
       }
@@ -271,7 +271,7 @@ exports.confirmCollection = async (req, res) => {
         WHERE CopyID = ?
       `, [record.CopyID]);
 
-      confirmed.push({ borrowId: bid, copyId: record.CopyID, dueDate: new Date(Date.now() + loanPeriodDays * 24*60*60*1000).toISOString() });
+      confirmed.push({ borrowId: bid, copyId: record.CopyID, dueDate: new Date(Date.now() + loanPeriodDays * 24 * 60 * 60 * 1000).toISOString() });
     }
 
     await conn.commit();
@@ -357,7 +357,7 @@ exports.processReturn = async (req, res) => {
 
       if (resRows.length > 0) {
         const nextRes = resRows[0];
-        
+
         // a. INSERT new BorrowingRecords row
         await conn.query(`
           INSERT INTO BorrowingRecords (MemberID, CopyID, RequestCode, BorrowDate, Status, PickupDeadline)
@@ -449,7 +449,7 @@ exports.getMyBorrows = async (req, res) => {
       success: true,
       data: {
         records: rows,
-        total, page: parseInt(page), limit: parseInt(limit), totalPages: Math.ceil(total/limit)
+        total, page: parseInt(page), limit: parseInt(limit), totalPages: Math.ceil(total / limit)
       }
     });
   } catch (err) {
@@ -480,7 +480,7 @@ exports.getActiveCount = async (req, res) => {
 exports.getOverdue = async (req, res) => {
   try {
     const { memberId, fromDate, toDate } = req.query;
-    
+
     let query = `
       SELECT 
         br.BorrowID as borrowId, br.RequestCode as requestCode,
@@ -505,7 +505,7 @@ exports.getOverdue = async (req, res) => {
     query += ' ORDER BY daysOverdue DESC';
 
     const [rows] = await db.query(query, params);
-    
+
     res.json({ success: true, data: rows });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -707,7 +707,7 @@ exports.confirmCollection = async (req, res) => {
         });
       }
     }
-    
+
     // Check fine block
     const debtCheck = await validateDebtCheck(memberId, conn);
     if (!debtCheck.passed) {
@@ -754,7 +754,7 @@ exports.processReturn = async (req, res) => {
       await conn.rollback();
       return res.status(404).json({ success: false, message: 'Borrow record not found' });
     }
-    
+
     const borrow = borrows[0];
     if (borrow.Status === 'Returned') {
       await conn.rollback();
@@ -775,7 +775,7 @@ exports.processReturn = async (req, res) => {
     } else if (conditionOnReturn === 'Minor Damage' || conditionOnReturn === 'Minor') {
       await conn.query(`INSERT INTO DamageReports (ReturnID, CopyID, Description, Severity, AssessmentDate, StaffID) VALUES (?, ?, ?, 'Minor', CURDATE(), ?)`, [returnId, borrow.CopyID, notes || '', staffId]);
       await conn.query(`INSERT INTO Fines (UserID, TypeID, BorrowID, Amount, IssuedDate, FineStatus, MemberID) VALUES ((SELECT UserID FROM Members WHERE MemberID = ?), (SELECT TypeID FROM FineTypes WHERE TypeName LIKE '%Damage%' LIMIT 1), ?, COALESCE((SELECT BaseAmount FROM FineTypes WHERE TypeName LIKE '%Damage%' LIMIT 1), 50), CURDATE(), 'Unpaid', ?)`, [borrow.MemberID, borrowId, borrow.MemberID]);
-      await conn.query(`UPDATE BookCopies SET Status = 'Available' WHERE CopyID = ?`, [borrow.CopyID]); 
+      await conn.query(`UPDATE BookCopies SET Status = 'Available' WHERE CopyID = ?`, [borrow.CopyID]);
     } else if (conditionOnReturn === 'Major Damage' || conditionOnReturn === 'Major') {
       await conn.query(`INSERT INTO DamageReports (ReturnID, CopyID, Description, Severity, AssessmentDate, StaffID) VALUES (?, ?, ?, 'Major', CURDATE(), ?)`, [returnId, borrow.CopyID, notes || '', staffId]);
       await conn.query(`INSERT INTO Fines (UserID, TypeID, BorrowID, Amount, IssuedDate, FineStatus, MemberID) VALUES ((SELECT UserID FROM Members WHERE MemberID = ?), (SELECT TypeID FROM FineTypes WHERE TypeName LIKE '%Damage%' LIMIT 1), ?, COALESCE((SELECT BaseAmount * 2 FROM FineTypes WHERE TypeName LIKE '%Damage%' LIMIT 1), 100), CURDATE(), 'Unpaid', ?)`, [borrow.MemberID, borrowId, borrow.MemberID]);

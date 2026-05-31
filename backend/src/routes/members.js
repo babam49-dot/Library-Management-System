@@ -327,7 +327,7 @@ router.delete('/reservations/:id', memberOnly, async (req, res) => {
             message: 'Your reservation is now Ready for pickup! You have 30 minutes.'
           });
           notifyMember(nextQueued.MemberID, 'reservation:updated', {});
-        } catch (_) {}
+        } catch (_) { }
       } else {
         // No queue — free the copy back to Available
         await connection.execute(
@@ -342,7 +342,7 @@ router.delete('/reservations/:id', memberOnly, async (req, res) => {
     try {
       const { notifyStaff } = require('../services/socketService');
       notifyStaff('reservation:cancelled', { reservationId: id, memberId });
-    } catch (_) {}
+    } catch (_) { }
     return ok(res, 'Reservation retracted successfully');
   } catch (err) {
     await connection.rollback();
