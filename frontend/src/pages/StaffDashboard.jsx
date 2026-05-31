@@ -507,7 +507,6 @@ export default function StaffDashboard() {
                 { label: 'Active Borrows', value: stats.activeBorrowings, color: '#10b981', icon: '📖', note: 'Currently checked out', tab: 'desk' },
                 { label: 'Returns Today', value: stats.returnsToday, color: '#3b82f6', icon: '↩️', note: 'Processed today', tab: null },
                 { label: 'Overdue Books', value: stats.overdueCount, color: '#ef4444', icon: '📚', note: 'Past due date', tab: 'overdue', alert: stats.overdueCount > 0 },
-                { label: 'Pending Members', value: stats.pendingMembers, color: '#f59e0b', icon: '👤', note: 'Awaiting approval', tab: null, alert: stats.pendingMembers > 0 },
               ].map(({ label, value, color, icon, note, tab: goTab, alert }, i) => (
                 <div
                   key={label}
