@@ -11,6 +11,15 @@ import { useStaffNavCounts, getStaffNavItems } from '../hooks/useStaffNavCounts'
 
 const API = 'http://localhost:4000/api'
 
+const CART_GRADIENTS = [
+  'linear-gradient(135deg,#1e3a8a,#3b82f6)',
+  'linear-gradient(135deg,#064e3b,#10b981)',
+  'linear-gradient(135deg,#581c87,#8b5cf6)',
+  'linear-gradient(135deg,#7c2d12,#f97316)',
+  'linear-gradient(135deg,#0c4a6e,#0ea5e9)',
+  'linear-gradient(135deg,#831843,#ec4899)',
+]
+
 export default function StaffDashboard() {
   const { user, logout } = useAuth()
   const location = useLocation()
@@ -64,6 +73,7 @@ export default function StaffDashboard() {
   const [myBorrowMsg, setMyBorrowMsg] = useState({ text: '', ok: true })
   const [myBorrowLoading, setMyBorrowLoading] = useState(false)
   const [myBorrowCat, setMyBorrowCat] = useState('')
+  const [myBorrowResult, setMyBorrowResult] = useState(null) // success screen data
 
   // Metadata Forms
   const [authorForm, setAuthorForm] = useState({ FirstName: '', LastName: '', Bio: '', Nationality: '' })
@@ -399,11 +409,9 @@ export default function StaffDashboard() {
     setMyBorrowMsg({ text: '', ok: true })
     try {
       // Use the staff-specific endpoint — resolves MemberID from DB, not from the JWT token.
-      // This prevents shared-localStorage cross-contamination when both student and staff
-      // accounts are logged in on different tabs in the same browser.
       const res = await axios.post(`${API}/staff/my-borrows/request`, { copyIds: myBorrowCart.map(i => i.copyId) }, getHeaders())
-      const code = res.data.data?.requestCode || res.data.requestCode || ''
-      setMyBorrowMsg({ text: '✅ Submitted! Show code "' + code + '" to an Admin at the desk.', ok: true })
+      const data = res.data.data || {}
+      setMyBorrowResult(data)   // show success screen
       setMyBorrowCart([])
       fetchData()
     } catch (err) {
@@ -1331,38 +1339,136 @@ export default function StaffDashboard() {
             </button>
           </div>
 
-          {/* ── Cart & message ── */}
-          {myBorrowMsg.text && (
-            <div style={{ animation:'mbIn 0.3s ease', padding:'12px 18px', borderRadius:12, fontWeight:700, fontSize:14, background: myBorrowMsg.ok ? (isDark ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.12)') : (isDark ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.1)'), border:`1px solid ${myBorrowMsg.ok ? 'rgba(16,185,129,0.35)' : 'rgba(239,68,68,0.35)'}`, color: myBorrowMsg.ok ? (isDark ? '#34d399' : '#065f46') : (isDark ? '#f87171' : '#991b1b'), display:'flex', justifyContent:'space-between', alignItems:'center', gap:10, wordBreak:'break-word', boxSizing:'border-box' }}>
-              <span>{myBorrowMsg.text}</span>
+          {/* ── Error message (non-ok only) ── */}
+          {myBorrowMsg.text && !myBorrowMsg.ok && (
+            <div style={{ animation:'mbIn 0.3s ease', padding:'12px 18px', borderRadius:12, fontWeight:700, fontSize:14, background: isDark ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.35)', color: isDark ? '#f87171' : '#991b1b', display:'flex', justifyContent:'space-between', alignItems:'center', gap:10, wordBreak:'break-word', boxSizing:'border-box' }}>
+              <span>⚠️ {myBorrowMsg.text}</span>
               <button onClick={() => setMyBorrowMsg({ text:'', ok:true })} style={{ background:'none', border:'none', cursor:'pointer', fontWeight:900, color:'inherit', fontSize:16, flexShrink:0 }}>✕</button>
             </div>
           )}
 
-          {myBorrowCart.length > 0 && (
-            <div style={{ animation:'mbIn 0.35s ease', background: isDark ? 'rgba(16,185,129,0.04)' : 'linear-gradient(135deg,rgba(16,185,129,0.08),rgba(5,150,105,0.04))', border: isDark ? '1px solid rgba(16,185,129,0.3)' : '2px solid rgba(16,185,129,0.4)', borderRadius:16, padding:20, boxSizing:'border-box' }}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12, marginBottom:14 }}>
-                <div style={{ fontWeight:800, fontSize:16, color: isDark ? '#34d399' : '#065f46' }}>🛒 Borrow Cart ({myBorrowCart.length} book{myBorrowCart.length !== 1 ? 's' : ''})</div>
-                <button onClick={submitMyBorrow} disabled={myBorrowLoading} className="mb-btn" style={{ background:'linear-gradient(135deg,#10b981,#059669)', color:'#fff', padding:'10px 22px', fontSize:14 }}>
-                  {myBorrowLoading ? '⏳ Submitting...' : '✅ Submit Borrow Request'}
-                </button>
-              </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                {myBorrowCart.map(item => (
-                  <div key={item.copyId} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12, background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.7)', borderRadius:10, padding:'10px 14px', border: isDark ? `1px solid ${border}` : '1px solid rgba(16,185,129,0.2)', boxSizing:'border-box' }}>
-                    <div style={{ flex:'1 1 200px', minWidth:0 }}>
-                      <div style={{ fontWeight:700, fontSize:14, color: isDark ? '#e2e8f0' : '#065f46', wordBreak:'break-word' }}>{item.title}</div>
-                      {item.authors && <div style={{ fontSize:12, color:textMuted, wordBreak:'break-word' }}>{item.authors}</div>}
-                    </div>
-                    <button onClick={() => removeFromMyCart(item.copyId)} style={{ background:'rgba(239,68,68,0.1)', color:'#ef4444', border:'none', borderRadius:7, padding:'5px 10px', fontWeight:700, cursor:'pointer', flexShrink:0 }}>Remove</button>
+          {/* ── Success Screen (shown after submit) ── */}
+          {myBorrowResult && (
+            <div style={{ animation:'mbIn 0.4s ease', background:cardBg, border:`1px solid ${border}`, borderRadius:20, padding:'40px 32px', textAlign:'center' }}>
+              <div style={{ fontSize:64, marginBottom:16 }}>🎉</div>
+              <h2 style={{ fontSize:24, fontWeight:900, color:textPrimary, marginBottom:8 }}>Request Submitted!</h2>
+              <p style={{ color:textMuted, fontSize:14, marginBottom:28 }}>Show the code below to an Admin at the library desk for approval.</p>
+
+              <div style={{ background:'linear-gradient(135deg,#4f46e5,#7c3aed)', borderRadius:20, padding:'32px 36px', marginBottom:28, boxShadow:'0 16px 48px rgba(79,70,229,0.4)', display:'inline-block', minWidth:280 }}>
+                <div style={{ color:'rgba(255,255,255,0.65)', fontSize:12, fontWeight:700, letterSpacing:2, textTransform:'uppercase', marginBottom:10 }}>Your Request Code</div>
+                <div style={{ fontSize:42, fontWeight:900, fontFamily:'monospace', color:'#fff', letterSpacing:5 }}>{myBorrowResult.requestCode || '—'}</div>
+                {myBorrowResult.pickupDeadline && (
+                  <div style={{ marginTop:14, color:'rgba(255,255,255,0.7)', fontSize:12 }}>
+                    Pick up before: {new Date(myBorrowResult.pickupDeadline).toLocaleString()}
                   </div>
-                ))}
+                )}
               </div>
-              <div style={{ marginTop:12, padding:'10px 14px', background: isDark ? 'rgba(245,158,11,0.08)' : 'rgba(245,158,11,0.1)', borderRadius:10, border: isDark ? '1px solid rgba(245,158,11,0.25)' : '1px solid rgba(245,158,11,0.3)', fontSize:13, color: isDark ? '#fbbf24' : '#92400e', fontWeight:600, wordBreak:'break-word' }}>
-                ⏳ After submitting, take note of your <strong>request code</strong> and present it to an <strong>Admin</strong> at the desk for approval.
+
+              <div style={{ display:'flex', gap:12, justifyContent:'center', flexWrap:'wrap' }}>
+                <button
+                  onClick={() => { setMyBorrowResult(null); fetchData(); }}
+                  style={{ padding:'12px 26px', background:'linear-gradient(135deg,#6366f1,#4f46e5)', color:'#fff', border:'none', borderRadius:12, fontWeight:800, cursor:'pointer', fontSize:14, boxShadow:'0 4px 14px rgba(99,102,241,0.35)' }}
+                >
+                  📖 View My Borrowings
+                </button>
+                <button
+                  onClick={() => { setMyBorrowResult(null); setTab('browse'); }}
+                  style={{ padding:'12px 26px', background:'transparent', color:textMuted, border:`1px solid ${border}`, borderRadius:12, fontWeight:700, cursor:'pointer', fontSize:14 }}
+                >
+                  Browse More Books
+                </button>
               </div>
             </div>
           )}
+
+          {/* ── Cart (BorrowCartPage-style) ── */}
+          {!myBorrowResult && myBorrowCart.length > 0 && (
+            <div style={{ animation:'mbIn 0.35s ease' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:12, marginBottom:20 }}>
+                <div>
+                  <h2 style={{ margin:0, fontSize:20, fontWeight:900, color:textPrimary }}>🛒 Borrow Cart</h2>
+                  <p style={{ margin:'4px 0 0', color:textMuted, fontSize:13 }}>{myBorrowCart.length} book{myBorrowCart.length !== 1 ? 's' : ''} ready to borrow</p>
+                </div>
+                <button onClick={() => setTab('browse')} style={{ padding:'9px 18px', background:'transparent', color:textMuted, border:`1px solid ${border}`, borderRadius:10, fontWeight:700, cursor:'pointer', fontSize:13 }}>
+                  ← Continue Browsing
+                </button>
+              </div>
+
+              <div style={{ display:'grid', gridTemplateColumns:'1fr min(320px,100%)', gap:20, alignItems:'start' }}>
+                {/* Book cards */}
+                <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                  {myBorrowCart.map((item, i) => (
+                    <div key={item.copyId} style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:16, overflow:'hidden', display:'flex', transition:'all 0.2s ease' }}
+                      onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-3px)'}
+                      onMouseLeave={e => e.currentTarget.style.transform = 'none'}
+                    >
+                      <div style={{ width:7, flexShrink:0, background:CART_GRADIENTS[i % CART_GRADIENTS.length] }} />
+                      <div style={{ width:84, flexShrink:0, background:CART_GRADIENTS[i % CART_GRADIENTS.length], display:'flex', alignItems:'center', justifyContent:'center' }}>
+                        <span style={{ fontSize:32 }}>📚</span>
+                      </div>
+                      <div style={{ flex:1, padding:'16px 18px' }}>
+                        <div style={{ fontWeight:800, fontSize:15, color:textPrimary, marginBottom:4 }}>{item.title}</div>
+                        {item.authors && <div style={{ color:'#3b82f6', fontSize:13, fontWeight:600, marginBottom:8 }}>By {item.authors}</div>}
+                        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                          {item.category && <span style={{ fontSize:11, background:isDark?'rgba(255,255,255,0.06)':'#f1f5f9', color:textMuted, padding:'3px 10px', borderRadius:20, fontWeight:700 }}>{item.category}</span>}
+                          <span style={{ fontSize:11, background:'rgba(16,185,129,0.12)', color:'#10b981', padding:'3px 10px', borderRadius:20, fontWeight:700, border:'1px solid rgba(16,185,129,0.25)' }}>Copy #{item.copyId}</span>
+                        </div>
+                      </div>
+                      <div style={{ display:'flex', alignItems:'center', padding:'0 16px' }}>
+                        <button onClick={() => removeFromMyCart(item.copyId)} style={{ background:isDark?'rgba(239,68,68,0.12)':'#fee2e2', color:'#ef4444', border:'none', borderRadius:9, padding:'7px 13px', fontWeight:800, cursor:'pointer', fontSize:13, transition:'all 0.15s' }}
+                          onMouseEnter={e => { e.currentTarget.style.background='#fca5a5'; e.currentTarget.style.color='#7f1d1d'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background=isDark?'rgba(239,68,68,0.12)':'#fee2e2'; e.currentTarget.style.color='#ef4444'; }}
+                        >
+                          ✕ Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <button onClick={() => setMyBorrowCart([])} style={{ alignSelf:'flex-start', background:'transparent', color:textMuted, border:'none', cursor:'pointer', fontSize:13, fontWeight:700, textDecoration:'underline', padding:0 }}>
+                    Clear all books
+                  </button>
+                </div>
+
+                {/* Summary Panel */}
+                <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:18, padding:24, position:'sticky', top:80 }}>
+                  <div style={{ fontWeight:900, fontSize:17, color:textPrimary, marginBottom:18 }}>Order Summary</div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:20 }}>
+                    {myBorrowCart.map(item => (
+                      <div key={item.copyId} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:8, flex:1, minWidth:0 }}>
+                          <span style={{ fontSize:15 }}>📖</span>
+                          <span style={{ fontSize:13, fontWeight:700, color:textPrimary, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.title}</span>
+                        </div>
+                        <span style={{ fontSize:11, color:textMuted, flexShrink:0 }}>#{item.copyId}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ borderTop:`1px solid ${border}`, paddingTop:14, marginBottom:18 }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', color:textMuted, fontSize:13, marginBottom:6 }}><span>Books</span><span>{myBorrowCart.length}</span></div>
+                    <div style={{ display:'flex', justifyContent:'space-between', color:textMuted, fontSize:13, marginBottom:6 }}><span>Loan period</span><span>7 days</span></div>
+                    <div style={{ display:'flex', justifyContent:'space-between', fontSize:14, fontWeight:800, color:textPrimary, marginTop:10 }}><span>Total</span><span>{myBorrowCart.length} book{myBorrowCart.length!==1?'s':''}</span></div>
+                  </div>
+                  <div style={{ background:isDark?'rgba(99,102,241,0.08)':'#eff6ff', border:'1px solid rgba(99,102,241,0.2)', borderRadius:11, padding:'11px 14px', marginBottom:18 }}>
+                    <div style={{ fontSize:12, color:'#6366f1', fontWeight:700, marginBottom:3 }}>📋 How it works</div>
+                    <div style={{ fontSize:12, color:textMuted, lineHeight:1.6 }}>
+                      After submitting, show your <strong>request code</strong> to an <strong>Admin</strong> at the desk for approval.
+                    </div>
+                  </div>
+                  <button
+                    onClick={submitMyBorrow}
+                    disabled={myBorrowLoading}
+                    style={{ width:'100%', padding:'14px', background:myBorrowLoading?'#64748b':'linear-gradient(135deg,#6366f1,#4f46e5)', color:'#fff', border:'none', borderRadius:13, fontWeight:900, fontSize:15, cursor:myBorrowLoading?'not-allowed':'pointer', boxShadow:'0 8px 24px rgba(99,102,241,0.35)', transition:'all 0.2s ease' }}
+                    onMouseEnter={e => { if(!myBorrowLoading) e.currentTarget.style.filter='brightness(1.08)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.filter='none'; }}
+                  >
+                    {myBorrowLoading ? '⏳ Submitting...' : `🚀 Submit Request (${myBorrowCart.length} book${myBorrowCart.length!==1?'s':''})`}
+                  </button>
+                  <p style={{ margin:'10px 0 0', color:textMuted, fontSize:11, textAlign:'center' }}>Admin approval required at the desk.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
 
           {/* ── My Borrow History ── */}
           <div style={{ background:cardBg, border:`1px solid ${border}`, borderRadius:16, overflow:'hidden', maxWidth:'100%', boxSizing:'border-box' }}>
