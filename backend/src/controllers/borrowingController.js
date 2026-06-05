@@ -8,6 +8,7 @@ const getConnection = async () => await db.getConnection();
 exports.submitRequest = async (req, res) => {
   const { copyIds } = req.body;
   const memberId = req.user.MemberID || req.user.memberID || req.user.extensionId;
+  const roleId = req.user.roleID || req.user.RoleID || req.user.role_id || 3;
   // Members (RoleID=3) and Staff (RoleID=2) get a 30-minute pickup window; admin gets 60 minutes
   const pickupInterval = (roleId === 2 || roleId === 3) ? 'INTERVAL 30 MINUTE' : 'INTERVAL 60 MINUTE';
   const pickupMs = (roleId === 2 || roleId === 3) ? 30 * 60 * 1000 : 60 * 60 * 1000;
