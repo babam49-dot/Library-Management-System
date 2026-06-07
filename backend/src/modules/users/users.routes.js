@@ -13,6 +13,7 @@ router.post('/auth/webauthn/login/begin', controller.beginLogin);
 router.post('/auth/webauthn/login/complete', controller.completeLogin);
 router.post('/auth/webauthn/register/begin', authenticateToken, controller.beginRegistration);
 router.post('/auth/webauthn/register/complete', authenticateToken, controller.completeRegistration);
+router.get('/auth/webauthn/has-fingerprint', authenticateToken, controller.hasFingerprint);
 
 // --- USERS ROUTES ---
 router.post('/users', authenticateToken, requireRole('Admin'), controller.createUser);

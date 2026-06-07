@@ -213,9 +213,15 @@ const completeLogin = async (userId, response) => {
   throw { status: 400, message: "Verification failed" };
 };
 
+const hasFingerprint = async (userId) => {
+  const [rows] = await pool.execute('SELECT id FROM WebAuthnCredentials WHERE UserID = ? LIMIT 1', [userId]);
+  return rows.length > 0;
+};
+
 module.exports = {
   beginRegistration,
   completeRegistration,
   beginLogin,
-  completeLogin
+  completeLogin,
+  hasFingerprint
 };

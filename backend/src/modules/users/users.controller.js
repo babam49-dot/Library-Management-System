@@ -189,6 +189,15 @@ const completeLogin = async (req, res) => {
   }
 };
 
+const hasFingerprint = async (req, res) => {
+  try {
+    const has = await webauthnService.hasFingerprint(req.user.UserID);
+    res.json({ success: true, data: { hasFingerprint: has } });
+  } catch (err) {
+    res.status(err.status || 500).json({ success: false, message: err.message });
+  }
+};
+
 module.exports = {
   login,
   logout,
@@ -207,5 +216,6 @@ module.exports = {
   beginRegistration,
   completeRegistration,
   beginLogin,
-  completeLogin
+  completeLogin,
+  hasFingerprint
 };
