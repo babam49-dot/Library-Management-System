@@ -62,68 +62,63 @@ function FingerprintSensor({ state, onClick, disabled }) {
   const isClickable = (state === 'ready' || state === 'error') && !disabled
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-      {/* Sensor circle */}
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+      {/* Sensor circle - smaller & neater */}
       <div
         onClick={isClickable ? onClick : undefined}
         title={isClickable ? 'Click to scan fingerprint' : ''}
         style={{
-          width: 108, height: 108, borderRadius: '50%',
-          background: `radial-gradient(circle at 40% 38%, #1a2a38 0%, #0b1520 70%, #060d14 100%)`,
-          border: `2.5px solid ${c.color}88`,
+          width: 86, height: 86, borderRadius: '50%',
+          background: `radial-gradient(circle at 40% 38%, #111e29 0%, #070e16 70%, #03070a 100%)`,
+          border: `2px solid ${c.color}77`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           cursor: isClickable ? 'pointer' : 'default',
           position: 'relative', transition: 'all 0.4s ease',
-          boxShadow: `0 0 0 4px ${c.ring}, 0 0 32px ${c.shadow}, inset 0 0 20px rgba(0,0,0,0.6)`,
+          boxShadow: `0 0 0 3px ${c.ring}, 0 0 24px ${c.shadow}, inset 0 0 16px rgba(0,0,0,0.7)`,
           animation: state === 'scanning' ? 'fpPulse 1.4s ease-in-out infinite' : state === 'ready' ? 'fpGlow 2.5s ease-in-out infinite' : 'none',
         }}
       >
         {/* Ripple rings when scanning */}
         {state === 'scanning' && <>
-          <div style={{ position: 'absolute', inset: -12, borderRadius: '50%', border: `1.5px solid ${c.color}50`, animation: 'fpRipple 1.5s ease-out infinite' }} />
-          <div style={{ position: 'absolute', inset: -26, borderRadius: '50%', border: `1px solid ${c.color}28`, animation: 'fpRipple 1.5s ease-out 0.55s infinite' }} />
+          <div style={{ position: 'absolute', inset: -10, borderRadius: '50%', border: `1.5px solid ${c.color}40`, animation: 'fpRipple 1.4s ease-out infinite' }} />
+          <div style={{ position: 'absolute', inset: -20, borderRadius: '50%', border: `1px solid ${c.color}20`, animation: 'fpRipple 1.4s ease-out 0.5s infinite' }} />
         </>}
         {state === 'success' && (
-          <div style={{ position: 'absolute', inset: -12, borderRadius: '50%', border: `2px solid ${c.color}60`, animation: 'fpRippleOnce 0.65s ease-out forwards' }} />
+          <div style={{ position: 'absolute', inset: -10, borderRadius: '50%', border: `2px solid ${c.color}50`, animation: 'fpRippleOnce 0.6s ease-out forwards' }} />
         )}
 
-        {/* Fingerprint SVG */}
-        <div style={{ position: 'relative', width: 70, height: 70 }}>
-          <svg width="70" height="70" viewBox="0 0 100 110" fill="none" xmlns="http://www.w3.org/2000/svg">
-            {/* Central core loop */}
-            <ellipse cx="50" cy="47" rx="6" ry="7" stroke={c.color} strokeWidth="2.4" fill="none"
-              style={{ transition: 'stroke 0.4s', filter: `drop-shadow(0 0 3px ${c.color})` }} />
-            {/* Ridge 1 */}
-            <path d="M 33 47 C 33 33 41 25 50 25 C 59 25 67 33 67 47 C 67 60 59 70 50 73 C 41 70 33 60 33 47Z"
-              stroke={c.color} strokeWidth="2.2" fill="none" style={{ transition: 'stroke 0.4s', filter: `drop-shadow(0 0 2px ${c.color})` }} />
-            {/* Ridge 2 */}
-            <path d="M 20 49 C 20 26 33 14 50 14 C 67 14 80 26 80 49 C 80 67 67 80 50 83 C 33 80 20 67 20 49Z"
-              stroke={c.color} strokeWidth="2.1" fill="none" style={{ transition: 'stroke 0.4s' }} />
-            {/* Ridge 3 */}
-            <path d="M 8 52 C 8 20 27 4 50 4 C 73 4 92 20 92 52 C 92 74 76 92 50 96 C 24 92 8 74 8 52Z"
-              stroke={c.color} strokeWidth="2" fill="none" opacity="0.8" style={{ transition: 'stroke 0.4s' }} />
-            {/* Outer ridge */}
-            <path d="M 2 56 C 1 18 23 -2 50 -2 C 77 -2 99 18 98 56"
-              stroke={c.color} strokeWidth="1.7" fill="none" opacity="0.4" strokeLinecap="round" style={{ transition: 'stroke 0.4s' }} />
-            {/* Loop opening — left arch break */}
-            <path d="M 12 28 Q 22 12 36 7" stroke={c.color} strokeWidth="2.1" fill="none" strokeLinecap="round" style={{ transition: 'stroke 0.4s' }} />
-            <path d="M 22 18 Q 32 9 44 6" stroke={c.color} strokeWidth="1.8" fill="none" strokeLinecap="round" opacity="0.55" style={{ transition: 'stroke 0.4s' }} />
-            {/* Success checkmark overlay */}
+        {/* Fingerprint SVG - scaled down to 54px */}
+        <div style={{ position: 'relative', width: 54, height: 54 }}>
+          <svg width="54" height="54" viewBox="0 0 100 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+            {/* Highly detailed realistic loops */}
+            <ellipse cx="50" cy="47" rx="6" ry="8" stroke={c.color} strokeWidth="2.8" fill="none" style={{ transition: 'stroke 0.4s' }} />
+            <path d="M 34 47 C 34 31 41 22 50 22 C 59 22 66 31 66 47 C 66 61 59 71 50 74 C 41 71 34 61 34 47 Z"
+              stroke={c.color} strokeWidth="2.5" fill="none" style={{ transition: 'stroke 0.4s' }} />
+            <path d="M 22 47 C 22 23 35 12 50 12 C 65 12 78 23 78 47 C 78 68 65 81 50 84 C 35 81 22 68 22 47 Z"
+              stroke={c.color} strokeWidth="2.2" fill="none" style={{ transition: 'stroke 0.4s' }} />
+            <path d="M 10 50 C 10 16 28 2 50 2 C 72 2 90 16 90 50 C 90 73 73 91 50 94 C 27 91 10 73 10 50 Z"
+              stroke={c.color} strokeWidth="1.9" fill="none" opacity="0.85" style={{ transition: 'stroke 0.4s' }} />
+            {/* Fine outer arch details */}
+            <path d="M 2 54 C 1 12 21 -4 50 -4 C 79 -4 99 12 98 54" stroke={c.color} strokeWidth="1.6" fill="none" opacity="0.4" strokeLinecap="round" style={{ transition: 'stroke 0.4s' }} />
+            <path d="M 14 24 Q 24 10 37 6" stroke={c.color} strokeWidth="2" fill="none" strokeLinecap="round" style={{ transition: 'stroke 0.4s' }} />
+            <path d="M 24 16 Q 33 6 45 4" stroke={c.color} strokeWidth="1.8" fill="none" strokeLinecap="round" opacity="0.6" style={{ transition: 'stroke 0.4s' }} />
+            
+            {/* Success checkmark */}
             {state === 'success' && (
-              <path d="M 26 52 L 42 68 L 74 32" stroke={c.color} strokeWidth="4.5"
+              <path d="M 26 52 L 42 68 L 74 32" stroke={c.color} strokeWidth="5.5"
                 strokeLinecap="round" strokeLinejoin="round"
-                style={{ strokeDasharray: 70, strokeDashoffset: 0, animation: 'fpCheck 0.4s ease forwards', filter: `drop-shadow(0 0 4px ${c.color})` }} />
+                style={{ strokeDasharray: 70, strokeDashoffset: 0, animation: 'fpCheck 0.4s ease forwards', filter: `drop-shadow(0 0 3px ${c.color})` }} />
             )}
           </svg>
 
-          {/* Horizontal scan sweep */}
+          {/* Horizontal scan sweep line */}
           {state === 'scanning' && (
             <div style={{
-              position: 'absolute', left: 6, right: 6, height: 2,
+              position: 'absolute', left: 2, right: 2, height: 2,
               background: `linear-gradient(90deg, transparent, ${c.color}ee, transparent)`,
-              borderRadius: 2, top: '30%',
+              borderRadius: 2, top: '25%',
               animation: 'fpSweep 1.4s ease-in-out infinite',
-              boxShadow: `0 0 10px ${c.color}, 0 0 4px ${c.color}`,
+              boxShadow: `0 0 8px ${c.color}, 0 0 3px ${c.color}`,
             }} />
           )}
         </div>
@@ -131,10 +126,10 @@ function FingerprintSensor({ state, onClick, disabled }) {
 
       {/* Labels */}
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: c.color, transition: 'color 0.4s', marginBottom: 2, letterSpacing: 0.2 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: c.color, transition: 'color 0.4s', marginBottom: 1, letterSpacing: 0.1 }}>
           {c.label}
         </div>
-        <div style={{ fontSize: 11, color: '#64748b' }}>{c.sub}</div>
+        <div style={{ fontSize: 10, color: '#64748b' }}>{c.sub}</div>
       </div>
     </div>
   )
@@ -233,11 +228,12 @@ export default function SignIn() {
         @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-20px)} }
         @keyframes floatR { 0%,100%{transform:translateY(0)} 50%{transform:translateY(20px)} }
         @keyframes fadeIn { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes fpPulse { 0%,100%{box-shadow:0 0 60px rgba(59,130,246,0.6)} 50%{box-shadow:0 0 80px rgba(59,130,246,0.9)} }
-        @keyframes fpRipple { 0%{transform:scale(1);opacity:0.7} 100%{transform:scale(1.6);opacity:0} }
-        @keyframes fpRippleOnce { 0%{transform:scale(1);opacity:0.8} 100%{transform:scale(1.5);opacity:0} }
-        @keyframes fpSweep { 0%{top:8px;opacity:0} 20%{opacity:1} 80%{opacity:1} 100%{top:82px;opacity:0} }
-        @keyframes fpCheck { from{stroke-dashoffset:60;opacity:0} to{stroke-dashoffset:0;opacity:1} }
+        @keyframes fpPulse { 0%,100%{box-shadow:0 0 40px rgba(59,130,246,0.5)} 50%{box-shadow:0 0 60px rgba(59,130,246,0.85)} }
+        @keyframes fpGlow { 0%,100%{box-shadow:0 0 0 3px rgba(0,229,212,0.15), 0 0 20px rgba(0,229,212,0.35), inset 0 0 16px rgba(0,0,0,0.7)} 50%{box-shadow:0 0 0 5px rgba(0,229,212,0.25), 0 0 32px rgba(0,229,212,0.65), inset 0 0 16px rgba(0,0,0,0.7)} }
+        @keyframes fpRipple { 0%{transform:scale(1);opacity:0.6} 100%{transform:scale(1.5);opacity:0} }
+        @keyframes fpRippleOnce { 0%{transform:scale(1);opacity:0.7} 100%{transform:scale(1.4);opacity:0} }
+        @keyframes fpSweep { 0%{top:4px;opacity:0} 20%{opacity:1} 80%{opacity:1} 100%{top:50px;opacity:0} }
+        @keyframes fpCheck { from{stroke-dashoffset:70;opacity:0} to{stroke-dashoffset:0;opacity:1} }
         .signin-card { animation: fadeIn 0.5s ease forwards; }
         .mode-btn { transition: all 0.25s ease; }
         .mode-btn:hover { transform: translateY(-1px); }

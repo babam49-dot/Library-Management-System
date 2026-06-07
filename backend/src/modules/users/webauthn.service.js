@@ -138,6 +138,7 @@ const beginLogin = async (identifier, loginType) => {
     allowCredentials: credentials.map(c => ({
       id: Buffer.from(c.CredentialID, 'base64').toString('base64url'),
       type: 'public-key',
+      transports: ['internal'], // force platform authenticator directly, bypass Chrome choice dialog
     })),
     userVerification: 'preferred',
   });
