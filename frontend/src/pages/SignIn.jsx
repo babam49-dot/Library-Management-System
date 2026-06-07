@@ -351,15 +351,7 @@ export default function SignIn() {
           />
         </div>
 
-        {/* Staff info box */}
-        <div style={{ marginTop: 24, padding: '12px 16px', background: isDark ? 'rgba(245,158,11,0.08)' : 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 10 }}>
-          <p style={{ margin: 0, fontSize: 12, color: isDark ? '#fbbf24' : '#92400e', fontWeight: 600 }}>
-            📋 Staff IDs: <code>STAFF-ADMIN-001</code> · <code>LIB-STAFF-001</code> · <code>LIB-STAFF-002</code>
-          </p>
-          <p style={{ margin: '4px 0 0', fontSize: 12, color: isDark ? '#94a3b8' : '#78716c' }}>
-            You can also sign in using your email. Register fingerprint in My Profile first.
-          </p>
-        </div>
+
 
         <p style={{ textAlign: 'center', fontSize: 14, color: isDark ? '#64748b' : '#475569', marginTop: 24 }}>
           Don't have an account?{' '}
