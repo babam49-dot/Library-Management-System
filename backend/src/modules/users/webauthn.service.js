@@ -23,19 +23,24 @@ const beginRegistration = async (userId) => {
 
   const [credentials] = await pool.execute('SELECT * FROM WebAuthnCredentials WHERE UserID = ?', [userId]);
 
+  // v13 requires userID as Uint8Array
+  const userIDBytes = new TextEncoder().encode(String(user.UserID));
+
   const options = await generateRegistrationOptions({
     rpName,
     rpID,
-    userID: String(user.UserID),
+    userID: userIDBytes,
     userName: user.Email,
+    userDisplayName: user.FullName || user.Email,
     // Don't prompt users for their authenticator if they've already registered it
     excludeCredentials: credentials.map(c => ({
-      id: Buffer.from(c.CredentialID, 'base64'),
+      id: Buffer.from(c.CredentialID, 'base64').toString('base64url'),
       type: 'public-key',
     })),
     authenticatorSelection: {
       residentKey: 'preferred',
       userVerification: 'preferred',
+      authenticatorAttachment: 'platform', // force Windows Hello / built-in fingerprint
     },
   });
 
@@ -129,8 +134,9 @@ const beginLogin = async (identifier, loginType) => {
   const options = await generateAuthenticationOptions({
     rpID,
     allowCredentials: credentials.map(c => ({
-      id: Buffer.from(c.CredentialID, 'base64'),
+      id: Buffer.from(c.CredentialID, 'base64').toString('base64url'),
       type: 'public-key',
+      transports: ['internal'], // signal platform authenticator, prevent USB key dialog
     })),
     userVerification: 'preferred',
   });
@@ -162,9 +168,9 @@ const completeLogin = async (userId, response) => {
       expectedChallenge,
       expectedOrigin: origin,
       expectedRPID: rpID,
-      authenticator: {
-        credentialPublicKey: Buffer.from(credential.PublicKey, 'base64'),
-        credentialID: Buffer.from(credential.CredentialID, 'base64'),
+      credential: {
+        id: Buffer.from(credential.CredentialID, 'base64'),
+        publicKey: Buffer.from(credential.PublicKey, 'base64'),
         counter: credential.Counter,
       },
     });

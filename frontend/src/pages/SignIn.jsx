@@ -7,7 +7,6 @@ import axios from 'axios'
 
 const API = 'http://localhost:4000/api'
 
-// ── Animated particle canvas background ──────────────────────────────────────
 function ParticleCanvas({ isDark }) {
   const canvasRef = useRef(null)
   useEffect(() => {
@@ -20,15 +19,8 @@ function ParticleCanvas({ isDark }) {
     resize()
     window.addEventListener('resize', resize)
     const color = isDark ? '99,102,241' : '59,130,246'
-    for (let i = 0; i < 60; i++) {
-      particles.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        r: Math.random() * 2 + 1,
-        dx: (Math.random() - 0.5) * 0.4,
-        dy: (Math.random() - 0.5) * 0.4,
-        opacity: Math.random() * 0.5 + 0.1
-      })
+    for (let i = 0; i < 55; i++) {
+      particles.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, r: Math.random() * 2 + 1, dx: (Math.random() - 0.5) * 0.4, dy: (Math.random() - 0.5) * 0.4, opacity: Math.random() * 0.5 + 0.1 })
     }
     const draw = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
@@ -36,24 +28,16 @@ function ParticleCanvas({ isDark }) {
         p.x += p.dx; p.y += p.dy
         if (p.x < 0 || p.x > canvas.width) p.dx *= -1
         if (p.y < 0 || p.y > canvas.height) p.dy *= -1
-        ctx.beginPath()
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(${color},${p.opacity})`
-        ctx.fill()
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(${color},${p.opacity})`; ctx.fill()
       })
-      // draw connecting lines between close particles
       for (let i = 0; i < particles.length; i++) {
         for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x
-          const dy = particles[i].y - particles[j].y
+          const dx = particles[i].x - particles[j].x, dy = particles[i].y - particles[j].y
           const dist = Math.sqrt(dx * dx + dy * dy)
           if (dist < 120) {
-            ctx.beginPath()
-            ctx.moveTo(particles[i].x, particles[i].y)
-            ctx.lineTo(particles[j].x, particles[j].y)
-            ctx.strokeStyle = `rgba(${color},${0.12 * (1 - dist / 120)})`
-            ctx.lineWidth = 1
-            ctx.stroke()
+            ctx.beginPath(); ctx.moveTo(particles[i].x, particles[i].y); ctx.lineTo(particles[j].x, particles[j].y)
+            ctx.strokeStyle = `rgba(${color},${0.1 * (1 - dist / 120)})`; ctx.lineWidth = 1; ctx.stroke()
           }
         }
       }
@@ -65,6 +49,91 @@ function ParticleCanvas({ isDark }) {
   return <canvas ref={canvasRef} style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none' }} />
 }
 
+// Fingerprint SVG sensor
+function FingerprintSensor({ state, onClick, disabled }) {
+  const cfg = {
+    idle:     { color: '#475569', bg: 'rgba(71,85,105,0.1)',    glow: 'none',                            label: 'Enter your ID above first',    sub: 'Fingerprint login' },
+    ready:    { color: '#8b5cf6', bg: 'rgba(139,92,246,0.15)',  glow: '0 0 40px rgba(139,92,246,0.4)',   label: 'Touch your fingerprint sensor', sub: 'Click to scan' },
+    scanning: { color: '#3b82f6', bg: 'rgba(59,130,246,0.18)', glow: '0 0 60px rgba(59,130,246,0.6)',   label: 'Scanning…',                    sub: 'Keep your finger still' },
+    success:  { color: '#10b981', bg: 'rgba(16,185,129,0.18)', glow: '0 0 60px rgba(16,185,129,0.6)',   label: 'Verified!',                    sub: 'Logging you in…' },
+    error:    { color: '#ef4444', bg: 'rgba(239,68,68,0.15)',  glow: '0 0 40px rgba(239,68,68,0.4)',    label: 'Scan failed',                  sub: 'Try again' },
+  }
+  const c = cfg[state] || cfg.idle
+  const isClickable = (state === 'ready' || state === 'error') && !disabled
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+      <div
+        onClick={isClickable ? onClick : undefined}
+        style={{
+          width: 150, height: 150, borderRadius: '50%',
+          background: c.bg,
+          border: `2px solid ${c.color}55`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: isClickable ? 'pointer' : 'default',
+          position: 'relative', transition: 'all 0.4s ease',
+          boxShadow: c.glow,
+          animation: state === 'scanning' ? 'fpPulse 1.5s ease-in-out infinite' : 'none',
+        }}
+      >
+        {/* Outer ripple rings for scanning */}
+        {state === 'scanning' && <>
+          <div style={{ position: 'absolute', inset: -16, borderRadius: '50%', border: `1.5px solid ${c.color}44`, animation: 'fpRipple 1.6s ease-out infinite' }} />
+          <div style={{ position: 'absolute', inset: -32, borderRadius: '50%', border: `1px solid ${c.color}22`, animation: 'fpRipple 1.6s ease-out 0.5s infinite' }} />
+        </>}
+        {state === 'success' && (
+          <div style={{ position: 'absolute', inset: -14, borderRadius: '50%', border: `2px solid ${c.color}55`, animation: 'fpRippleOnce 0.7s ease-out forwards' }} />
+        )}
+
+        {/* Fingerprint SVG */}
+        <div style={{ position: 'relative', width: 90, height: 90 }}>
+          <svg width="90" height="90" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            {/* Fingerprint arcs - realistic ridges */}
+            <circle cx="50" cy="52" r="5" stroke={c.color} strokeWidth="2.2" fill="none" style={{ transition: 'stroke 0.4s' }} />
+            <path d="M 35 52 C 35 40 42 33 50 33 C 58 33 65 40 65 52 C 65 62 58 70 50 72 C 42 70 35 62 35 52 Z"
+                  stroke={c.color} strokeWidth="2.2" fill="none" style={{ transition: 'stroke 0.4s' }} />
+            <path d="M 24 52 C 24 33 36 22 50 22 C 64 22 76 33 76 52 C 76 66 64 77 50 79 C 36 77 24 66 24 52 Z"
+                  stroke={c.color} strokeWidth="2.2" fill="none" style={{ transition: 'stroke 0.4s' }} />
+            <path d="M 13 54 C 13 27 30 12 50 12 C 70 12 87 27 87 54 C 87 70 74 84 50 87 C 26 84 13 70 13 54 Z"
+                  stroke={c.color} strokeWidth="2.2" fill="none" opacity="0.85" style={{ transition: 'stroke 0.4s' }} />
+            {/* Left arch opening at top */}
+            <path d="M 18 30 Q 26 16 38 12" stroke={c.color} strokeWidth="2.2" fill="none" strokeLinecap="round" style={{ transition: 'stroke 0.4s' }} />
+            <path d="M 28 22 Q 35 14 44 11" stroke={c.color} strokeWidth="2.2" fill="none" strokeLinecap="round" opacity="0.6" style={{ transition: 'stroke 0.4s' }} />
+            {/* Outermost partial arc */}
+            <path d="M 6 58 C 5 28 25 4 50 4 C 75 4 95 28 94 58" stroke={c.color} strokeWidth="2" fill="none" opacity="0.4" strokeLinecap="round" style={{ transition: 'stroke 0.4s' }} />
+
+            {/* Success checkmark */}
+            {state === 'success' && (
+              <path d="M 30 52 L 44 66 L 70 36" stroke={c.color} strokeWidth="4"
+                    strokeLinecap="round" strokeLinejoin="round"
+                    style={{ strokeDasharray: 60, strokeDashoffset: 0, animation: 'fpCheck 0.45s ease forwards' }} />
+            )}
+          </svg>
+
+          {/* Scan sweep line */}
+          {state === 'scanning' && (
+            <div style={{
+              position: 'absolute', left: 4, right: 4, height: 2,
+              background: `linear-gradient(90deg, transparent, ${c.color}, transparent)`,
+              borderRadius: 2,
+              animation: 'fpSweep 1.5s ease-in-out infinite',
+              boxShadow: `0 0 8px ${c.color}`,
+            }} />
+          )}
+        </div>
+      </div>
+
+      {/* Labels */}
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: c.color, transition: 'color 0.4s', marginBottom: 3 }}>
+          {c.label}
+        </div>
+        <div style={{ fontSize: 12, color: '#64748b' }}>{c.sub}</div>
+      </div>
+    </div>
+  )
+}
+
 export default function SignIn() {
   const [loginMode, setLoginMode] = useState('student')
   const [identifier, setIdentifier] = useState('')
@@ -72,10 +141,20 @@ export default function SignIn() {
   const [showPw, setShowPw] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [fpState, setFpState] = useState('idle') // idle | ready | scanning | success | error
   const { login, setUser } = useAuth()
   const { isDark } = useTheme()
   const navigate = useNavigate()
   const location = useLocation()
+
+  // Update fingerprint state when identifier changes
+  useEffect(() => {
+    if (identifier.trim()) {
+      setFpState(prev => (prev === 'idle' ? 'ready' : prev === 'scanning' || prev === 'success' ? prev : 'ready'))
+    } else {
+      setFpState('idle')
+    }
+  }, [identifier])
 
   const submit = async (e) => {
     e.preventDefault()
@@ -93,8 +172,8 @@ export default function SignIn() {
   }
 
   const signInWithFingerprint = async () => {
-    if (!identifier) return setError('Please enter your ID or email first to use fingerprint login.')
-    setError(''); setLoading(true)
+    if (!identifier.trim()) { setError('Enter your ID or email above first.'); return }
+    setError(''); setFpState('scanning'); setLoading(true)
     try {
       const res = await axios.post(`${API}/auth/webauthn/login/begin`, { identifier, loginType: loginMode })
       const { options, userId } = res.data.data
@@ -102,83 +181,84 @@ export default function SignIn() {
       const verifyRes = await axios.post(`${API}/auth/webauthn/login/complete`, { userId, response: attResp })
       if (verifyRes.data.success) {
         const { token, user: u } = verifyRes.data.data
+        setFpState('success')
         localStorage.setItem('lms_token', token)
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
         setUser(u)
-        if (u.RoleID === 1) navigate('/admin')
-        else if (u.RoleID === 2) navigate('/staff')
-        else navigate('/member', { state: location.state })
+        setTimeout(() => {
+          if (u.RoleID === 1) navigate('/admin')
+          else if (u.RoleID === 2) navigate('/staff')
+          else navigate('/member', { state: location.state })
+        }, 700)
       }
     } catch (err) {
-      setError('Fingerprint login failed: ' + (err.response?.data?.message || err.message))
+      setFpState('error')
+      const msg = err.response?.data?.message || err.message || ''
+      if (msg.toLowerCase().includes('not allowed') || msg.toLowerCase().includes('abort') || msg.toLowerCase().includes('cancel')) {
+        setError('Scan cancelled — try again.')
+      } else if (msg.toLowerCase().includes('no fingerprint')) {
+        setError('No fingerprint registered. Go to My Profile to enroll first.')
+      } else {
+        setError('Fingerprint login failed: ' + msg)
+      }
+      setTimeout(() => setFpState(identifier.trim() ? 'ready' : 'idle'), 2000)
     } finally { setLoading(false) }
   }
 
   const primaryColor = loginMode === 'student' ? '#3b82f6' : '#10b981'
-  const placeholderText = loginMode === 'student'
-    ? 'Student ID (e.g. 1029384) or Email'
-    : 'Staff ID (e.g. LIB-STAFF-001) or Email'
 
   const inputStyle = {
     width: '100%', padding: '12px 16px', borderRadius: 12,
     border: `1.5px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.12)'}`,
     background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.8)',
     color: isDark ? '#f1f5f9' : '#0f172a', fontSize: 15, outline: 'none',
-    boxSizing: 'border-box', transition: 'border-color 0.2s, box-shadow 0.2s',
-    backdropFilter: 'blur(8px)'
+    boxSizing: 'border-box', transition: 'border-color 0.2s', backdropFilter: 'blur(8px)'
   }
 
   return (
     <div style={{
       minHeight: '100vh',
-      background: isDark
-        ? 'linear-gradient(135deg,#0a0e1a 0%,#0f1729 50%,#0a0e1a 100%)'
-        : 'linear-gradient(135deg,#dbeafe 0%,#e0f2fe 40%,#f0f9ff 100%)',
+      background: isDark ? 'linear-gradient(135deg,#0a0e1a 0%,#0f1729 50%,#0a0e1a 100%)' : 'linear-gradient(135deg,#dbeafe 0%,#e0f2fe 40%,#f0f9ff 100%)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontFamily: "'Inter',sans-serif", position: 'relative', overflow: 'hidden',
-      padding: '40px 16px'
+      fontFamily: "'Inter',sans-serif", position: 'relative', overflow: 'hidden', padding: '40px 16px'
     }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,700;1,700&display=swap');
         @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-20px)} }
         @keyframes floatR { 0%,100%{transform:translateY(0)} 50%{transform:translateY(20px)} }
         @keyframes fadeIn { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes shimmer { 0%{background-position:-400px 0} 100%{background-position:400px 0} }
+        @keyframes fpPulse { 0%,100%{box-shadow:0 0 60px rgba(59,130,246,0.6)} 50%{box-shadow:0 0 80px rgba(59,130,246,0.9)} }
+        @keyframes fpRipple { 0%{transform:scale(1);opacity:0.7} 100%{transform:scale(1.6);opacity:0} }
+        @keyframes fpRippleOnce { 0%{transform:scale(1);opacity:0.8} 100%{transform:scale(1.5);opacity:0} }
+        @keyframes fpSweep { 0%{top:8px;opacity:0} 20%{opacity:1} 80%{opacity:1} 100%{top:82px;opacity:0} }
+        @keyframes fpCheck { from{stroke-dashoffset:60;opacity:0} to{stroke-dashoffset:0;opacity:1} }
         .signin-card { animation: fadeIn 0.5s ease forwards; }
-        .signin-input:focus { border-color: ${primaryColor} !important; box-shadow: 0 0 0 3px ${primaryColor}22 !important; }
         .mode-btn { transition: all 0.25s ease; }
         .mode-btn:hover { transform: translateY(-1px); }
-        .signin-submit:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.06); }
         .signin-submit { transition: all 0.22s ease; }
-        .fp-btn:hover:not(:disabled) { background: ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(59,130,246,0.06)'} !important; border-color: ${primaryColor} !important; transform: translateY(-1px); }
-        .fp-btn { transition: all 0.22s ease; }
+        .signin-submit:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.06); }
+        .signin-input:focus { border-color: ${primaryColor} !important; box-shadow: 0 0 0 3px ${primaryColor}22 !important; }
       `}</style>
 
-      {/* Animated particle network background */}
       <ParticleCanvas isDark={isDark} />
-
-      {/* Decorative glowing blobs */}
       <div style={{ position: 'fixed', top: '-15%', left: '-10%', width: 500, height: 500, background: isDark ? 'rgba(99,102,241,0.12)' : 'rgba(59,130,246,0.15)', borderRadius: '50%', filter: 'blur(90px)', animation: 'float 8s ease-in-out infinite', pointerEvents: 'none', zIndex: 1 }} />
-      <div style={{ position: 'fixed', bottom: '-10%', right: '-5%', width: 450, height: 450, background: isDark ? `rgba(16,185,129,0.1)` : `rgba(16,185,129,0.18)`, borderRadius: '50%', filter: 'blur(80px)', animation: 'floatR 10s ease-in-out infinite', pointerEvents: 'none', zIndex: 1 }} />
-      <div style={{ position: 'fixed', top: '40%', right: '15%', width: 250, height: 250, background: isDark ? 'rgba(139,92,246,0.08)' : 'rgba(139,92,246,0.12)', borderRadius: '50%', filter: 'blur(60px)', animation: 'float 12s ease-in-out infinite reverse', pointerEvents: 'none', zIndex: 1 }} />
+      <div style={{ position: 'fixed', bottom: '-10%', right: '-5%', width: 450, height: 450, background: isDark ? 'rgba(16,185,129,0.1)' : 'rgba(16,185,129,0.18)', borderRadius: '50%', filter: 'blur(80px)', animation: 'floatR 10s ease-in-out infinite', pointerEvents: 'none', zIndex: 1 }} />
 
-      {/* Card */}
       <div className="signin-card" style={{
         width: '100%', maxWidth: 480, margin: '0 auto', position: 'relative', zIndex: 10,
-        background: isDark ? 'rgba(15,23,42,0.85)' : 'rgba(255,255,255,0.85)',
-        backdropFilter: 'blur(24px)',
-        borderRadius: 24,
+        background: isDark ? 'rgba(15,23,42,0.88)' : 'rgba(255,255,255,0.88)',
+        backdropFilter: 'blur(24px)', borderRadius: 24,
         border: isDark ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(255,255,255,0.9)',
-        boxShadow: isDark ? '0 32px 80px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)' : '0 32px 80px rgba(59,130,246,0.12), inset 0 1px 0 rgba(255,255,255,0.8)',
+        boxShadow: isDark ? '0 32px 80px rgba(0,0,0,0.5)' : '0 32px 80px rgba(59,130,246,0.12)',
         padding: 40
       }}>
         {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, textDecoration: 'none', marginBottom: 20 }}>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, textDecoration: 'none', marginBottom: 16 }}>
             <div style={{ width: 40, height: 40, background: 'linear-gradient(135deg,#f59e0b,#d97706)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, boxShadow: '0 4px 12px rgba(245,158,11,0.4)' }}>📚</div>
             <span style={{ fontWeight: 800, fontSize: 20, fontFamily: "'Playfair Display',serif", color: isDark ? '#fff' : '#0f172a' }}>UniLibrary</span>
           </Link>
-          <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 28, fontWeight: 700, color: isDark ? '#fff' : '#0f172a', margin: '0 0 8px', lineHeight: 1.2 }}>
+          <h2 style={{ fontFamily: "'Playfair Display',serif", fontSize: 26, fontWeight: 700, color: isDark ? '#fff' : '#0f172a', margin: '0 0 6px', lineHeight: 1.2 }}>
             Welcome <span style={{ color: primaryColor, fontStyle: 'italic' }}>back.</span>
           </h2>
           <p style={{ color: isDark ? '#64748b' : '#475569', fontSize: 14, margin: 0 }}>Sign in to access your portal</p>
@@ -188,22 +268,18 @@ export default function SignIn() {
         <div style={{ display: 'flex', background: isDark ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.06)', borderRadius: 14, padding: 4, marginBottom: 24, gap: 4 }}>
           {[{ key: 'student', label: '🎓 Student Member' }, { key: 'staff', label: '🗂️ Staff / Admin' }].map(m => (
             <button key={m.key} type="button" className="mode-btn"
-              onClick={() => { setLoginMode(m.key); setIdentifier(''); setError('') }}
+              onClick={() => { setLoginMode(m.key); setIdentifier(''); setError(''); setFpState('idle') }}
               style={{
                 flex: 1, padding: '10px', borderRadius: 10, border: 'none',
-                background: loginMode === m.key
-                  ? (isDark ? 'rgba(255,255,255,0.1)' : '#fff')
-                  : 'transparent',
+                background: loginMode === m.key ? (isDark ? 'rgba(255,255,255,0.1)' : '#fff') : 'transparent',
                 color: loginMode === m.key ? (isDark ? '#fff' : '#0f172a') : (isDark ? '#64748b' : '#94a3b8'),
                 fontWeight: 600, fontSize: 14, cursor: 'pointer',
                 boxShadow: loginMode === m.key ? '0 2px 8px rgba(0,0,0,0.15)' : 'none'
-              }}>
-              {m.label}
-            </button>
+              }}>{m.label}</button>
           ))}
         </div>
 
-        {/* Pending Notice */}
+        {/* Pending notice */}
         {location.state?.pendingNotice && (
           <div style={{ padding: '14px 18px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 12, marginBottom: 20, color: '#10b981', fontSize: 14, fontWeight: 600 }}>
             ✅ Account created! Sign in to check your approval status.
@@ -213,43 +289,29 @@ export default function SignIn() {
         {/* Error */}
         {error && (
           <div style={{ padding: '12px 16px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, color: '#ef4444', fontSize: 14, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
-            ⚠️ {error}
+            <span>⚠️</span><span style={{ flex: 1 }}>{error}</span>
+            <button onClick={() => setError('')} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', fontWeight: 900, fontSize: 16 }}>✕</button>
           </div>
         )}
 
-        {/* Form */}
-        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {/* Password Form */}
+        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div>
             <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: isDark ? '#94a3b8' : '#475569', marginBottom: 8 }}>
               {loginMode === 'student' ? 'Student ID or Email' : 'Staff ID or Email'}
             </label>
-            <input
-              id="signin-identifier"
-              className="signin-input"
-              type="text"
-              value={identifier}
-              onChange={e => setIdentifier(e.target.value)}
-              required
-              placeholder={placeholderText}
-              autoComplete="username"
-              style={inputStyle}
-            />
+            <input id="signin-identifier" className="signin-input" type="text"
+              value={identifier} onChange={e => setIdentifier(e.target.value)}
+              required placeholder={loginMode === 'student' ? 'Student ID or Email' : 'Staff ID (e.g. LIB-STAFF-001) or Email'}
+              autoComplete="username" style={inputStyle} />
           </div>
-
           <div>
             <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: isDark ? '#94a3b8' : '#475569', marginBottom: 8 }}>Password</label>
             <div style={{ position: 'relative' }}>
-              <input
-                id="signin-password"
-                className="signin-input"
-                type={showPw ? 'text' : 'password'}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                placeholder="Enter your password"
-                autoComplete="current-password"
-                style={{ ...inputStyle, paddingRight: 48 }}
-              />
+              <input id="signin-password" className="signin-input" type={showPw ? 'text' : 'password'}
+                value={password} onChange={e => setPassword(e.target.value)}
+                required placeholder="Enter your password" autoComplete="current-password"
+                style={{ ...inputStyle, paddingRight: 48 }} />
               <button type="button" onClick={() => setShowPw(v => !v)}
                 style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', cursor: 'pointer', color: isDark ? '#64748b' : '#94a3b8', padding: 0 }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -261,62 +323,39 @@ export default function SignIn() {
               </button>
             </div>
           </div>
-
-          <button
-            id="signin-submit"
-            type="submit"
-            disabled={loading}
-            className="signin-submit"
-            style={{
-              padding: '14px', borderRadius: 12, border: 'none',
-              background: `linear-gradient(135deg,${primaryColor},${primaryColor}cc)`,
-              color: '#fff', fontWeight: 700, fontSize: 16,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              boxShadow: `0 4px 20px ${primaryColor}44`, marginTop: 4,
-              opacity: loading ? 0.8 : 1
-            }}>
-            {loading ? '⏳ Signing in…' : 'Sign in →'}
+          <button id="signin-submit" type="submit" disabled={loading} className="signin-submit"
+            style={{ padding: '14px', borderRadius: 12, border: 'none', background: `linear-gradient(135deg,${primaryColor},${primaryColor}cc)`, color: '#fff', fontWeight: 700, fontSize: 16, cursor: loading ? 'not-allowed' : 'pointer', boxShadow: `0 4px 20px ${primaryColor}44`, opacity: loading ? 0.8 : 1, marginTop: 4 }}>
+            {loading && fpState !== 'scanning' ? '⏳ Signing in…' : 'Sign in →'}
           </button>
         </form>
 
         {/* Divider */}
-        <div style={{ display: 'flex', alignItems: 'center', margin: '24px 0', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', margin: '28px 0 24px', gap: 12 }}>
           <div style={{ flex: 1, height: 1, background: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' }} />
-          <span style={{ fontSize: 12, color: isDark ? '#334155' : '#94a3b8', fontWeight: 600 }}>or continue with</span>
+          <span style={{ fontSize: 12, color: isDark ? '#334155' : '#94a3b8', fontWeight: 600 }}>or sign in with fingerprint</span>
           <div style={{ flex: 1, height: 1, background: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' }} />
         </div>
 
-        {/* Fingerprint Button */}
-        <button
-          id="signin-fingerprint"
-          type="button"
-          className="fp-btn"
-          onClick={signInWithFingerprint}
-          disabled={loading}
-          style={{
-            width: '100%', padding: '13px 16px', borderRadius: 12,
-            border: `1.5px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
-            background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.5)',
-            color: isDark ? '#f1f5f9' : '#0f172a',
-            fontWeight: 600, fontSize: 15, cursor: loading ? 'not-allowed' : 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-            backdropFilter: 'blur(8px)'
-          }}>
-          <span style={{ fontSize: 20 }}>🔐</span>
-          {loading ? 'Verifying…' : 'Sign in with Fingerprint / Windows Hello'}
-        </button>
+        {/* Fingerprint Sensor */}
+        <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: 8 }}>
+          <FingerprintSensor
+            state={fpState}
+            onClick={signInWithFingerprint}
+            disabled={loading}
+          />
+        </div>
 
-        {/* Staff credentials info box */}
-        <div style={{ marginTop: 20, padding: '12px 16px', background: isDark ? 'rgba(245,158,11,0.08)' : 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 10 }}>
+        {/* Staff info box */}
+        <div style={{ marginTop: 24, padding: '12px 16px', background: isDark ? 'rgba(245,158,11,0.08)' : 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 10 }}>
           <p style={{ margin: 0, fontSize: 12, color: isDark ? '#fbbf24' : '#92400e', fontWeight: 600 }}>
-            📋 Staff IDs: <code>STAFF-ADMIN-001</code> (Admin) · <code>LIB-STAFF-001</code> · <code>LIB-STAFF-002</code>
+            📋 Staff IDs: <code>STAFF-ADMIN-001</code> · <code>LIB-STAFF-001</code> · <code>LIB-STAFF-002</code>
           </p>
           <p style={{ margin: '4px 0 0', fontSize: 12, color: isDark ? '#94a3b8' : '#78716c' }}>
-            You can also sign in using your email address on either tab.
+            You can also sign in using your email. Register fingerprint in My Profile first.
           </p>
         </div>
 
-        <p style={{ textAlign: 'center', fontSize: 14, color: isDark ? '#64748b' : '#475569', marginTop: 28 }}>
+        <p style={{ textAlign: 'center', fontSize: 14, color: isDark ? '#64748b' : '#475569', marginTop: 24 }}>
           Don't have an account?{' '}
           <Link to="/register" style={{ color: primaryColor, fontWeight: 700, textDecoration: 'none' }}>Create one →</Link>
         </p>

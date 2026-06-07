@@ -8,6 +8,7 @@ import axios from 'axios'
 import Barcode from 'react-barcode'
 import BubblePopup from '../components/BubblePopup'
 import { useStaffNavCounts, getStaffNavItems } from '../hooks/useStaffNavCounts'
+import { startRegistration } from '@simplewebauthn/browser'
 
 const API = 'http://localhost:4000/api'
 
@@ -1910,6 +1911,53 @@ function ProfileTab({ user, c }) {
   const [msg, setMsg] = React.useState({ text: '', type: '' })
   const [showPw, setShowPw] = React.useState(false)
 
+  // Fingerprint state
+  const [fpStatus, setFpStatus] = React.useState(null) // null=loading, true=registered, false=not
+  const [fpMsg, setFpMsg] = React.useState({ text: '', type: '' })
+  const [fpLoading, setFpLoading] = React.useState(false)
+
+  const getHeaders = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('lms_token')}` } })
+
+  // Check fingerprint status on mount
+  React.useEffect(() => {
+    ;(async () => {
+      try {
+        const res = await axios.get(`${API}/auth/webauthn/has-fingerprint`, getHeaders())
+        setFpStatus(res.data.data?.hasFingerprint ?? false)
+      } catch {
+        setFpStatus(false)
+      }
+    })()
+  }, [])
+
+  const registerFingerprint = async () => {
+    setFpLoading(true)
+    setFpMsg({ text: '🔐 Touch your fingerprint sensor or use Windows Hello…', type: 'info' })
+    try {
+      const beginRes = await axios.post(`${API}/auth/webauthn/register/begin`, {}, getHeaders())
+      const options = beginRes.data.data
+
+      const attResp = await startRegistration({ optionsJSON: options })
+
+      const verifyRes = await axios.post(`${API}/auth/webauthn/register/complete`, attResp, getHeaders())
+      if (verifyRes.data.success) {
+        setFpStatus(true)
+        setFpMsg({ text: '✅ Fingerprint registered! You can now log in with your scanner.', type: 'success' })
+      } else {
+        setFpMsg({ text: '❌ Registration could not be verified.', type: 'error' })
+      }
+    } catch (err) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Unknown error'
+      if (errMsg.includes('cancelled') || errMsg.toLowerCase().includes('abort') || errMsg.toLowerCase().includes('not allowed')) {
+        setFpMsg({ text: '⚠️ Scan cancelled — please try again and follow the browser prompt.', type: 'error' })
+      } else {
+        setFpMsg({ text: '❌ ' + errMsg, type: 'error' })
+      }
+    } finally {
+      setFpLoading(false)
+    }
+  }
+
   const handlePw = async (e) => {
     e.preventDefault()
     setMsg({ text: '', type: '' })
@@ -1937,8 +1985,10 @@ function ProfileTab({ user, c }) {
   }
 
   return (
-    <div style={{ maxWidth: 600, margin: '0 auto' }}>
-      <div style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 32, marginBottom: 24, backdropFilter: 'blur(12px)' }}>
+    <div style={{ maxWidth: 600, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+      {/* ── Staff Info Card ── */}
+      <div style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 32, backdropFilter: 'blur(12px)' }}>
         <h3 style={{ color: c.text, margin: '0 0 20px', fontSize: 20, fontWeight: 700 }}>Staff Information</h3>
         <div style={{ display: 'grid', gap: 20 }}>
           <div>
@@ -1956,6 +2006,78 @@ function ProfileTab({ user, c }) {
         </div>
       </div>
 
+      {/* ── Fingerprint / Biometric Card ── */}
+      <div style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 32, backdropFilter: 'blur(12px)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
+          <div style={{ width: 48, height: 48, borderRadius: 14, background: fpStatus ? 'linear-gradient(135deg,#10b981,#059669)' : 'linear-gradient(135deg,#8b5cf6,#6d28d9)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0, boxShadow: fpStatus ? '0 4px 16px rgba(16,185,129,0.4)' : '0 4px 16px rgba(139,92,246,0.4)' }}>
+            {fpStatus ? '🔐' : '☝️'}
+          </div>
+          <div>
+            <h3 style={{ color: c.text, margin: 0, fontSize: 18, fontWeight: 700 }}>Fingerprint / Windows Hello</h3>
+            <p style={{ color: c.muted, margin: '4px 0 0', fontSize: 13 }}>
+              {fpStatus === null ? 'Checking status…'
+                : fpStatus ? 'Registered — you can log in without a password.'
+                : 'Not registered — enroll below to enable passwordless login.'}
+            </p>
+          </div>
+        </div>
+
+        {/* Status badge */}
+        {fpStatus !== null && (
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            padding: '6px 14px', borderRadius: 999, marginBottom: 16,
+            background: fpStatus ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.08)',
+            border: `1px solid ${fpStatus ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.2)'}`,
+            color: fpStatus ? '#10b981' : '#ef4444',
+            fontSize: 12, fontWeight: 800
+          }}>
+            <span>{fpStatus ? '●' : '○'}</span>
+            {fpStatus ? 'FINGERPRINT ACTIVE' : 'NOT ENROLLED'}
+          </div>
+        )}
+
+        {/* Feedback message */}
+        {fpMsg.text && (
+          <div style={{
+            padding: '12px 18px', borderRadius: 12, marginBottom: 16,
+            background: fpMsg.type === 'success' ? 'rgba(16,185,129,0.1)' : fpMsg.type === 'info' ? 'rgba(59,130,246,0.1)' : 'rgba(239,68,68,0.1)',
+            border: `1px solid ${fpMsg.type === 'success' ? 'rgba(16,185,129,0.3)' : fpMsg.type === 'info' ? 'rgba(59,130,246,0.3)' : 'rgba(239,68,68,0.3)'}`,
+            color: fpMsg.type === 'success' ? '#10b981' : fpMsg.type === 'info' ? '#3b82f6' : '#ef4444',
+            fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 10
+          }}>
+            <span style={{ flex: 1 }}>{fpMsg.text}</span>
+            <button onClick={() => setFpMsg({ text: '', type: '' })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 900, fontSize: 16 }}>✕</button>
+          </div>
+        )}
+
+        {/* Register / Re-register button */}
+        <button
+          onClick={registerFingerprint}
+          disabled={fpLoading}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+            width: '100%', padding: '14px 20px', borderRadius: 12, border: 'none',
+            background: fpLoading ? '#64748b' : fpStatus ? 'linear-gradient(135deg,#10b981,#059669)' : 'linear-gradient(135deg,#8b5cf6,#6d28d9)',
+            color: '#fff', fontWeight: 800, fontSize: 15, cursor: fpLoading ? 'not-allowed' : 'pointer',
+            boxShadow: fpLoading ? 'none' : fpStatus ? '0 8px 24px rgba(16,185,129,0.35)' : '0 8px 24px rgba(139,92,246,0.35)',
+            transition: 'all 0.2s ease', opacity: fpLoading ? 0.8 : 1
+          }}
+        >
+          <span style={{ fontSize: 20 }}>
+            {fpLoading ? '⏳' : fpStatus ? '🔄' : '🔐'}
+          </span>
+          {fpLoading ? 'Waiting for scanner…' : fpStatus ? 'Re-register Fingerprint' : 'Register Fingerprint / Windows Hello'}
+        </button>
+
+        {!fpStatus && !fpLoading && (
+          <p style={{ margin: '12px 0 0', color: c.muted, fontSize: 12, textAlign: 'center', lineHeight: 1.6 }}>
+            After registering, go to the <strong>Login page</strong> → Staff tab → enter your Staff ID or Email → click <strong>"Sign in with Fingerprint"</strong> to log in instantly.
+          </p>
+        )}
+      </div>
+
+      {/* ── Security / Password Card ── */}
       <div style={{ background: c.card, border: `1px solid ${c.border}`, borderRadius: 16, padding: 32, backdropFilter: 'blur(12px)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <h3 style={{ color: c.text, margin: 0, fontSize: 20, fontWeight: 700 }}>Security Center</h3>
@@ -1999,7 +2121,7 @@ function ProfileTab({ user, c }) {
           </div>
           <button type="submit" disabled={loading}
             style={{ background: 'linear-gradient(135deg,#10b981,#059669)', color: '#fff', border: 'none', padding: 14, borderRadius: 8, fontWeight: 700, cursor: 'pointer', marginTop: 10, fontSize: 15, opacity: loading ? 0.8 : 1 }}>
-            {loading ? '⏳ Updating...' : '🔒 Update Password'}
+            {loading ? '⏳ Updating…' : '🔒 Update Password'}
           </button>
         </form>
       </div>
