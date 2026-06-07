@@ -84,8 +84,10 @@ const completeRegistration = async (userId, response) => {
       throw { status: 500, message: 'Registration response missing credential data' };
     }
 
-    // Convert to base64 for DB storage
-    const credIdBase64 = Buffer.from(credentialID).toString('base64');
+    // Convert to base64 for DB storage, avoiding double-encoding if it's a base64url string
+    const credIdBase64 = typeof credentialID === 'string'
+      ? Buffer.from(credentialID, 'base64url').toString('base64')
+      : Buffer.from(credentialID).toString('base64');
     const pubKeyBase64 = Buffer.from(credentialPublicKey).toString('base64');
 
     await pool.execute(
@@ -136,7 +138,6 @@ const beginLogin = async (identifier, loginType) => {
     allowCredentials: credentials.map(c => ({
       id: Buffer.from(c.CredentialID, 'base64').toString('base64url'),
       type: 'public-key',
-      transports: ['internal'], // signal platform authenticator, prevent USB key dialog
     })),
     userVerification: 'preferred',
   });
@@ -169,7 +170,7 @@ const completeLogin = async (userId, response) => {
       expectedOrigin: origin,
       expectedRPID: rpID,
       credential: {
-        id: Buffer.from(credential.CredentialID, 'base64'),
+        id: Buffer.from(credential.CredentialID, 'base64').toString('base64url'),
         publicKey: Buffer.from(credential.PublicKey, 'base64'),
         counter: credential.Counter,
       },

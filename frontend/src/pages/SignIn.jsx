@@ -49,75 +49,81 @@ function ParticleCanvas({ isDark }) {
   return <canvas ref={canvasRef} style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none' }} />
 }
 
-// Fingerprint SVG sensor
+// Fingerprint SVG sensor – teal scanner style
 function FingerprintSensor({ state, onClick, disabled }) {
   const cfg = {
-    idle:     { color: '#475569', bg: 'rgba(71,85,105,0.1)',    glow: 'none',                            label: 'Enter your ID above first',    sub: 'Fingerprint login' },
-    ready:    { color: '#8b5cf6', bg: 'rgba(139,92,246,0.15)',  glow: '0 0 40px rgba(139,92,246,0.4)',   label: 'Touch your fingerprint sensor', sub: 'Click to scan' },
-    scanning: { color: '#3b82f6', bg: 'rgba(59,130,246,0.18)', glow: '0 0 60px rgba(59,130,246,0.6)',   label: 'Scanning…',                    sub: 'Keep your finger still' },
-    success:  { color: '#10b981', bg: 'rgba(16,185,129,0.18)', glow: '0 0 60px rgba(16,185,129,0.6)',   label: 'Verified!',                    sub: 'Logging you in…' },
-    error:    { color: '#ef4444', bg: 'rgba(239,68,68,0.15)',  glow: '0 0 40px rgba(239,68,68,0.4)',    label: 'Scan failed',                  sub: 'Try again' },
+    idle:     { color: '#00c9c0', shadow: 'rgba(0,201,192,0.0)',  ring: 'rgba(0,201,192,0.12)', label: 'Enter your ID first',           sub: 'Fingerprint login available' },
+    ready:    { color: '#00e5d4', shadow: 'rgba(0,229,212,0.55)', ring: 'rgba(0,229,212,0.18)', label: 'Touch your sensor',             sub: 'Click the scanner to begin' },
+    scanning: { color: '#3b82f6', shadow: 'rgba(59,130,246,0.7)', ring: 'rgba(59,130,246,0.2)', label: 'Scanning…',                    sub: 'Keep your finger on the sensor' },
+    success:  { color: '#10b981', shadow: 'rgba(16,185,129,0.7)', ring: 'rgba(16,185,129,0.2)', label: 'Verified! ✓',                  sub: 'Logging you in…' },
+    error:    { color: '#ef4444', shadow: 'rgba(239,68,68,0.55)', ring: 'rgba(239,68,68,0.15)', label: 'Scan failed',                  sub: 'Try again' },
   }
   const c = cfg[state] || cfg.idle
   const isClickable = (state === 'ready' || state === 'error') && !disabled
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+      {/* Sensor circle */}
       <div
         onClick={isClickable ? onClick : undefined}
+        title={isClickable ? 'Click to scan fingerprint' : ''}
         style={{
-          width: 150, height: 150, borderRadius: '50%',
-          background: c.bg,
-          border: `2px solid ${c.color}55`,
+          width: 108, height: 108, borderRadius: '50%',
+          background: `radial-gradient(circle at 40% 38%, #1a2a38 0%, #0b1520 70%, #060d14 100%)`,
+          border: `2.5px solid ${c.color}88`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           cursor: isClickable ? 'pointer' : 'default',
           position: 'relative', transition: 'all 0.4s ease',
-          boxShadow: c.glow,
-          animation: state === 'scanning' ? 'fpPulse 1.5s ease-in-out infinite' : 'none',
+          boxShadow: `0 0 0 4px ${c.ring}, 0 0 32px ${c.shadow}, inset 0 0 20px rgba(0,0,0,0.6)`,
+          animation: state === 'scanning' ? 'fpPulse 1.4s ease-in-out infinite' : state === 'ready' ? 'fpGlow 2.5s ease-in-out infinite' : 'none',
         }}
       >
-        {/* Outer ripple rings for scanning */}
+        {/* Ripple rings when scanning */}
         {state === 'scanning' && <>
-          <div style={{ position: 'absolute', inset: -16, borderRadius: '50%', border: `1.5px solid ${c.color}44`, animation: 'fpRipple 1.6s ease-out infinite' }} />
-          <div style={{ position: 'absolute', inset: -32, borderRadius: '50%', border: `1px solid ${c.color}22`, animation: 'fpRipple 1.6s ease-out 0.5s infinite' }} />
+          <div style={{ position: 'absolute', inset: -12, borderRadius: '50%', border: `1.5px solid ${c.color}50`, animation: 'fpRipple 1.5s ease-out infinite' }} />
+          <div style={{ position: 'absolute', inset: -26, borderRadius: '50%', border: `1px solid ${c.color}28`, animation: 'fpRipple 1.5s ease-out 0.55s infinite' }} />
         </>}
         {state === 'success' && (
-          <div style={{ position: 'absolute', inset: -14, borderRadius: '50%', border: `2px solid ${c.color}55`, animation: 'fpRippleOnce 0.7s ease-out forwards' }} />
+          <div style={{ position: 'absolute', inset: -12, borderRadius: '50%', border: `2px solid ${c.color}60`, animation: 'fpRippleOnce 0.65s ease-out forwards' }} />
         )}
 
         {/* Fingerprint SVG */}
-        <div style={{ position: 'relative', width: 90, height: 90 }}>
-          <svg width="90" height="90" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-            {/* Fingerprint arcs - realistic ridges */}
-            <circle cx="50" cy="52" r="5" stroke={c.color} strokeWidth="2.2" fill="none" style={{ transition: 'stroke 0.4s' }} />
-            <path d="M 35 52 C 35 40 42 33 50 33 C 58 33 65 40 65 52 C 65 62 58 70 50 72 C 42 70 35 62 35 52 Z"
-                  stroke={c.color} strokeWidth="2.2" fill="none" style={{ transition: 'stroke 0.4s' }} />
-            <path d="M 24 52 C 24 33 36 22 50 22 C 64 22 76 33 76 52 C 76 66 64 77 50 79 C 36 77 24 66 24 52 Z"
-                  stroke={c.color} strokeWidth="2.2" fill="none" style={{ transition: 'stroke 0.4s' }} />
-            <path d="M 13 54 C 13 27 30 12 50 12 C 70 12 87 27 87 54 C 87 70 74 84 50 87 C 26 84 13 70 13 54 Z"
-                  stroke={c.color} strokeWidth="2.2" fill="none" opacity="0.85" style={{ transition: 'stroke 0.4s' }} />
-            {/* Left arch opening at top */}
-            <path d="M 18 30 Q 26 16 38 12" stroke={c.color} strokeWidth="2.2" fill="none" strokeLinecap="round" style={{ transition: 'stroke 0.4s' }} />
-            <path d="M 28 22 Q 35 14 44 11" stroke={c.color} strokeWidth="2.2" fill="none" strokeLinecap="round" opacity="0.6" style={{ transition: 'stroke 0.4s' }} />
-            {/* Outermost partial arc */}
-            <path d="M 6 58 C 5 28 25 4 50 4 C 75 4 95 28 94 58" stroke={c.color} strokeWidth="2" fill="none" opacity="0.4" strokeLinecap="round" style={{ transition: 'stroke 0.4s' }} />
-
-            {/* Success checkmark */}
+        <div style={{ position: 'relative', width: 70, height: 70 }}>
+          <svg width="70" height="70" viewBox="0 0 100 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+            {/* Central core loop */}
+            <ellipse cx="50" cy="47" rx="6" ry="7" stroke={c.color} strokeWidth="2.4" fill="none"
+              style={{ transition: 'stroke 0.4s', filter: `drop-shadow(0 0 3px ${c.color})` }} />
+            {/* Ridge 1 */}
+            <path d="M 33 47 C 33 33 41 25 50 25 C 59 25 67 33 67 47 C 67 60 59 70 50 73 C 41 70 33 60 33 47Z"
+              stroke={c.color} strokeWidth="2.2" fill="none" style={{ transition: 'stroke 0.4s', filter: `drop-shadow(0 0 2px ${c.color})` }} />
+            {/* Ridge 2 */}
+            <path d="M 20 49 C 20 26 33 14 50 14 C 67 14 80 26 80 49 C 80 67 67 80 50 83 C 33 80 20 67 20 49Z"
+              stroke={c.color} strokeWidth="2.1" fill="none" style={{ transition: 'stroke 0.4s' }} />
+            {/* Ridge 3 */}
+            <path d="M 8 52 C 8 20 27 4 50 4 C 73 4 92 20 92 52 C 92 74 76 92 50 96 C 24 92 8 74 8 52Z"
+              stroke={c.color} strokeWidth="2" fill="none" opacity="0.8" style={{ transition: 'stroke 0.4s' }} />
+            {/* Outer ridge */}
+            <path d="M 2 56 C 1 18 23 -2 50 -2 C 77 -2 99 18 98 56"
+              stroke={c.color} strokeWidth="1.7" fill="none" opacity="0.4" strokeLinecap="round" style={{ transition: 'stroke 0.4s' }} />
+            {/* Loop opening — left arch break */}
+            <path d="M 12 28 Q 22 12 36 7" stroke={c.color} strokeWidth="2.1" fill="none" strokeLinecap="round" style={{ transition: 'stroke 0.4s' }} />
+            <path d="M 22 18 Q 32 9 44 6" stroke={c.color} strokeWidth="1.8" fill="none" strokeLinecap="round" opacity="0.55" style={{ transition: 'stroke 0.4s' }} />
+            {/* Success checkmark overlay */}
             {state === 'success' && (
-              <path d="M 30 52 L 44 66 L 70 36" stroke={c.color} strokeWidth="4"
-                    strokeLinecap="round" strokeLinejoin="round"
-                    style={{ strokeDasharray: 60, strokeDashoffset: 0, animation: 'fpCheck 0.45s ease forwards' }} />
+              <path d="M 26 52 L 42 68 L 74 32" stroke={c.color} strokeWidth="4.5"
+                strokeLinecap="round" strokeLinejoin="round"
+                style={{ strokeDasharray: 70, strokeDashoffset: 0, animation: 'fpCheck 0.4s ease forwards', filter: `drop-shadow(0 0 4px ${c.color})` }} />
             )}
           </svg>
 
-          {/* Scan sweep line */}
+          {/* Horizontal scan sweep */}
           {state === 'scanning' && (
             <div style={{
-              position: 'absolute', left: 4, right: 4, height: 2,
-              background: `linear-gradient(90deg, transparent, ${c.color}, transparent)`,
-              borderRadius: 2,
-              animation: 'fpSweep 1.5s ease-in-out infinite',
-              boxShadow: `0 0 8px ${c.color}`,
+              position: 'absolute', left: 6, right: 6, height: 2,
+              background: `linear-gradient(90deg, transparent, ${c.color}ee, transparent)`,
+              borderRadius: 2, top: '30%',
+              animation: 'fpSweep 1.4s ease-in-out infinite',
+              boxShadow: `0 0 10px ${c.color}, 0 0 4px ${c.color}`,
             }} />
           )}
         </div>
@@ -125,10 +131,10 @@ function FingerprintSensor({ state, onClick, disabled }) {
 
       {/* Labels */}
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: c.color, transition: 'color 0.4s', marginBottom: 3 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: c.color, transition: 'color 0.4s', marginBottom: 2, letterSpacing: 0.2 }}>
           {c.label}
         </div>
-        <div style={{ fontSize: 12, color: '#64748b' }}>{c.sub}</div>
+        <div style={{ fontSize: 11, color: '#64748b' }}>{c.sub}</div>
       </div>
     </div>
   )
