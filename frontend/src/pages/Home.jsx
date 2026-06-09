@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import axios from 'axios'
 import { useTheme } from '../context/ThemeContext'
 import BookCard from '../components/BookCard'
@@ -133,10 +133,66 @@ function Testimonials() {
   )
 }
 
+const DepartmentLogo = ({ icon, name, sub }) => {
+  const { isDark } = useTheme()
+  const [hovered, setHovered] = useState(false)
+  return (
+    <div 
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        opacity: hovered ? 1 : (isDark ? 0.45 : 0.55),
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        transform: hovered ? 'translateY(-3px)' : 'translateY(0)',
+        cursor: 'pointer'
+      }}
+    >
+      <div style={{
+        color: hovered ? '#3b82f6' : (isDark ? '#94a3b8' : '#64748b'),
+        transition: 'color 0.3s ease',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        {icon}
+      </div>
+      <div>
+        <div style={{
+          fontWeight: 800,
+          fontSize: 14,
+          color: hovered ? '#2563eb' : (isDark ? '#f1f5f9' : '#0f172a'),
+          fontFamily: "'Inter', sans-serif",
+          letterSpacing: '-0.3px',
+          lineHeight: 1
+        }}>
+          {name}
+        </div>
+        <div style={{
+          fontSize: 9,
+          fontWeight: 700,
+          textTransform: 'uppercase',
+          letterSpacing: '0.8px',
+          color: isDark ? '#64748b' : '#94a3b8',
+          marginTop: 2
+        }}>
+          {sub}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Home() {
   const { isDark } = useTheme()
   const [books, setBooks] = useState([])
+  const [selectedCategory, setSelectedCategory] = useState('All')
+  const [searchQuery, setSearchQuery] = useState('')
+  
   const navigate = useNavigate()
+  const location = useLocation()
 
   useEffect(() => {
     axios.get('http://localhost:4000/api/public/books')
@@ -149,6 +205,19 @@ export default function Home() {
       ]))
   }, [])
 
+  // Listen to navigation changes (navbar triggers category search)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const cat = params.get('category')
+    if (cat) {
+      setSelectedCategory(cat)
+      setTimeout(() => {
+        const el = document.getElementById('books')
+        if (el) el.scrollIntoView({ behavior: 'smooth' })
+      }, 150)
+    }
+  }, [location.search])
+
   useEffect(() => {
     const observer = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
@@ -158,6 +227,18 @@ export default function Home() {
     document.querySelectorAll('.reveal').forEach(el => observer.observe(el))
     return () => observer.disconnect()
   }, [])
+
+  // Real-time catalog filtering for search bar
+  const filteredSearchBooks = searchQuery.trim() === '' ? [] : books.filter(b => 
+    b.Title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (b.Authors && b.Authors.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (b.CategoryName && b.CategoryName.toLowerCase().includes(searchQuery.toLowerCase()))
+  ).slice(0, 5) // Show top 5 matches
+
+  // Filter book list for display
+  const displayBooks = selectedCategory === 'All' 
+    ? books 
+    : books.filter(b => b.CategoryName === selectedCategory)
 
   return (
     <div style={{ background: isDark ? '#0a0e1a' : '#fff', color: isDark ? '#fff' : '#0f172a', fontFamily: "'Inter', sans-serif", minHeight: '100vh', transition: 'all 0.5s ease' }}>
@@ -220,33 +301,192 @@ export default function Home() {
             cursor: pointer;
           }
           .book-card:hover { transform: translateY(-10px); z-index: 10; box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
-          
           @keyframes gridForward { from { background-position: 0 0; } to { background-position: 80px 80px; } }
-          .animate-grid { animation: gridForward 4s linear infinite; }
+          .animate-grid { animation: gridForward 12s linear infinite; }
           @keyframes floatStat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+          @keyframes pulseGlow {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
+            70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+          }
         `}
       </style>
 
-      {/* Hero Section: MOVING GRID */}
-      <section id="home" className="reveal" style={{ minHeight: '90vh', display: 'flex', alignItems: 'center', padding: '100px 48px', position: 'relative', background: isDark ? '#0a0e1a' : '#fff', overflow: 'hidden' }}>
-        <div className="animate-grid" style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(59,130,246,0.15) 1.5px, transparent 1.5px), linear-gradient(90deg, rgba(59,130,246,0.15) 1.5px, transparent 1.5px)', backgroundSize: '80px 80px', zIndex: 0 }}></div>
-        <div style={{ maxWidth: 1000, margin: '0 auto', width: '100%', zIndex: 1, textAlign: 'center' }}>
-          <h1 style={{ fontSize: 72, fontWeight: 800, color: isDark ? '#f1f5f9' : '#0f172a', lineHeight: 1.15, marginBottom: 24 }}>
+      {/* Hero Section: MOVING GRID with Blueprint line aesthetics */}
+      <section id="home" className="reveal" style={{ minHeight: '94vh', display: 'flex', alignItems: 'center', padding: '120px 48px 80px', position: 'relative', background: isDark ? '#0a0e1a' : '#fff', overflow: 'hidden' }}>
+        <div className="animate-grid" style={{ position: 'absolute', inset: 0, backgroundImage: isDark ? 'linear-gradient(rgba(255,255,255,0.02) 1.5px, transparent 1.5px), linear-gradient(90deg, rgba(255,255,255,0.02) 1.5px, transparent 1.5px)' : 'linear-gradient(rgba(59,130,246,0.05) 1.5px, transparent 1.5px), linear-gradient(90deg, rgba(59,130,246,0.05) 1.5px, transparent 1.5px)', backgroundSize: '80px 80px', zIndex: 0 }}></div>
+        
+        {/* Tech grid guidelines matching Mereb Tech layout */}
+        <div style={{ position: 'absolute', top: 0, bottom: 0, left: '18%', width: '1px', background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(59,130,246,0.04)', zIndex: 0 }}></div>
+        <div style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', width: '1px', background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(59,130,246,0.04)', zIndex: 0 }}></div>
+        <div style={{ position: 'absolute', top: 0, bottom: 0, left: '82%', width: '1px', background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(59,130,246,0.04)', zIndex: 0 }}></div>
+        
+        <div style={{ maxWidth: 1100, margin: '0 auto', width: '100%', zIndex: 1, textAlign: 'center', position: 'relative' }}>
+          
+          {/* Top Pill Action Badge matching Mereb's Book-call style */}
+          <div 
+            onClick={() => {
+              const el = document.getElementById('books');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+            style={{
+              border: isDark ? '1.5px solid rgba(59,130,246,0.4)' : '1.5px solid #2563eb',
+              borderRadius: 50,
+              padding: '10px 24px',
+              color: isDark ? '#60a5fa' : '#2563eb',
+              fontWeight: 700,
+              fontSize: 13,
+              background: isDark ? 'rgba(59,130,246,0.1)' : 'rgba(59, 130, 246, 0.04)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 10,
+              marginBottom: 32,
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              boxShadow: '0 4px 20px rgba(59,130,246,0.06)',
+              letterSpacing: '0.5px'
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 8px 24px rgba(59,130,246,0.12)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 20px rgba(59,130,246,0.06)';
+            }}
+          >
+            <span>Live Catalog: {books.length ? `${books.length}+ Books Online` : 'Loading Academic Catalog...'}</span>
+            <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: '#10b981', animation: 'pulseGlow 1.5s infinite' }}></span>
+          </div>
+
+          <h1 style={{ fontSize: 72, fontWeight: 900, color: isDark ? '#f1f5f9' : '#0f172a', lineHeight: 1.12, marginBottom: 24, letterSpacing: '-1.5px' }}>
             <span style={{ color: '#3b82f6' }}>Skip the Research Bottleneck</span> <br/>
             and <span style={{ color: '#3b82f6' }}>Learn Faster</span>
           </h1>
-          <p style={{ fontSize: 20, color: isDark ? '#94a3b8' : '#64748b', lineHeight: 1.8, marginBottom: 64, maxWidth: 900, margin: '0 auto 64px' }}>
-            Welcome to the ultimate digital gateway for AAIT students and staff. Our library management system provides seamless access to over 10,000 academic resources, automated borrowing tracking, and real-time availability. Whether you're a freshman or a senior researcher, we empower your academic journey with technology you can trust.
+          <p style={{ fontSize: 20, color: isDark ? '#94a3b8' : '#475569', lineHeight: 1.7, marginBottom: 40, maxWidth: 880, margin: '0 auto 40px', fontWeight: 500 }}>
+            Welcome to the ultimate digital gateway for AAIT students and staff. Our library management system provides seamless access to over 10,000 academic resources, automated borrowing tracking, and real-time availability.
           </p>
-          <div style={{ display: 'flex', gap: 20, justifyContent: 'center', marginTop: 20 }}>
-            <Link to="/register" style={{ 
-              padding: '18px 50px', borderRadius: 50, background: '#3b82f6', 
-              color: '#fff', fontWeight: 800, fontSize: 19, textDecoration: 'none', 
-              transition: 'all 0.3s', boxShadow: '0 10px 30px rgba(59,130,246,0.3)'
-            }} onMouseOver={(e) => { e.target.style.transform = 'translateY(-4px)'; e.target.style.boxShadow = '0 15px 35px rgba(59,130,246,0.4)'; }}
-               onMouseOut={(e) => { e.target.style.transform = 'translateY(0)'; e.target.style.boxShadow = '0 10px 30px rgba(59,130,246,0.3)'; }}>
-              Join the Library Today
-            </Link>
+
+          {/* Real-time search bar right in the Hero */}
+          <div style={{ position: 'relative', maxWidth: 620, margin: '0 auto 50px', zIndex: 100 }}>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              background: isDark ? 'rgba(30, 41, 59, 0.8)' : '#ffffff', 
+              border: `1.5px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(59, 130, 246, 0.15)'}`, 
+              borderRadius: 50, 
+              padding: '6px 12px 6px 24px', 
+              boxShadow: '0 20px 48px rgba(0,0,0,0.08)', 
+              backdropFilter: 'blur(12px)', 
+              transition: 'all 0.3s' 
+            }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 12 }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input 
+                type="text" 
+                placeholder="Search books, authors, or categories live..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', color: isDark ? '#fff' : '#0f172a', fontSize: 16, padding: '12px 0', fontWeight: 500 }}
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '8px 12px', fontSize: 16 }}>✕</button>
+              )}
+              <button 
+                onClick={() => {
+                  const el = document.getElementById('books');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }}
+                style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 50, padding: '12px 28px', fontWeight: 700, fontSize: 14, cursor: 'pointer', transition: 'all 0.2s' }} 
+                onMouseOver={(e) => e.target.style.background = '#2563eb'} 
+                onMouseOut={(e) => e.target.style.background = '#3b82f6'}
+              >
+                Find
+              </button>
+            </div>
+            
+            {/* Search Suggestions Dropdown */}
+            {searchQuery && (
+              <div style={{ 
+                position: 'absolute', 
+                top: '112%', 
+                left: 0, 
+                right: 0, 
+                background: isDark ? '#111827' : '#ffffff', 
+                border: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}`, 
+                borderRadius: 20, 
+                boxShadow: '0 25px 60px rgba(0,0,0,0.15)', 
+                overflow: 'hidden', 
+                zIndex: 1000, 
+                textAlign: 'left', 
+                animation: 'dropdownFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)' 
+              }}>
+                <div style={{ padding: '12px 20px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`, fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                  {filteredSearchBooks.length ? `Matches found (${filteredSearchBooks.length})` : 'No matches found'}
+                </div>
+                <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+                  {filteredSearchBooks.map((b) => (
+                    <div 
+                      key={b.BookID}
+                      onClick={() => navigate(`/book/${b.BookID}`)}
+                      style={{ display: 'flex', gap: 16, padding: '14px 20px', cursor: 'pointer', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'}`, transition: 'all 0.2s' }}
+                      onMouseOver={(e) => e.currentTarget.style.background = isDark ? 'rgba(255,255,255,0.03)' : 'rgba(59,130,246,0.04)'}
+                      onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <div style={{ width: 38, height: 48, background: 'rgba(0,0,0,0.08)', borderRadius: 6, overflow: 'hidden', flexShrink: 0 }}>
+                        {b.CoverImage ? (
+                          <img src={b.CoverImage.startsWith('http') ? b.CoverImage : `http://localhost:4000${b.CoverImage}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyItems: 'center', fontSize: 16 }}>📚</div>
+                        )}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 700, color: isDark ? '#fff' : '#0f172a', fontSize: 14, lineHeight: 1.2 }}>{b.Title}</div>
+                        <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>By {b.Authors}</div>
+                      </div>
+                      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+                        <span style={{ fontSize: 11, background: b.AvailableCopies > 0 ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', color: b.AvailableCopies > 0 ? '#10b981' : '#ef4444', padding: '3px 8px', borderRadius: 12, fontWeight: 700 }}>
+                          {b.AvailableCopies > 0 ? 'Available' : 'Out'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Department Logo Wall (mimics companies wall in Mereb Technology screenshot) */}
+          <div style={{ marginTop: 90, borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'}`, paddingTop: 40 }}>
+            <div style={{ fontSize: 10, fontWeight: 800, color: isDark ? '#64748b' : '#94a3b8', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 30 }}>
+              Academic Departments We Build For
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: '32px 50px' }}>
+              <DepartmentLogo 
+                icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12h18M3 12a9 9 0 0 0 9 9M3 12a9 9 0 0 1 9-9M21 12a9 9 0 0 1-9 9M21 12a9 9 0 0 0-9-9"/></svg>}
+                name="CTBE Civil"
+                sub="Structural Dept"
+              />
+              <DepartmentLogo 
+                icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>}
+                name="AAiT Computing"
+                sub="Software & IT"
+              />
+              <DepartmentLogo 
+                icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>}
+                name="AAiT Electrical"
+                sub="Power & Systems"
+              />
+              <DepartmentLogo 
+                icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22V8M5 12H19M2 22h20M12 2l10 6H2l10-6z"/></svg>}
+                name="CTBE Arch"
+                sub="Design & Planning"
+              />
+              <DepartmentLogo 
+                icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>}
+                name="AAiT Mechanical"
+                sub="Automotive & Mfg"
+              />
+            </div>
           </div>
         </div>
       </section>
@@ -308,13 +548,50 @@ export default function Home() {
       </section>
 
       {/* Books Section: Interactive Cards */}
-      <section id="books" className="reveal" style={{ padding: '80px 48px 40px', background: isDark ? '#0a0e1a' : '#fff' }}>
-        <div style={{ textAlign: 'center', marginBottom: 60 }}>
-          <h2 style={{ fontSize: 48, fontWeight: 800 }}>Best borrowed books of the month</h2>
-          <p style={{ color: '#64748b', marginTop: 12 }}>Hover or click a book to see its full details. Click the cover to view the full page.</p>
+      <section id="books" className="reveal" style={{ padding: '90px 48px 60px', background: isDark ? '#0a0e1a' : '#fff', transition: 'background 0.5s ease' }}>
+        <div style={{ textAlign: 'center', marginBottom: 50 }}>
+          <h2 style={{ fontSize: 44, fontWeight: 900, letterSpacing: '-1px', color: isDark ? '#fff' : '#0f172a' }}>Best borrowed books of the month</h2>
+          <p style={{ color: '#64748b', marginTop: 12, fontSize: 16, fontWeight: 500 }}>Hover or click a book to see its full details. Click the cover to view the full page.</p>
         </div>
+
+        {/* Live Category Filter pills */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 50, flexWrap: 'wrap' }}>
+          {['All', 'Mathematics', 'Physics', 'Computer Sci', 'Programming'].map(cat => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              style={{
+                padding: '10px 22px',
+                borderRadius: '50px',
+                border: `1.5px solid ${selectedCategory === cat ? '#3b82f6' : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)')}`,
+                background: selectedCategory === cat ? '#3b82f6' : 'transparent',
+                color: selectedCategory === cat ? '#ffffff' : (isDark ? '#cbd5e1' : '#475569'),
+                fontWeight: 600,
+                fontSize: 14,
+                cursor: 'pointer',
+                transition: 'all 0.25s ease',
+                boxShadow: selectedCategory === cat ? '0 4px 12px rgba(59,130,246,0.2)' : 'none'
+              }}
+              onMouseOver={(e) => {
+                if (selectedCategory !== cat) {
+                  e.target.style.borderColor = '#3b82f6';
+                  e.target.style.color = '#3b82f6';
+                }
+              }}
+              onMouseOut={(e) => {
+                if (selectedCategory !== cat) {
+                  e.target.style.borderColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)';
+                  e.target.style.color = isDark ? '#cbd5e1' : '#475569';
+                }
+              }}
+            >
+              {cat === 'All' ? '📚 All Categories' : cat}
+            </button>
+          ))}
+        </div>
+
         <div style={{ maxWidth: 1400, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 28 }}>
-          {books.map((b, i) => (
+          {displayBooks.map((b, i) => (
             <BookCard
               key={b.BookID}
               book={b}
