@@ -144,7 +144,7 @@ const DepartmentLogo = ({ icon, name, sub }) => {
         display: 'flex',
         alignItems: 'center',
         gap: 12,
-        opacity: hovered ? 1 : (isDark ? 0.45 : 0.55),
+        opacity: hovered ? 1 : (isDark ? 0.75 : 0.55),
         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         transform: hovered ? 'translateY(-3px)' : 'translateY(0)',
         cursor: 'pointer'
@@ -314,7 +314,7 @@ export default function Home() {
 
       {/* Hero Section: MOVING GRID with Blueprint line aesthetics */}
       <section id="home" className="reveal" style={{ minHeight: '94vh', display: 'flex', alignItems: 'center', padding: '120px 48px 80px', position: 'relative', background: isDark ? '#0a0e1a' : '#fff', overflow: 'hidden' }}>
-        <div className="animate-grid" style={{ position: 'absolute', inset: 0, backgroundImage: isDark ? 'linear-gradient(rgba(255,255,255,0.02) 1.5px, transparent 1.5px), linear-gradient(90deg, rgba(255,255,255,0.02) 1.5px, transparent 1.5px)' : 'linear-gradient(rgba(59,130,246,0.05) 1.5px, transparent 1.5px), linear-gradient(90deg, rgba(59,130,246,0.05) 1.5px, transparent 1.5px)', backgroundSize: '80px 80px', zIndex: 0 }}></div>
+        <div className="animate-grid" style={{ position: 'absolute', inset: 0, backgroundImage: isDark ? 'linear-gradient(rgba(255,255,255,0.06) 1.5px, transparent 1.5px), linear-gradient(90deg, rgba(255,255,255,0.06) 1.5px, transparent 1.5px)' : 'linear-gradient(rgba(59,130,246,0.05) 1.5px, transparent 1.5px), linear-gradient(90deg, rgba(59,130,246,0.05) 1.5px, transparent 1.5px)', backgroundSize: '80px 80px', zIndex: 0 }}></div>
         
         {/* Tech grid guidelines matching Mereb Tech layout */}
         <div style={{ position: 'absolute', top: 0, bottom: 0, left: '18%', width: '1px', background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(59,130,246,0.04)', zIndex: 0 }}></div>
@@ -457,7 +457,7 @@ export default function Home() {
 
           {/* Department Logo Wall (mimics companies wall in Mereb Technology screenshot) */}
           <div style={{ marginTop: 90, borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'}`, paddingTop: 40 }}>
-            <div style={{ fontSize: 10, fontWeight: 800, color: isDark ? '#64748b' : '#94a3b8', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 30 }}>
+            <div style={{ fontSize: 10, fontWeight: 800, color: isDark ? '#94a3b8' : '#94a3b8', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 30 }}>
               Academic Departments We Build For
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: '32px 50px' }}>

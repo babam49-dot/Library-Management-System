@@ -1354,6 +1354,18 @@ export default function StaffDashboard() {
             .mb-btn { transition: all 0.18s ease; border:none; cursor:pointer; font-weight:700; border-radius:8px; }
             .mb-btn:hover:not(:disabled) { filter:brightness(1.1); transform:translateY(-2px); }
             .mb-btn:disabled { opacity:0.45; cursor:not-allowed; }
+            @keyframes overdueRowPulse {
+              0%, 100% { background-color: rgba(239,68,68,0.08); }
+              50% { background-color: rgba(239,68,68,0.14); }
+            }
+            @keyframes badgePulseGreen {
+              0%, 100% { box-shadow: 0 0 10px rgba(16,185,129,0.25); }
+              50% { box-shadow: 0 0 18px rgba(16,185,129,0.5); }
+            }
+            @keyframes dotBlink {
+              0%, 100% { opacity: 1; }
+              50% { opacity: 0.3; }
+            }
           `}</style>
 
           {/* ── Policy banner ── */}
@@ -1578,11 +1590,20 @@ export default function StaffDashboard() {
                       };
 
                       return (
-                        <tr key={borrowId || i} style={{ borderTop: `1px solid ${border}`, background: isPending ? (isDark ? 'rgba(245,158,11,0.07)' : '#fffbeb') : 'transparent' }}>
+                        <tr key={borrowId || i} style={{
+                          borderTop: `1px solid ${border}`,
+                          borderLeft: isPending ? '4px solid #f59e0b' : isBorrowed ? '4px solid #10b981' : isOverdue ? '4px solid #ef4444' : '4px solid transparent',
+                          background: isPending ? (isDark ? 'rgba(245,158,11,0.07)' : '#fffbeb')
+                            : isBorrowed ? (isDark ? 'rgba(16,185,129,0.06)' : 'rgba(209,250,229,0.4)')
+                            : isOverdue ? (isDark ? 'rgba(239,68,68,0.08)' : 'rgba(254,226,226,0.5)')
+                            : 'transparent',
+                          animation: isOverdue ? 'overdueRowPulse 3s ease-in-out infinite' : 'none',
+                        }}>
                           <td style={{ padding: '14px 16px', fontWeight: 700, color: textPrimary }}>
                             <div style={{ fontSize: 14 }}>{title}</div>
                             {isPending && <div style={{ color: '#d97706', fontSize: 11, marginTop: 2, fontWeight: 600 }}>⏳ Awaiting admin approval at the desk</div>}
-                            {isExpired && <div style={{ color: '#ef4444', fontSize: 11, marginTop: 2, fontWeight: 600 }}>⌛ Request expired (not picked up within 5 mins)</div>}
+                            {isOverdue && <div style={{ color: '#ef4444', fontSize: 11, marginTop: 2, fontWeight: 700 }}>🚨 Past due — please return immediately</div>}
+                            {isExpired && <div style={{ color: '#ef4444', fontSize: 11, marginTop: 2, fontWeight: 600 }}>⌛ Request expired (not picked up in time)</div>}
                           </td>
                           <td style={{ padding: '14px 16px', fontFamily: 'monospace', color: '#3b82f6', fontSize: 13, fontWeight: 700 }}>{requestCode}</td>
                           <td style={{ padding: '14px 16px', color: textMuted, fontSize: 13 }}>{fmt(borrowDate)}</td>
@@ -1590,10 +1611,17 @@ export default function StaffDashboard() {
                           <td style={{ padding: '14px 16px', color: textMuted, fontSize: 13 }}>{fmt(returnDate)}</td>
                           <td style={{ padding: '14px 16px' }}>
                             <span style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 6,
                               fontSize: 11, fontWeight: 800, padding: '5px 12px',
-                              borderRadius: 20, background: `${col}18`, color: col,
-                              border: `1px solid ${col}40`, whiteSpace: 'nowrap', display: 'inline-block'
+                              borderRadius: 20,
+                              background: isPending ? 'rgba(245,158,11,0.12)' : isBorrowed ? 'rgba(16,185,129,0.12)' : isOverdue ? 'rgba(239,68,68,0.12)' : isReturned ? 'rgba(99,102,241,0.10)' : 'rgba(148,163,184,0.10)',
+                              color: col,
+                              border: `1.5px solid ${isPending ? 'rgba(245,158,11,0.4)' : isBorrowed ? 'rgba(16,185,129,0.4)' : isOverdue ? 'rgba(239,68,68,0.5)' : isReturned ? 'rgba(99,102,241,0.35)' : 'rgba(148,163,184,0.3)'}`,
+                              boxShadow: isBorrowed ? '0 0 10px rgba(16,185,129,0.25)' : isOverdue ? '0 0 10px rgba(239,68,68,0.3)' : 'none',
+                              animation: isBorrowed ? 'badgePulseGreen 2s ease-in-out infinite' : 'none',
+                              whiteSpace: 'nowrap',
                             }}>
+                              {isBorrowed && <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#10b981', animation: 'dotBlink 1.4s ease-in-out infinite', boxShadow: '0 0 6px #10b981', flexShrink: 0 }} />}
                               {statusLabel}
                             </span>
                           </td>
