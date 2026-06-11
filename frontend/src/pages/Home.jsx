@@ -319,9 +319,15 @@ export default function Home() {
   useEffect(() => {
     const observer = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
-        if (entry.isIntersecting) entry.target.classList.add('active')
+        if (entry.isIntersecting) {
+          entry.target.classList.add('active')
+          // Trigger child text animations
+          entry.target.querySelectorAll(
+            '.sec-left, .sec-right, .sec-up, .sec-up-d1, .sec-up-d2, .sec-up-d3, .sec-up-d4'
+          ).forEach(el => el.classList.add('sec-active'))
+        }
       })
-    }, { threshold: 0.1 })
+    }, { threshold: 0.12 })
     document.querySelectorAll('.reveal').forEach(el => observer.observe(el))
     return () => observer.disconnect()
   }, [])
@@ -354,92 +360,8 @@ export default function Home() {
     ? books 
     : books.filter(b => b.CategoryName === selectedCategory)
 
-  const scrollSections = [
-    { id: 'home',     label: 'Hero' },
-    { id: 'location', label: 'Campus' },
-    { id: 'books',    label: 'Books' },
-    { id: 'about',    label: 'About' },
-  ]
-
   return (
     <div style={{ background: isDark ? '#0a0e1a' : '#fff', color: isDark ? '#fff' : '#0f172a', fontFamily: "'Sora', sans-serif", minHeight: '100vh', transition: 'all 0.5s ease' }}>
-
-      {/* === Floating Scroll-Spy Sidebar === */}
-      <div style={{
-        position: 'fixed',
-        right: 24,
-        top: '50%',
-        transform: 'translateY(-50%)',
-        zIndex: 999,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: 6,
-        background: isDark ? 'rgba(15, 23, 42, 0.7)' : 'rgba(255, 255, 255, 0.8)',
-        backdropFilter: 'blur(12px)',
-        borderRadius: 50,
-        padding: '14px 10px',
-        border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
-        boxShadow: isDark ? '0 8px 32px rgba(0,0,0,0.3)' : '0 8px 32px rgba(0,0,0,0.08)'
-      }}>
-        {scrollSections.map(({ id, label }) => {
-          const isActive = activeSection === id
-          return (
-            <div key={id} style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {/* Tooltip label on hover */}
-              <div
-                className="scrollspy-tooltip"
-                style={{
-                  position: 'absolute',
-                  right: 28,
-                  background: isDark ? '#1e293b' : '#0f172a',
-                  color: '#fff',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  padding: '4px 10px',
-                  borderRadius: 20,
-                  whiteSpace: 'nowrap',
-                  pointerEvents: 'none',
-                  opacity: 0,
-                  transition: 'opacity 0.2s ease',
-                  letterSpacing: '0.5px'
-                }}
-              >
-                {label}
-              </div>
-              <button
-                onClick={() => {
-                  const el = document.getElementById(id)
-                  if (el) el.scrollIntoView({ behavior: 'smooth' })
-                }}
-                onMouseEnter={e => {
-                  const tooltip = e.currentTarget.previousSibling
-                  if (tooltip) tooltip.style.opacity = '1'
-                }}
-                onMouseLeave={e => {
-                  const tooltip = e.currentTarget.previousSibling
-                  if (tooltip) tooltip.style.opacity = '0'
-                }}
-                style={{
-                  width: isActive ? 10 : 7,
-                  height: isActive ? 10 : 7,
-                  borderRadius: '50%',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: 0,
-                  background: isActive
-                    ? '#3b82f6'
-                    : (isDark ? 'rgba(255,255,255,0.2)' : 'rgba(15,23,42,0.18)'),
-                  boxShadow: isActive ? '0 0 8px rgba(59,130,246,0.7)' : 'none',
-                  transition: 'all 0.3s cubic-bezier(0.4,0,0.2,1)',
-                  outline: 'none',
-                  animation: isActive ? 'scrollDotPulse 2s ease infinite' : 'none'
-                }}
-              />
-            </div>
-          )
-        })}
-      </div>
       <style>
         {`
           @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800;900&display=swap');
@@ -467,12 +389,26 @@ export default function Home() {
             0%   { opacity: 0; }
             100% { opacity: 1; }
           }
-          .hero-badge    { animation: heroDropDown  0.7s cubic-bezier(0.22,1,0.36,1) 0.1s both; }
-          .hero-line1    { animation: heroSlideLeft  0.75s cubic-bezier(0.22,1,0.36,1) 0.35s both; }
-          .hero-line2    { animation: heroSlideRight 0.75s cubic-bezier(0.22,1,0.36,1) 0.55s both; }
-          .hero-sub      { animation: heroFadeUp     0.7s cubic-bezier(0.22,1,0.36,1) 0.75s both; }
-          .hero-search   { animation: heroFadeUp     0.7s cubic-bezier(0.22,1,0.36,1) 0.95s both; }
-          .hero-depts    { animation: heroFadeIn     0.8s ease                        1.15s both; }
+          .hero-badge    { animation: heroDropDown  1.1s cubic-bezier(0.22,1,0.36,1) 0.2s  both; }
+          .hero-line1    { animation: heroSlideLeft  1.2s cubic-bezier(0.22,1,0.36,1) 0.55s both; }
+          .hero-line2    { animation: heroSlideRight 1.2s cubic-bezier(0.22,1,0.36,1) 0.85s both; }
+          .hero-sub      { animation: heroFadeUp     1.1s cubic-bezier(0.22,1,0.36,1) 1.15s both; }
+          .hero-search   { animation: heroFadeUp     1.1s cubic-bezier(0.22,1,0.36,1) 1.45s both; }
+          .hero-depts    { animation: heroFadeIn     1.2s ease                        1.75s both; }
+
+          /* === Section reveal classes (triggered by IntersectionObserver) === */
+          .sec-left  { opacity: 0; transform: translateX(-50px); transition: opacity 1.2s cubic-bezier(0.22,1,0.36,1), transform 1.2s cubic-bezier(0.22,1,0.36,1); }
+          .sec-right { opacity: 0; transform: translateX(50px);  transition: opacity 1.2s cubic-bezier(0.22,1,0.36,1), transform 1.2s cubic-bezier(0.22,1,0.36,1); }
+          .sec-up    { opacity: 0; transform: translateY(40px);   transition: opacity 1.2s cubic-bezier(0.22,1,0.36,1), transform 1.2s cubic-bezier(0.22,1,0.36,1); }
+          .sec-up-d1 { opacity: 0; transform: translateY(40px);   transition: opacity 1.2s cubic-bezier(0.22,1,0.36,1) 0.2s, transform 1.2s cubic-bezier(0.22,1,0.36,1) 0.2s; }
+          .sec-up-d2 { opacity: 0; transform: translateY(40px);   transition: opacity 1.2s cubic-bezier(0.22,1,0.36,1) 0.4s, transform 1.2s cubic-bezier(0.22,1,0.36,1) 0.4s; }
+          .sec-up-d3 { opacity: 0; transform: translateY(40px);   transition: opacity 1.2s cubic-bezier(0.22,1,0.36,1) 0.6s, transform 1.2s cubic-bezier(0.22,1,0.36,1) 0.6s; }
+          .sec-up-d4 { opacity: 0; transform: translateY(40px);   transition: opacity 1.2s cubic-bezier(0.22,1,0.36,1) 0.8s, transform 1.2s cubic-bezier(0.22,1,0.36,1) 0.8s; }
+          .sec-active { opacity: 1 !important; transform: translate(0,0) !important; }
+
+          /* Interactive text hover */
+          .txt-hover { display: inline-block; transition: color 0.3s ease, transform 0.3s ease; cursor: default; }
+          .txt-hover:hover { color: #3b82f6; transform: translateY(-3px); }
 
           .btn-gold {
             background: linear-gradient(135deg, #f59e0b, #d97706);
@@ -844,11 +780,16 @@ export default function Home() {
           flexDirection: 'column', 
           justifyContent: 'center' 
         }}>
-          <h2 style={{ fontSize: 56, fontWeight: 900, marginBottom: 24, letterSpacing: '-1.5px' }}>Our Campus</h2>
-          <p style={{ fontSize: 20, marginBottom: 48, color: '#64748b', lineHeight: 1.6, fontWeight: 500 }}>
-            Our physical presence at CTBE is the foundation of our student success. Feel free to visit our campus library space.
+          <h2 style={{ fontSize: 56, fontWeight: 900, marginBottom: 24, letterSpacing: '-1.5px', lineHeight: 1.1 }}>
+            <span className="sec-left txt-hover" style={{ display: 'block' }}>Our</span>
+            <span className="sec-right txt-hover" style={{ display: 'block', color: '#3b82f6' }}>Campus</span>
+          </h2>
+          <p className="sec-up-d1" style={{ fontSize: 18, marginBottom: 48, color: '#64748b', lineHeight: 1.7, fontWeight: 400 }}>
+            <span className="txt-hover">Our physical presence at CTBE</span>{' '}
+            <span className="txt-hover">is the foundation of our student success.</span>{' '}
+            <span className="txt-hover">Feel free to visit our campus library space.</span>
           </p>
-          <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
+          <div className="sec-up-d2" style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
              <div style={{ 
                color: '#3b82f6', 
                fontWeight: 700, 
@@ -913,11 +854,17 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Books Section: Interactive Cards */}
+      {/* Books Section */}
       <section id="books" className="reveal" style={{ padding: '90px 48px 60px', background: isDark ? '#0a0e1a' : '#fff', transition: 'background 0.5s ease' }}>
         <div style={{ textAlign: 'center', marginBottom: 50 }}>
-          <h2 style={{ fontSize: 44, fontWeight: 900, letterSpacing: '-1px', color: isDark ? '#fff' : '#0f172a' }}>Best borrowed books of the month</h2>
-          <p style={{ color: '#64748b', marginTop: 12, fontSize: 16, fontWeight: 500 }}>Hover or click a book to see its full details. Click the cover to view the full page.</p>
+          <h2 style={{ fontSize: 44, fontWeight: 900, letterSpacing: '-1px', color: isDark ? '#fff' : '#0f172a', overflow: 'hidden' }}>
+            <span className="sec-left txt-hover" style={{ display: 'inline-block' }}>Best borrowed books</span>{' '}
+            <span className="sec-right txt-hover" style={{ display: 'inline-block', color: '#3b82f6' }}>of the month</span>
+          </h2>
+          <p className="sec-up-d1" style={{ color: '#64748b', marginTop: 12, fontSize: 16, fontWeight: 400 }}>
+            <span className="txt-hover">Hover or click a book to see its full details.</span>{' '}
+            <span className="txt-hover">Click the cover to view the full page.</span>
+          </p>
         </div>
 
         {/* Live Category Filter pills */}
@@ -971,7 +918,7 @@ export default function Home() {
       </section>
 
       {/* Stats Section: Cyber-Grid Aesthetic */}
-      <section style={{ background: '#0a0e14', padding: '120px 48px', position: 'relative', overflow: 'hidden' }}>
+      <section className="reveal" style={{ background: '#0a0e14', padding: '120px 48px', position: 'relative', overflow: 'hidden' }}>
         {/* Static Data Lines */}
         <div style={{ position: 'absolute', inset: 0, opacity: 0.4 }}>
            <div style={{ position:'absolute', top:'20%', left:0, right:0, height:1, background:'linear-gradient(90deg, transparent, #3b82f6, transparent)' }}></div>
@@ -982,11 +929,14 @@ export default function Home() {
         </div>
 
         <div style={{ maxWidth: 1200, margin: '0 auto', position: 'relative', zIndex: 2, textAlign: 'center' }}>
-          <h2 style={{ fontSize: 64, fontWeight: 900, color: '#fff', marginBottom: 16, letterSpacing: -2 }}>
-            UniLibrary by the <span style={{ color: '#3b82f6' }}>numbers</span>
+          <h2 style={{ fontSize: 64, fontWeight: 900, color: '#fff', marginBottom: 16, letterSpacing: -2, overflow: 'hidden' }}>
+            <span className="sec-left txt-hover" style={{ display: 'inline-block' }}>UniLibrary by the</span>{' '}
+            <span className="sec-right txt-hover" style={{ display: 'inline-block', color: '#3b82f6' }}>numbers</span>
           </h2>
-          <p style={{ fontSize: 20, color: 'rgba(255,255,255,0.6)', marginBottom: 80, fontWeight: 500 }}>
-            Optimizing academic research with meticulous digital management and instant accessibility.
+          <p className="sec-up-d1" style={{ fontSize: 18, color: 'rgba(255,255,255,0.6)', marginBottom: 80, fontWeight: 400 }}>
+            <span className="txt-hover">Optimizing academic research</span>{' '}
+            <span className="txt-hover">with meticulous digital management</span>{' '}
+            <span className="txt-hover">and instant accessibility.</span>
           </p>
 
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 0 }}>
@@ -1015,11 +965,16 @@ export default function Home() {
       <section id="about" className="reveal" style={{ padding: '40px 48px 100px', background: isDark ? '#0a0e1a' : '#fff' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', gap: 80, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 400 }}>
-             <h2 style={{ fontSize: 48, fontWeight: 900, color: isDark ? '#fff' : '#0f172a', marginBottom: 24 }}>About UniLibrary</h2>
-             <p style={{ fontSize: 18, color: '#64748b', lineHeight: 1.8, marginBottom: 32 }}>
-               Founded in 2010, the UniLibrary has been at the forefront of academic excellence at AAIT. Our mission is to bridge the gap between traditional research and modern digital accessibility. We serve thousands of students daily, providing the resources they need to excel in their engineering and technology careers.
+             <h2 style={{ fontSize: 48, fontWeight: 900, color: isDark ? '#fff' : '#0f172a', marginBottom: 24, lineHeight: 1.1 }}>
+               <span className="sec-left txt-hover" style={{ display: 'block' }}>About</span>
+               <span className="sec-right txt-hover" style={{ display: 'block', color: '#3b82f6' }}>UniLibrary</span>
+             </h2>
+             <p className="sec-up-d1" style={{ fontSize: 17, color: '#64748b', lineHeight: 1.9, marginBottom: 32, fontWeight: 400 }}>
+               <span className="txt-hover">Founded in 2010, the UniLibrary has been at the forefront of academic excellence at AAIT.</span>{' '}
+               <span className="txt-hover">Our mission is to bridge the gap between traditional research and modern digital accessibility.</span>{' '}
+               <span className="txt-hover">We serve thousands of students daily, providing the resources they need to excel in their engineering and technology careers.</span>
              </p>
-             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+             <div className="sec-up-d2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
                 <div>
                    <div style={{ color: '#3b82f6', fontSize: 24, fontWeight: 800, marginBottom: 4 }}>15+ Years</div>
                    <div style={{ color: '#64748b', fontSize: 14 }}>Of Academic Service</div>
@@ -1042,8 +997,14 @@ export default function Home() {
       <section id="services" className="reveal" style={{ padding: '120px 48px', background: isDark ? '#0a0e1a' : '#f8fafc' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 80 }}>
-            <h2 style={{ fontSize: 48, fontWeight: 900, color: isDark ? '#fff' : '#0f172a' }}>Our Services</h2>
-            <p style={{ color: '#64748b', marginTop: 12 }}>Empowering your academic journey with modern library solutions.</p>
+            <h2 style={{ fontSize: 48, fontWeight: 900, color: isDark ? '#fff' : '#0f172a', overflow: 'hidden' }}>
+              <span className="sec-left txt-hover" style={{ display: 'inline-block' }}>Our</span>{' '}
+              <span className="sec-right txt-hover" style={{ display: 'inline-block', color: '#3b82f6' }}>Services</span>
+            </h2>
+            <p className="sec-up-d1" style={{ color: '#64748b', marginTop: 16, fontWeight: 400 }}>
+              <span className="txt-hover">Empowering your academic journey</span>{' '}
+              <span className="txt-hover">with modern library solutions.</span>
+            </p>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 32 }}>
             {[
