@@ -23,23 +23,23 @@ export default function MyBorrowTable({ borrows, onCancel }) {
     return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
   };
 
-  const getRowBg = (row) => {
-    if (row.status === 'Overdue') {
+  const getRowBg = (status) => {
+    if (status === 'Overdue') {
       return isDark ? 'rgba(239,68,68,0.07)' : 'rgba(254,226,226,0.6)';
     }
-    if (row.status === 'Borrowed') {
+    if (status === 'Borrowed') {
       return isDark ? 'rgba(16,185,129,0.06)' : 'rgba(209,250,229,0.4)';
     }
-    if (row.status === 'Pending') {
+    if (status === 'Pending') {
       return isDark ? 'rgba(245,158,11,0.06)' : 'rgba(255,251,235,0.6)';
     }
     return 'transparent';
   };
 
-  const getLeftBorder = (row) => {
-    if (row.status === 'Overdue') return '4px solid #ef4444';
-    if (row.status === 'Borrowed') return '4px solid #10b981';
-    if (row.status === 'Pending') return '4px solid #f59e0b';
+  const getLeftBorder = (status) => {
+    if (status === 'Overdue') return '4px solid #ef4444';
+    if (status === 'Borrowed') return '4px solid #10b981';
+    if (status === 'Pending') return '4px solid #f59e0b';
     return '4px solid transparent';
   };
 
@@ -74,40 +74,42 @@ export default function MyBorrowTable({ borrows, onCancel }) {
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
             <thead>
               <tr>
-                <th style={th}>Request Code</th>
                 <th style={th}>Book Title</th>
-                <th style={th}>Status</th>
+                <th style={th}>Request Code</th>
                 <th style={th}>Borrow Date</th>
                 <th style={th}>Due / Return Date</th>
+                <th style={th}>Status</th>
                 <th style={th}>Timeline</th>
                 {onCancel && <th style={th}>Actions</th>}
               </tr>
             </thead>
             <tbody>
-              {borrows.map((row) => {
-                const daysLeft = getDaysLeft(row.dueDate);
-                const isBorrowed = row.status === 'Borrowed';
-                const isOverdue = row.status === 'Overdue';
-                const isPending = row.status === 'Pending';
+              {borrows.map((row, index) => {
+                const status = row.status || row.Status || '';
+                const dueDate = row.dueDate || row.DueDate;
+                const borrowDate = row.borrowDate || row.BorrowDate;
+                const returnDate = row.returnDate || row.ReturnDate;
+                const requestCode = row.requestCode || row.RequestCode || '—';
+                const borrowId = row.borrowId || row.BorrowID || index;
+                const title = row.bookTitle || row.Title || row.title || '—';
+                const daysLeft = getDaysLeft(dueDate);
+                const isBorrowed = status === 'Borrowed';
+                const isOverdue = status === 'Overdue';
+                const isPending = status === 'Pending';
 
                 return (
                   <tr
-                    key={row.borrowId}
+                    key={borrowId}
                     style={{
-                      background: getRowBg(row),
-                      borderLeft: getLeftBorder(row),
+                      background: getRowBg(status),
+                      borderLeft: getLeftBorder(status),
                       borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.04)' : '#f1f5f9'}`,
                       transition: 'background 0.2s',
                     }}
                   >
-                    {/* Request Code */}
-                    <td style={{ padding: '14px 16px', fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#3b82f6', whiteSpace: 'nowrap' }}>
-                      {row.requestCode}
-                    </td>
-
                     {/* Book Title */}
                     <td style={{ padding: '14px 16px', fontWeight: 700, color: isDark ? '#f1f5f9' : '#0f172a', fontSize: 14 }}>
-                      {row.bookTitle}
+                      {title}
                       {isPending && (
                         <div style={{ fontSize: 11, color: '#d97706', marginTop: 3, fontWeight: 600 }}>
                           ⏳ Awaiting librarian approval
@@ -123,9 +125,41 @@ export default function MyBorrowTable({ borrows, onCancel }) {
                       )}
                     </td>
 
+                    {/* Request Code */}
+                    <td style={{ padding: '14px 16px', fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#3b82f6', whiteSpace: 'nowrap' }}>
+                      {requestCode}
+                    </td>
+
+                    {/* Borrow Date */}
+                    <td style={{ padding: '14px 16px', fontSize: 13, color: isDark ? '#94a3b8' : '#64748b' }}>
+                      {formatDate(borrowDate)}
+                    </td>
+
+                    {/* Due / Return Date */}
+                    <td style={{ padding: '14px 16px', fontSize: 13 }}>
+                      {returnDate ? (
+                        <div>
+                          <div style={{ fontWeight: 600, color: isDark ? '#e2e8f0' : '#334155' }}>{formatDate(returnDate)}</div>
+                          <div style={{ fontSize: 11, color: '#10b981', marginTop: 2, fontWeight: 700 }}>✓ Returned</div>
+                        </div>
+                      ) : dueDate ? (
+                        <div>
+                          <div style={{
+                            fontWeight: 700,
+                            color: isOverdue ? '#dc2626' : (isDark ? '#e2e8f0' : '#334155'),
+                          }}>
+                            {formatDate(dueDate)}
+                          </div>
+                          <div style={{ fontSize: 11, color: isOverdue ? '#ef4444' : '#64748b', marginTop: 2, fontWeight: 600 }}>
+                            {isOverdue ? '⚠️ Overdue' : 'Due date'}
+                          </div>
+                        </div>
+                      ) : '-'}
+                    </td>
+
                     {/* Status Badge */}
                     <td style={{ padding: '14px 16px' }}>
-                      <BorrowStatusBadge status={row.status} />
+                      <BorrowStatusBadge status={status} />
                     </td>
 
                     {/* Borrow Date */}
@@ -223,7 +257,7 @@ export default function MyBorrowTable({ borrows, onCancel }) {
                       <td style={{ padding: '14px 16px' }}>
                         {isPending && (
                           <button
-                            onClick={() => onCancel(row.requestCode)}
+                            onClick={() => onCancel(row)}
                             style={{
                               background: 'rgba(239,68,68,0.08)',
                               color: '#ef4444',

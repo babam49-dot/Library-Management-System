@@ -25,7 +25,9 @@ export default function MyBorrowsPage() {
     setTimeout(() => setNotice({ text: '', ok: true }), 4000);
   };
 
-  const handleCancelRequest = async (code) => {
+  const handleCancelRequest = async (row) => {
+    const code = row?.requestCode || row?.RequestCode;
+    if (!code) return;
     try {
       await cancelRequest(code);
       showNotice(`✅ Request ${code} cancelled. The book copy is available again.`);

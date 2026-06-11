@@ -4,9 +4,45 @@ import { useTheme } from '../context/ThemeContext'
 import { useAuth } from '../context/AuthContext'
 import DarkModeToggle from './DarkModeToggle'
 
+const catalogData = {
+  'All Categories': [
+    { name: 'Addis Ababa University', desc: 'Main Campus Portal', icon: '🏫', path: '/' },
+    { name: 'CTBE Civil Dept', desc: 'Structural & Surveying', icon: '🌉', path: '/' },
+    { name: 'AAiT Computing', desc: 'Software & IT Systems', icon: '🖥️', path: '/' },
+    { name: 'AAiT Electrical', desc: 'Power & Telecommunications', icon: '🔋', path: '/' },
+    { name: 'CTBE Arch Dept', desc: 'Design & Urban Planning', icon: '🏛️', path: '/' },
+    { name: 'AAiT Mechanical', desc: 'Automotive & Materials', icon: '⚙️', path: '/' },
+  ],
+  'Mathematics': [
+    { name: 'Calculus: Stewart', desc: 'Early Transcendentals', icon: '📐', path: '/?category=Mathematics#books' },
+    { name: 'Linear Algebra', desc: 'Matrices & Vector Spaces', icon: '📈', path: '/?category=Mathematics#books' },
+    { name: 'Probability', desc: 'Stats & Random Processes', icon: '🎲', path: '/?category=Mathematics#books' },
+    { name: 'Discrete Math', desc: 'Logic & Set Theory', icon: '⛓️', path: '/?category=Mathematics#books' },
+  ],
+  'Physics': [
+    { name: 'University Physics', desc: 'Young & Freedman', icon: '⚛️', path: '/?category=Physics#books' },
+    { name: 'Quantum Physics', desc: 'Principles & Mechanics', icon: '🌌', path: '/?category=Physics#books' },
+    { name: 'Thermodynamics', desc: 'Heat & Statistical Physics', icon: '🔥', path: '/?category=Physics#books' },
+    { name: 'Electromagnetism', desc: 'Field theory & Maxwell', icon: '⚡', path: '/?category=Physics#books' },
+  ],
+  'Computer Sci': [
+    { name: 'Algorithms (CLRS)', desc: 'Design & Analysis', icon: '💻', path: '/?category=Computer Sci#books' },
+    { name: 'Operating Systems', desc: 'Kernel & Processes', icon: '💿', path: '/?category=Computer Sci#books' },
+    { name: 'Computer Networks', desc: 'Protocols & Routing', icon: '🌐', path: '/?category=Computer Sci#books' },
+    { name: 'Database Systems', desc: 'SQL, NoSQL & Design', icon: '🗄️', path: '/?category=Computer Sci#books' },
+  ],
+  'Programming': [
+    { name: 'Clean Code', desc: 'Uncle Bob Martin', icon: '⚙️', path: '/?category=Programming#books' },
+    { name: 'Modern JavaScript', desc: 'ES6, React & Node.js', icon: '🟨', path: '/?category=Programming#books' },
+    { name: 'Python Engineering', desc: 'Data & Automation', icon: '🐍', path: '/?category=Programming#books' },
+    { name: 'C++ Systems', desc: 'High performance code', icon: '🔵', path: '/?category=Programming#books' },
+  ]
+}
+
 export default function Navbar() {
   const [scrollY, setScrollY] = useState(0)
   const [activeDropdown, setActiveDropdown] = useState(null)
+  const [hoveredCategory, setHoveredCategory] = useState('All Categories')
   const { isDark } = useTheme()
   const { user, logout } = useAuth()
   const location = useLocation()
@@ -18,12 +54,19 @@ export default function Navbar() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
+  useEffect(() => {
+    if (activeDropdown !== 'catalog') {
+      setHoveredCategory('All Categories')
+    }
+  }, [activeDropdown])
+
   const isDashboard = location.pathname.startsWith('/admin') || 
                       location.pathname.startsWith('/staff') || 
                       location.pathname.startsWith('/member')
   const isAuthPage = location.pathname === '/login' || location.pathname === '/register'
 
   const themeVars = isDark ? `
+    @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800;900&display=swap');
     :root {
       --nav-bg: rgba(10, 14, 26, 0.85);
       --nav-text: #ffffff;
@@ -32,7 +75,9 @@ export default function Navbar() {
       --dropdown-hover: rgba(255, 255, 255, 0.05);
       --dropdown-desc: #94a3b8;
     }
+    nav, nav * { font-family: 'Sora', sans-serif !important; }
   ` : `
+    @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800;900&display=swap');
     :root {
       --nav-bg: rgba(255, 255, 255, 0.9);
       --nav-text: #0f172a;
@@ -41,6 +86,7 @@ export default function Navbar() {
       --dropdown-hover: rgba(59, 130, 246, 0.05);
       --dropdown-desc: #64748b;
     }
+    nav, nav * { font-family: 'Sora', sans-serif !important; }
   `
 
   const handleNavClick = (e, path, targetId) => {
@@ -59,13 +105,23 @@ export default function Navbar() {
     }
   }
 
-  // 2x2 grid icon representation matching Mereb screenshot
-  const GridIcon = () => (
-    <svg width="10" height="10" viewBox="0 0 10 10" style={{ marginLeft: 6, fill: 'currentColor', opacity: 0.6, display: 'inline-block', flexShrink: 0 }}>
-      <rect width="3" height="3" rx="0.5"/>
-      <rect x="5" width="3" height="3" rx="0.5"/>
-      <rect y="5" width="3" height="3" rx="0.5"/>
-      <rect x="5" y="5" width="3" height="3" rx="0.5"/>
+  // Chevron arrow icon for dropdowns
+  const ChevronIcon = ({ isOpen }) => (
+    <svg 
+      width="12" 
+      height="12" 
+      viewBox="0 0 12 12" 
+      fill="none" 
+      style={{ 
+        marginLeft: 5, 
+        display: 'inline-block', 
+        flexShrink: 0,
+        transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+        transition: 'transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+        opacity: 0.7
+      }}
+    >
+      <path d="M2 4L6 8L10 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   )
 
@@ -84,6 +140,10 @@ export default function Navbar() {
         @keyframes dropdownFadeIn {
           from { opacity: 0; transform: scale(0.96) translateY(-8px); }
           to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        @keyframes scrollDotPulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.3); }
         }
         .nav-item-btn {
           background: none;
@@ -176,6 +236,12 @@ export default function Navbar() {
           box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3);
           transform: translateY(-1px);
         }
+        .mega-dropdown-card:hover {
+          background: var(--dropdown-hover) !important;
+          transform: translateY(-2px);
+          box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
+          border-color: #3b82f6 !important;
+        }
       `}</style>
 
       {/* Brand Logo */}
@@ -222,7 +288,7 @@ export default function Navbar() {
               style={{ position: 'relative' }}
             >
               <button className="nav-item-btn">
-                Services <GridIcon />
+                Services <ChevronIcon isOpen={activeDropdown === 'services'} />
               </button>
               {activeDropdown === 'services' && (
                 <div className="dropdown-panel" style={{ left: '50%', transform: 'translateX(-50%)', width: '320px' }}>
@@ -265,26 +331,115 @@ export default function Navbar() {
               style={{ position: 'relative' }}
             >
               <button className="nav-item-btn">
-                Catalog <GridIcon />
+                Catalog <ChevronIcon isOpen={activeDropdown === 'catalog'} />
               </button>
               {activeDropdown === 'catalog' && (
-                <div className="dropdown-panel" style={{ left: '50%', transform: 'translateX(-50%)', width: '280px' }}>
-                  <Link to="/?category=All#books" onClick={(e) => handleNavClick(e, '?category=All#books', 'books')} className="dropdown-link">
-                    <div className="dropdown-title">📚 View All Books</div>
-                  </Link>
-                  <div style={{ height: '1px', background: 'var(--nav-border)', margin: '4px 0' }}></div>
-                  <Link to="/?category=Mathematics#books" onClick={(e) => handleNavClick(e, '?category=Mathematics#books', 'books')} className="dropdown-link">
-                    <div className="dropdown-title">📐 Mathematics</div>
-                  </Link>
-                  <Link to="/?category=Physics#books" onClick={(e) => handleNavClick(e, '?category=Physics#books', 'books')} className="dropdown-link">
-                    <div className="dropdown-title">⚛️ Physics</div>
-                  </Link>
-                  <Link to="/?category=Computer Sci#books" onClick={(e) => handleNavClick(e, '?category=Computer Sci#books', 'books')} className="dropdown-link">
-                    <div className="dropdown-title">💻 Computer Science</div>
-                  </Link>
-                  <Link to="/?category=Programming#books" onClick={(e) => handleNavClick(e, '?category=Programming#books', 'books')} className="dropdown-link">
-                    <div className="dropdown-title">⚙️ Programming</div>
-                  </Link>
+                <div 
+                  className="dropdown-panel" 
+                  style={{ 
+                    left: '50%', 
+                    transform: 'translateX(-50%)', 
+                    width: '760px',
+                    padding: 0,
+                    flexDirection: 'row',
+                    overflow: 'hidden'
+                  }}
+                >
+                  {/* Left Column (Categories List) */}
+                  <div style={{
+                    width: '240px',
+                    background: isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.02)',
+                    borderRight: '1px solid var(--nav-border)',
+                    padding: '16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px'
+                  }}>
+                    {Object.keys(catalogData).map((catName) => (
+                      <div
+                        key={catName}
+                        onMouseEnter={() => setHoveredCategory(catName)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '10px 14px',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          transition: 'all 0.2s ease',
+                          background: hoveredCategory === catName 
+                            ? (isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.08)')
+                            : 'transparent',
+                          color: hoveredCategory === catName ? '#3b82f6' : 'var(--nav-text)'
+                        }}
+                      >
+                        <span>{catName}</span>
+                        {hoveredCategory === catName && (
+                          <span style={{ fontSize: '12px', opacity: 0.8 }}>→</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Right Column (Sub-Items Grid) */}
+                  <div style={{
+                    flex: 1,
+                    padding: '20px 24px',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(2, 1fr)',
+                    gap: '12px',
+                    alignContent: 'start'
+                  }}>
+                    {catalogData[hoveredCategory]?.map((item, idx) => (
+                      <Link
+                        key={idx}
+                        to={item.path}
+                        onClick={(e) => {
+                          if (item.path.startsWith('/?category=')) {
+                            // extract category
+                            const catValue = item.path.split('category=')[1].split('#')[0]
+                            const decodedCat = decodeURIComponent(catValue)
+                            handleNavClick(e, item.path.substring(1), 'books')
+                          } else {
+                            setActiveDropdown(null)
+                          }
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          padding: '12px',
+                          borderRadius: '10px',
+                          textDecoration: 'none',
+                          background: isDark ? 'rgba(255, 255, 255, 0.03)' : '#ffffff',
+                          border: '1px solid var(--nav-border)',
+                          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                          color: 'var(--nav-text)'
+                        }}
+                        className="mega-dropdown-card"
+                      >
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '8px',
+                          background: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(59, 130, 246, 0.06)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '18px',
+                          flexShrink: 0
+                        }}>
+                          {item.icon}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: '700', fontSize: '13.5px', lineHeight: 1.2 }}>{item.name}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--dropdown-desc)', marginTop: '2px' }}>{item.desc}</div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -296,7 +451,7 @@ export default function Navbar() {
               style={{ position: 'relative' }}
             >
               <button className="nav-item-btn">
-                About <GridIcon />
+                About <ChevronIcon isOpen={activeDropdown === 'about'} />
               </button>
               {activeDropdown === 'about' && (
                 <div className="dropdown-panel" style={{ left: '50%', transform: 'translateX(-50%)', width: '290px' }}>

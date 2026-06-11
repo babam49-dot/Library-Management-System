@@ -185,14 +185,112 @@ const DepartmentLogo = ({ icon, name, sub }) => {
   )
 }
 
+const structures = [
+  { // 0 — Balanced grid
+    verticals:   ['8%', '20%', '33%', '50%', '67%', '80%', '92%'],
+    horizontals: ['20%', '38%', '55%', '72%']
+  },
+  { // 1 — Wide columns
+    verticals:   ['15%', '30%', '50%', '70%', '85%'],
+    horizontals: ['15%', '35%', '58%', '78%']
+  },
+  { // 2 — Dense vertical
+    verticals:   ['7%', '18%', '29%', '40%', '51%', '62%', '73%', '84%', '93%'],
+    horizontals: ['25%', '50%', '75%']
+  },
+  { // 3 — Dense horizontal
+    verticals:   ['20%', '40%', '60%', '80%'],
+    horizontals: ['10%', '22%', '34%', '46%', '58%', '70%', '82%', '92%']
+  },
+  { // 4 — Asymmetric left-heavy
+    verticals:   ['5%', '14%', '24%', '36%', '52%', '70%', '88%'],
+    horizontals: ['18%', '40%', '62%', '84%']
+  },
+  { // 5 — Asymmetric right-heavy
+    verticals:   ['12%', '28%', '46%', '62%', '74%', '84%', '94%'],
+    horizontals: ['22%', '44%', '66%', '88%']
+  },
+  { // 6 — Center-focused
+    verticals:   ['10%', '25%', '38%', '50%', '62%', '75%', '90%'],
+    horizontals: ['12%', '30%', '50%', '70%', '88%']
+  },
+  { // 7 — Sparse open
+    verticals:   ['20%', '42%', '58%', '78%'],
+    horizontals: ['20%', '50%', '80%']
+  },
+  { // 8 — Fine mesh
+    verticals:   ['10%', '19%', '28%', '37%', '50%', '63%', '72%', '81%', '90%'],
+    horizontals: ['16%', '30%', '46%', '62%', '78%', '90%']
+  },
+  { // 9 — Classic 3-column
+    verticals:   ['12%', '33%', '50%', '67%', '88%'],
+    horizontals: ['25%', '50%', '75%']
+  }
+];
+
 export default function Home() {
   const { isDark } = useTheme()
   const [books, setBooks] = useState([])
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [searchQuery, setSearchQuery] = useState('')
   
+  const [activeStructureIdx, setActiveStructureIdx] = useState(0)
+  const [linesOpacity, setLinesOpacity] = useState(1)
+  const [fadeSide, setFadeSide] = useState(null)
+  const [mousePos, setMousePos] = useState({ x: 800, y: 350 })
+  const [isHovered, setIsHovered] = useState(false)
+  const [isMapHovered, setIsMapHovered] = useState(false)
+  const [activeSection, setActiveSection] = useState('home')
+  
   const navigate = useNavigate()
   const location = useLocation()
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      // 1. Fade out lines from one random side
+      setFadeSide(Math.random() > 0.5 ? 'left' : 'right')
+      setLinesOpacity(0)
+      
+      // 2. Change layout configuration at 1.5s
+      setTimeout(() => {
+        setActiveStructureIdx(prev => (prev + 1) % 10)
+      }, 1400)
+      
+      // 3. Fade back in
+      setTimeout(() => {
+        setLinesOpacity(1)
+        setFadeSide(null)
+      }, 2600)
+      
+    }, 12000)
+    return () => clearInterval(timer)
+  }, [])
+
+  // Auto-drifting orbit when mouse is not hovering
+  useEffect(() => {
+    if (isHovered) return;
+    let angle = 0;
+    const interval = setInterval(() => {
+      angle += 0.012;
+      const centerX = typeof window !== 'undefined' ? window.innerWidth / 2 : 600;
+      const centerY = 350;
+      const radiusX = typeof window !== 'undefined' ? window.innerWidth / 4 : 300;
+      const radiusY = 120;
+      setMousePos({
+        x: centerX + Math.cos(angle) * radiusX,
+        y: centerY + Math.sin(angle) * radiusY
+      });
+    }, 30);
+    return () => clearInterval(interval);
+  }, [isHovered]);
+
+  const handleMouseMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    setMousePos({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    })
+  }
 
   useEffect(() => {
     axios.get('http://localhost:4000/api/public/books')
@@ -228,6 +326,22 @@ export default function Home() {
     return () => observer.disconnect()
   }, [])
 
+  // Section scroll-spy
+  useEffect(() => {
+    const sectionIds = ['home', 'location', 'books', 'about']
+    const observers = sectionIds.map(id => {
+      const el = document.getElementById(id)
+      if (!el) return null
+      const obs = new IntersectionObserver(
+        ([entry]) => { if (entry.isIntersecting) setActiveSection(id) },
+        { threshold: 0.4 }
+      )
+      obs.observe(el)
+      return obs
+    }).filter(Boolean)
+    return () => observers.forEach(obs => obs.disconnect())
+  }, [])
+
   // Real-time catalog filtering for search bar
   const filteredSearchBooks = searchQuery.trim() === '' ? [] : books.filter(b => 
     b.Title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -240,14 +354,126 @@ export default function Home() {
     ? books 
     : books.filter(b => b.CategoryName === selectedCategory)
 
+  const scrollSections = [
+    { id: 'home',     label: 'Hero' },
+    { id: 'location', label: 'Campus' },
+    { id: 'books',    label: 'Books' },
+    { id: 'about',    label: 'About' },
+  ]
+
   return (
-    <div style={{ background: isDark ? '#0a0e1a' : '#fff', color: isDark ? '#fff' : '#0f172a', fontFamily: "'Inter', sans-serif", minHeight: '100vh', transition: 'all 0.5s ease' }}>
+    <div style={{ background: isDark ? '#0a0e1a' : '#fff', color: isDark ? '#fff' : '#0f172a', fontFamily: "'Sora', sans-serif", minHeight: '100vh', transition: 'all 0.5s ease' }}>
+
+      {/* === Floating Scroll-Spy Sidebar === */}
+      <div style={{
+        position: 'fixed',
+        right: 24,
+        top: '50%',
+        transform: 'translateY(-50%)',
+        zIndex: 999,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 6,
+        background: isDark ? 'rgba(15, 23, 42, 0.7)' : 'rgba(255, 255, 255, 0.8)',
+        backdropFilter: 'blur(12px)',
+        borderRadius: 50,
+        padding: '14px 10px',
+        border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
+        boxShadow: isDark ? '0 8px 32px rgba(0,0,0,0.3)' : '0 8px 32px rgba(0,0,0,0.08)'
+      }}>
+        {scrollSections.map(({ id, label }) => {
+          const isActive = activeSection === id
+          return (
+            <div key={id} style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {/* Tooltip label on hover */}
+              <div
+                className="scrollspy-tooltip"
+                style={{
+                  position: 'absolute',
+                  right: 28,
+                  background: isDark ? '#1e293b' : '#0f172a',
+                  color: '#fff',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: '4px 10px',
+                  borderRadius: 20,
+                  whiteSpace: 'nowrap',
+                  pointerEvents: 'none',
+                  opacity: 0,
+                  transition: 'opacity 0.2s ease',
+                  letterSpacing: '0.5px'
+                }}
+              >
+                {label}
+              </div>
+              <button
+                onClick={() => {
+                  const el = document.getElementById(id)
+                  if (el) el.scrollIntoView({ behavior: 'smooth' })
+                }}
+                onMouseEnter={e => {
+                  const tooltip = e.currentTarget.previousSibling
+                  if (tooltip) tooltip.style.opacity = '1'
+                }}
+                onMouseLeave={e => {
+                  const tooltip = e.currentTarget.previousSibling
+                  if (tooltip) tooltip.style.opacity = '0'
+                }}
+                style={{
+                  width: isActive ? 10 : 7,
+                  height: isActive ? 10 : 7,
+                  borderRadius: '50%',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                  background: isActive
+                    ? '#3b82f6'
+                    : (isDark ? 'rgba(255,255,255,0.2)' : 'rgba(15,23,42,0.18)'),
+                  boxShadow: isActive ? '0 0 8px rgba(59,130,246,0.7)' : 'none',
+                  transition: 'all 0.3s cubic-bezier(0.4,0,0.2,1)',
+                  outline: 'none',
+                  animation: isActive ? 'scrollDotPulse 2s ease infinite' : 'none'
+                }}
+              />
+            </div>
+          )
+        })}
+      </div>
       <style>
         {`
-          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+          @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800;900&display=swap');
           html { scroll-behavior: smooth; }
           .reveal { opacity: 0; transform: translateY(30px); transition: all 0.8s ease-out; }
           .reveal.active { opacity: 1; transform: translateY(0); }
+
+          @keyframes heroDropDown {
+            0%   { opacity: 0; transform: translateY(-40px) scale(0.95); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+          }
+          @keyframes heroSlideLeft {
+            0%   { opacity: 0; transform: translateX(-60px); }
+            100% { opacity: 1; transform: translateX(0); }
+          }
+          @keyframes heroSlideRight {
+            0%   { opacity: 0; transform: translateX(60px); }
+            100% { opacity: 1; transform: translateX(0); }
+          }
+          @keyframes heroFadeUp {
+            0%   { opacity: 0; transform: translateY(32px); }
+            100% { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes heroFadeIn {
+            0%   { opacity: 0; }
+            100% { opacity: 1; }
+          }
+          .hero-badge    { animation: heroDropDown  0.7s cubic-bezier(0.22,1,0.36,1) 0.1s both; }
+          .hero-line1    { animation: heroSlideLeft  0.75s cubic-bezier(0.22,1,0.36,1) 0.35s both; }
+          .hero-line2    { animation: heroSlideRight 0.75s cubic-bezier(0.22,1,0.36,1) 0.55s both; }
+          .hero-sub      { animation: heroFadeUp     0.7s cubic-bezier(0.22,1,0.36,1) 0.75s both; }
+          .hero-search   { animation: heroFadeUp     0.7s cubic-bezier(0.22,1,0.36,1) 0.95s both; }
+          .hero-depts    { animation: heroFadeIn     0.8s ease                        1.15s both; }
+
           .btn-gold {
             background: linear-gradient(135deg, #f59e0b, #d97706);
             color: #fff;
@@ -302,29 +528,125 @@ export default function Home() {
           }
           .book-card:hover { transform: translateY(-10px); z-index: 10; box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
           @keyframes gridForward { from { background-position: 0 0; } to { background-position: 80px 80px; } }
-          .animate-grid { animation: gridForward 12s linear infinite; }
+          .animate-grid { }
           @keyframes floatStat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
           @keyframes pulseGlow {
             0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
             70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
             100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
           }
+          @keyframes sideRevealLeft {
+            from { clip-path: inset(0 100% 0 0); }
+            to   { clip-path: inset(0 0% 0 0); }
+          }
+          @keyframes sideRevealRight {
+            from { clip-path: inset(0 0 0 100%); }
+            to   { clip-path: inset(0 0 0 0%); }
+          }
         `}
       </style>
 
-      {/* Hero Section: MOVING GRID with Blueprint line aesthetics */}
-      <section id="home" className="reveal" style={{ minHeight: '94vh', display: 'flex', alignItems: 'center', padding: '120px 48px 80px', position: 'relative', background: isDark ? '#0a0e1a' : '#fff', overflow: 'hidden' }}>
+      {/* Hero Section: Blueprint line aesthetics with interactive neon glow */}
+      <section 
+        id="home" 
+        className="reveal" 
+        onMouseMove={handleMouseMove}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        style={{ minHeight: '94vh', display: 'flex', alignItems: 'center', padding: '120px 48px 80px', position: 'relative', background: isDark ? '#0a0e1a' : '#fff', overflow: 'hidden' }}
+      >
         <div className="animate-grid" style={{ position: 'absolute', inset: 0, backgroundImage: isDark ? 'linear-gradient(rgba(255,255,255,0.06) 1.5px, transparent 1.5px), linear-gradient(90deg, rgba(255,255,255,0.06) 1.5px, transparent 1.5px)' : 'linear-gradient(rgba(59,130,246,0.05) 1.5px, transparent 1.5px), linear-gradient(90deg, rgba(59,130,246,0.05) 1.5px, transparent 1.5px)', backgroundSize: '80px 80px', zIndex: 0 }}></div>
         
-        {/* Tech grid guidelines matching Mereb Tech layout */}
-        <div style={{ position: 'absolute', top: 0, bottom: 0, left: '18%', width: '1px', background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(59,130,246,0.04)', zIndex: 0 }}></div>
-        <div style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', width: '1px', background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(59,130,246,0.04)', zIndex: 0 }}></div>
-        <div style={{ position: 'absolute', top: 0, bottom: 0, left: '82%', width: '1px', background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(59,130,246,0.04)', zIndex: 0 }}></div>
+        {/* === MEREB-STYLE GRID LINES: thin, full-span, matching nav border === */}
+        {/* Base vertical lines */}
+        {structures[activeStructureIdx].verticals.map((pos, idx) => (
+          <div 
+            key={`v-${idx}`}
+            style={{
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              left: pos,
+              width: '1px',
+              background: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(59,130,246,0.12)',
+              opacity: linesOpacity,
+              transition: `opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1) ${fadeSide === 'right' ? `${idx * 60}ms` : `${(structures[activeStructureIdx].verticals.length - 1 - idx) * 60}ms`}`,
+              zIndex: 0,
+              pointerEvents: 'none'
+            }}
+          />
+        ))}
+        {/* Base horizontal lines */}
+        {structures[activeStructureIdx].horizontals.map((pos, idx) => (
+          <div 
+            key={`h-${idx}`}
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              top: pos,
+              height: '1px',
+              background: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(59,130,246,0.12)',
+              opacity: linesOpacity,
+              transition: `opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1) ${idx * 80}ms`,
+              zIndex: 0,
+              pointerEvents: 'none'
+            }}
+          />
+        ))}
+
+        {/* Interactive spotlight highlighted grid lines */}
+        {isHovered && (
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            pointerEvents: 'none',
+            zIndex: 1,
+            WebkitMaskImage: `radial-gradient(circle 200px at ${mousePos.x}px ${mousePos.y}px, black 0%, transparent 100%)`,
+            maskImage: `radial-gradient(circle 200px at ${mousePos.x}px ${mousePos.y}px, black 0%, transparent 100%)`
+          }}>
+            {/* Highlighted Vertical Lines */}
+            {structures[activeStructureIdx].verticals.map((pos, idx) => (
+              <div 
+                key={`v-hl-${idx}`}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  bottom: 0,
+                  left: pos,
+                  width: '2px',
+                  background: '#3b82f6',
+                  boxShadow: '0 0 10px rgba(59, 130, 246, 0.9)',
+                  opacity: linesOpacity,
+                  transition: 'opacity 1.5s cubic-bezier(0.4, 0, 0.2, 1)'
+                }}
+              />
+            ))}
+            {/* Highlighted Horizontal Lines */}
+            {structures[activeStructureIdx].horizontals.map((pos, idx) => (
+              <div 
+                key={`h-hl-${idx}`}
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  top: pos,
+                  height: '2px',
+                  background: '#3b82f6',
+                  boxShadow: '0 0 10px rgba(59, 130, 246, 0.9)',
+                  opacity: linesOpacity,
+                  transition: 'opacity 1.5s cubic-bezier(0.4, 0, 0.2, 1)'
+                }}
+              />
+            ))}
+          </div>
+        )}
         
         <div style={{ maxWidth: 1100, margin: '0 auto', width: '100%', zIndex: 1, textAlign: 'center', position: 'relative' }}>
           
-          {/* Top Pill Action Badge matching Mereb's Book-call style */}
+          {/* Top Pill Badge — drops down from top */}
           <div 
+            className="hero-badge"
             onClick={() => {
               const el = document.getElementById('books');
               if (el) el.scrollIntoView({ behavior: 'smooth' });
@@ -342,13 +664,13 @@ export default function Home() {
               gap: 10,
               marginBottom: 32,
               cursor: 'pointer',
-              transition: 'all 0.3s ease',
+              transition: 'transform 0.3s ease, box-shadow 0.3s ease',
               boxShadow: '0 4px 20px rgba(59,130,246,0.06)',
               letterSpacing: '0.5px'
             }}
             onMouseOver={(e) => {
               e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 8px 24px rgba(59,130,246,0.12)';
+              e.currentTarget.style.boxShadow = '0 8px 24px rgba(59,130,246,0.18)';
             }}
             onMouseOut={(e) => {
               e.currentTarget.style.transform = 'translateY(0)';
@@ -359,16 +681,19 @@ export default function Home() {
             <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: '#10b981', animation: 'pulseGlow 1.5s infinite' }}></span>
           </div>
 
-          <h1 style={{ fontSize: 72, fontWeight: 900, color: isDark ? '#f1f5f9' : '#0f172a', lineHeight: 1.12, marginBottom: 24, letterSpacing: '-1.5px' }}>
-            <span style={{ color: '#3b82f6' }}>Skip the Research Bottleneck</span> <br/>
-            and <span style={{ color: '#3b82f6' }}>Learn Faster</span>
+          {/* H1 — line 1 slides from left, line 2 slides from right */}
+          <h1 style={{ fontSize: 72, fontWeight: 900, color: isDark ? '#f1f5f9' : '#0f172a', lineHeight: 1.12, marginBottom: 24, letterSpacing: '-2px', overflow: 'hidden' }}>
+            <span className="hero-line1" style={{ display: 'block', color: '#3b82f6' }}>Skip the Research Bottleneck</span>
+            <span className="hero-line2" style={{ display: 'block' }}>and <span style={{ color: '#3b82f6' }}>Learn Faster</span></span>
           </h1>
-          <p style={{ fontSize: 20, color: isDark ? '#94a3b8' : '#475569', lineHeight: 1.7, marginBottom: 40, maxWidth: 880, margin: '0 auto 40px', fontWeight: 500 }}>
-            Welcome to the ultimate digital gateway for AAIT students and staff. Our library management system provides seamless access to over 10,000 academic resources, automated borrowing tracking, and real-time availability.
+
+          {/* Subtitle — fades up */}
+          <p className="hero-sub" style={{ fontSize: 20, color: isDark ? '#94a3b8' : '#475569', lineHeight: 1.7, marginBottom: 40, maxWidth: 720, margin: '0 auto 40px', fontWeight: 400 }}>
+            Welcome to the ultimate digital gateway for AAIT students and staff. Seamless access to over 10,000 academic resources, automated borrowing tracking, and real-time availability.
           </p>
 
-          {/* Real-time search bar right in the Hero */}
-          <div style={{ position: 'relative', maxWidth: 620, margin: '0 auto 50px', zIndex: 100 }}>
+          {/* Search bar — fades up */}
+          <div className="hero-search" style={{ position: 'relative', maxWidth: 620, margin: '0 auto 50px', zIndex: 100 }}>
             <div style={{ 
               display: 'flex', 
               alignItems: 'center', 
@@ -455,8 +780,8 @@ export default function Home() {
             )}
           </div>
 
-          {/* Department Logo Wall (mimics companies wall in Mereb Technology screenshot) */}
-          <div style={{ marginTop: 90, borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'}`, paddingTop: 40 }}>
+          {/* Department wall — fades in last */}
+          <div className="hero-depts" style={{ marginTop: 90, borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'}`, paddingTop: 40 }}>
             <div style={{ fontSize: 10, fontWeight: 800, color: isDark ? '#94a3b8' : '#94a3b8', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 30 }}>
               Academic Departments We Build For
             </div>
@@ -491,58 +816,99 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Campus Section: FULL DARK BLUE */}
-      <section id="location" className="reveal" style={{ display: 'flex', minHeight: '600px', flexWrap: 'wrap', background: '#0f172a' }}>
-        <div style={{ flex: 1, minWidth: 400, color: '#fff', padding: '100px 60px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-          <h2 style={{ fontSize: 56, fontWeight: 900, marginBottom: 24 }}>Our Campus</h2>
-          <p style={{ fontSize: 20, marginBottom: 48, opacity: 0.8, lineHeight: 1.6 }}>Our physical presence at CTBE is the foundation of our student success.</p>
-          <div style={{ display: 'flex', gap: 32 }}>
-             <div style={{ color: '#3b82f6', fontWeight: 700 }}>📍 CTBE, Addis Ababa</div>
-             <div style={{ color: '#3b82f6', fontWeight: 700 }}>📞 +251 111 234 567</div>
-          </div>
-        </div>
-        <div style={{ flex: 1, minWidth: 400, padding: '60px' }}>
-          <div style={{ width: '100%', height: '100%', minHeight: 400, borderRadius: 32, overflow: 'hidden', border: '8px solid rgba(255,255,255,0.05)' }}>
-             <iframe title="Map" width="100%" height="100%" frameBorder="0" src="https://maps.google.com/maps?q=AAIT%205%20kilo%20Addis%20Ababa&t=&z=15&ie=UTF8&iwloc=&output=embed"></iframe>
-          </div>
-        </div>
-      </section>
-
-      {/* Stats Section: Cyber-Grid Aesthetic */}
-      <section style={{ background: '#0a0e14', padding: '120px 48px', position: 'relative', overflow: 'hidden' }}>
-        {/* Static Data Lines */}
-        <div style={{ position: 'absolute', inset: 0, opacity: 0.4 }}>
-           <div style={{ position:'absolute', top:'20%', left:0, right:0, height:1, background:'linear-gradient(90deg, transparent, #3b82f6, transparent)' }}></div>
-           <div style={{ position:'absolute', bottom:'30%', left:0, right:0, height:1, background:'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)' }}></div>
-           <div style={{ position:'absolute', top:0, bottom:0, left:'15%', width:1, background:'linear-gradient(180deg, transparent, #3b82f6, transparent)' }}></div>
-           <div style={{ position:'absolute', top:0, bottom:0, right:'25%', width:1, background:'linear-gradient(180deg, transparent, rgba(255,255,255,0.3), transparent)' }}></div>
-           <div style={{ position:'absolute', top:0, bottom:0, left:'45%', width:1, background:'linear-gradient(180deg, transparent, rgba(59,130,246,0.2), transparent)' }}></div>
-        </div>
-
-        <div style={{ maxWidth: 1200, margin: '0 auto', position: 'relative', zIndex: 2, textAlign: 'center' }}>
-          <h2 style={{ fontSize: 64, fontWeight: 900, color: '#fff', marginBottom: 16, letterSpacing: -2 }}>
-            UniLibrary by the <span style={{ color: '#3b82f6' }}>numbers</span>
-          </h2>
-          <p style={{ fontSize: 20, color: 'rgba(255,255,255,0.6)', marginBottom: 80, fontWeight: 500 }}>
-            Optimizing academic research with meticulous digital management and instant accessibility.
+      {/* Campus Section: Dynamic Interactive Dark Map */}
+      <section 
+        id="location" 
+        className="reveal" 
+        style={{ 
+          display: 'flex', 
+          minHeight: '600px', 
+          flexWrap: 'wrap', 
+          background: isDark 
+            ? 'linear-gradient(180deg, #111827 0%, #0f172a 100%)' 
+            : 'linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%)', 
+          transition: 'all 0.5s ease',
+          borderTop: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.06)'}`,
+          borderBottom: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.06)'}`,
+          boxShadow: isDark 
+            ? 'inset 0 24px 48px rgba(0, 0, 0, 0.2), inset 0 -24px 48px rgba(0, 0, 0, 0.2)' 
+            : 'inset 0 16px 32px rgba(0, 0, 0, 0.02), inset 0 -16px 32px rgba(0, 0, 0, 0.02)'
+        }}
+      >
+        <div style={{ 
+          flex: 1, 
+          minWidth: 400, 
+          color: isDark ? '#fff' : '#0f172a', 
+          padding: '100px 60px', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          justifyContent: 'center' 
+        }}>
+          <h2 style={{ fontSize: 56, fontWeight: 900, marginBottom: 24, letterSpacing: '-1.5px' }}>Our Campus</h2>
+          <p style={{ fontSize: 20, marginBottom: 48, color: '#64748b', lineHeight: 1.6, fontWeight: 500 }}>
+            Our physical presence at CTBE is the foundation of our student success. Feel free to visit our campus library space.
           </p>
-
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 0 }}>
-            <div style={{ flex: 1, padding: '0 40px' }}>
-              <StatCounter target={10000} suffix="+" label="Books Collection" floatDelay="0s" />
-            </div>
-            
-            <div style={{ width: 1, height: 120, background: 'linear-gradient(transparent, rgba(255,255,255,0.3), transparent)' }}></div>
-            
-            <div style={{ flex: 1, padding: '0 40px' }}>
-              <StatCounter target={500} suffix="+" label="Active Members" floatDelay="1s" />
-            </div>
-
-            <div style={{ width: 1, height: 120, background: 'linear-gradient(transparent, rgba(255,255,255,0.3), transparent)' }}></div>
-
-            <div style={{ flex: 1, padding: '0 40px' }}>
-              <StatCounter target={99} suffix="%" label="User Satisfaction" floatDelay="2s" />
-            </div>
+          <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
+             <div style={{ 
+               color: '#3b82f6', 
+               fontWeight: 700, 
+               background: isDark ? 'rgba(59, 130, 246, 0.08)' : 'rgba(59, 130, 246, 0.05)', 
+               padding: '12px 24px', 
+               borderRadius: '16px',
+               border: '1px solid rgba(59, 130, 246, 0.15)',
+               boxShadow: '0 4px 12px rgba(59,130,246,0.03)'
+             }}>
+               📍 CTBE, Addis Ababa
+             </div>
+             <div style={{ 
+               color: '#3b82f6', 
+               fontWeight: 700, 
+               background: isDark ? 'rgba(59, 130, 246, 0.08)' : 'rgba(59, 130, 246, 0.05)', 
+               padding: '12px 24px', 
+               borderRadius: '16px',
+               border: '1px solid rgba(59, 130, 246, 0.15)',
+               boxShadow: '0 4px 12px rgba(59,130,246,0.03)'
+             }}>
+               📞 +251 111 234 567
+             </div>
+          </div>
+        </div>
+        <div 
+          style={{ flex: 1, minWidth: 400, padding: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onMouseEnter={() => setIsMapHovered(true)}
+          onMouseLeave={() => setIsMapHovered(false)}
+        >
+          <div style={{ 
+            width: '100%', 
+            height: '100%', 
+            minHeight: 400, 
+            borderRadius: 32, 
+            overflow: 'hidden', 
+            border: `8px solid ${isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'}`,
+            boxShadow: isMapHovered 
+              ? (isDark ? '0 30px 60px rgba(59,130,246,0.15)' : '0 30px 60px rgba(0,0,0,0.12)') 
+              : '0 10px 30px rgba(0,0,0,0.05)',
+            transform: isMapHovered ? 'translateY(-6px)' : 'translateY(0)',
+            transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+          }}>
+             <iframe 
+               title="Map" 
+               width="100%" 
+               height="100%" 
+               frameBorder="0" 
+               src="https://maps.google.com/maps?q=AAIT%205%20kilo%20Addis%20Ababa&t=&z=15&ie=UTF8&iwloc=&output=embed"
+               style={{
+                 width: '100%',
+                 height: '100%',
+                 border: 'none',
+                 transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
+                 filter: isMapHovered
+                   ? 'none'
+                   : (isDark 
+                       ? 'invert(90%) hue-rotate(180deg) brightness(85%) contrast(95%)' 
+                       : 'grayscale(35%) contrast(95%) brightness(96%)')
+               }}
+             ></iframe>
           </div>
         </div>
       </section>
@@ -601,6 +967,45 @@ export default function Home() {
               detailLink={true}
             />
           ))}
+        </div>
+      </section>
+
+      {/* Stats Section: Cyber-Grid Aesthetic */}
+      <section style={{ background: '#0a0e14', padding: '120px 48px', position: 'relative', overflow: 'hidden' }}>
+        {/* Static Data Lines */}
+        <div style={{ position: 'absolute', inset: 0, opacity: 0.4 }}>
+           <div style={{ position:'absolute', top:'20%', left:0, right:0, height:1, background:'linear-gradient(90deg, transparent, #3b82f6, transparent)' }}></div>
+           <div style={{ position:'absolute', bottom:'30%', left:0, right:0, height:1, background:'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)' }}></div>
+           <div style={{ position:'absolute', top:0, bottom:0, left:'15%', width:1, background:'linear-gradient(180deg, transparent, #3b82f6, transparent)' }}></div>
+           <div style={{ position:'absolute', top:0, bottom:0, right:'25%', width:1, background:'linear-gradient(180deg, transparent, rgba(255,255,255,0.3), transparent)' }}></div>
+           <div style={{ position:'absolute', top:0, bottom:0, left:'45%', width:1, background:'linear-gradient(180deg, transparent, rgba(59,130,246,0.2), transparent)' }}></div>
+        </div>
+
+        <div style={{ maxWidth: 1200, margin: '0 auto', position: 'relative', zIndex: 2, textAlign: 'center' }}>
+          <h2 style={{ fontSize: 64, fontWeight: 900, color: '#fff', marginBottom: 16, letterSpacing: -2 }}>
+            UniLibrary by the <span style={{ color: '#3b82f6' }}>numbers</span>
+          </h2>
+          <p style={{ fontSize: 20, color: 'rgba(255,255,255,0.6)', marginBottom: 80, fontWeight: 500 }}>
+            Optimizing academic research with meticulous digital management and instant accessibility.
+          </p>
+
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 0 }}>
+            <div style={{ flex: 1, padding: '0 40px' }}>
+              <StatCounter target={10000} suffix="+" label="Books Collection" floatDelay="0s" />
+            </div>
+            
+            <div style={{ width: 1, height: 120, background: 'linear-gradient(transparent, rgba(255,255,255,0.3), transparent)' }}></div>
+            
+            <div style={{ flex: 1, padding: '0 40px' }}>
+              <StatCounter target={500} suffix="+" label="Active Members" floatDelay="1s" />
+            </div>
+
+            <div style={{ width: 1, height: 120, background: 'linear-gradient(transparent, rgba(255,255,255,0.3), transparent)' }}></div>
+
+            <div style={{ flex: 1, padding: '0 40px' }}>
+              <StatCounter target={99} suffix="%" label="User Satisfaction" floatDelay="2s" />
+            </div>
+          </div>
         </div>
       </section>
 

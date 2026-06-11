@@ -7,6 +7,7 @@ import DashboardShell from '../components/DashboardShell'
 import BookCard from '../components/BookCard'
 import api from '../api/axiosInstance'
 import BubblePopup from '../components/BubblePopup'
+import MyBorrowTable from '../components/borrowing/MyBorrowTable'
 
 import { io } from 'socket.io-client'
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
@@ -76,10 +77,10 @@ export default function MemberDashboard() {
     }
   }, [user])
 
-  const pendingBorrows = borrows.filter(b => b.Status === 'Pending').length
+  const activeOrPendingBorrows = borrows.filter(b => b.Status === 'Pending' || b.Status === 'Borrowed' || b.Status === 'Overdue').length
   const pendingReservations = reservations.filter(r => r.Status === 'Queued' || r.Status === 'Ready').length
   const pendingFines = fines.filter(f => f.FineStatus !== 'Paid' && Number(f.Balance) > 0).length
-  const navItems = makeNavItems(pendingBorrows, pendingFines, pendingReservations)
+  const navItems = makeNavItems(activeOrPendingBorrows, pendingFines, pendingReservations, cart.length)
 
   useEffect(() => { loadAll() }, [])
 
@@ -182,7 +183,9 @@ export default function MemberDashboard() {
     } catch (err) { setNotice(err.response?.data?.message || err.message) }
   }
 
-  const retractBorrow = async (borrowId) => {
+  const retractBorrow = async (param) => {
+    const borrowId = typeof param === 'object' ? (param?.BorrowID || param?.borrowId) : param
+    if (!borrowId) return
     try {
       await api.delete(`/member/borrows/${borrowId}/retract`)
       setNotice('✅ Request retracted. Book is now available again.')
@@ -389,6 +392,71 @@ export default function MemberDashboard() {
       {/* CATALOG */}
       {tab === 'catalog' && (
         <div style={{ position: 'relative' }}>
+          {/* Cart summary banner at the top of the page */}
+          {cart.length > 0 && (
+            <div className="m-card" style={{
+              background: isDark ? 'linear-gradient(135deg, rgba(37,99,235,0.15), rgba(99,102,241,0.08))' : 'linear-gradient(135deg, #eff6ff, #f5f3ff)',
+              border: `1.5px solid ${isDark ? 'rgba(99,102,241,0.4)' : '#bfdbfe'}`,
+              borderRadius: 16,
+              padding: '16px 24px',
+              marginBottom: 20,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 16,
+              boxShadow: isDark ? '0 8px 32px rgba(37,99,235,0.15)' : '0 8px 24px rgba(37,99,235,0.08)',
+              animation: 'pulseSoft 3s infinite',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 24 }}>🛒</span>
+                <div>
+                  <h4 style={{ margin: 0, color: isDark ? '#f1f5f9' : '#1e3a8a', fontSize: 15, fontWeight: 900 }}>
+                    Borrow Cart — {cart.length} book{cart.length !== 1 ? 's' : ''} selected
+                  </h4>
+                  <p style={{ margin: '4px 0 0', color: isDark ? '#94a3b8' : '#64748b', fontSize: 13, fontWeight: 600 }}>
+                    {cart.map(i => i.title).join(', ')}
+                  </p>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button
+                  className="m-btn"
+                  onClick={() => navigate('/borrow-cart')}
+                  style={{
+                    background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 10,
+                    padding: '10px 20px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    boxShadow: '0 4px 12px rgba(37,99,235,0.25)',
+                  }}
+                >
+                  🚀 Submit Request
+                </button>
+                <button
+                  className="m-btn"
+                  onClick={clearCart}
+                  style={{
+                    background: 'transparent',
+                    color: isDark ? '#f43f5e' : '#e11d48',
+                    border: `1px solid ${isDark ? 'rgba(244,63,94,0.3)' : '#fca5a5'}`,
+                    borderRadius: 10,
+                    padding: '10px 16px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    fontSize: 13,
+                  }}
+                >
+                  Clear Cart
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Category pills */}
           <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:16 }}>
             <button onClick={() => setCategory('')} className="m-btn"
@@ -444,47 +512,9 @@ export default function MemberDashboard() {
       {tab === 'borrows' && (
         <div>
           <h3 style={{ color:c.text, marginBottom:16 }}>My Borrowing Records</h3>
-          {!borrows.length
-            ? <EmptyState title="No borrowings yet" text="Borrow a book from the catalog." />
-            : (
-              <div className="m-card" style={{ background:c.card, border:`1px solid ${c.border}`, borderRadius:16, overflow:'hidden' }}>
-                <table style={{ width:'100%', borderCollapse:'collapse' }}>
-                  <thead style={{ background:isDark?'#1a2236':'#f8fafc' }}>
-                    <tr>{['Book','Request Code','Borrowed','Due Date','Return Date','Status','Action'].map(h =>
-                      <th key={h} style={{ padding:'12px 16px', textAlign:'left', fontSize:11, fontWeight:800, color:c.muted, textTransform:'uppercase', letterSpacing:.6 }}>{h}</th>)}</tr>
-                  </thead>
-                  <tbody>
-                    {borrows.map((r, i) => {
-                      const isOD = r.Status === 'Overdue'
-                      const isPending = r.Status === 'Pending'
-                      return (
-                        <tr key={r.BorrowID || i} style={{ borderTop:`1px solid ${c.border}`, background: isPending ? (isDark?'rgba(245,158,11,0.07)':'#fffbeb') : 'transparent' }}>
-                          <td style={{ padding:'12px 16px', fontWeight:700, color:c.text }}>
-                            <div>{r.Title}</div>
-                            {isOD && <div style={{ color:'#ef4444', fontSize:11, marginTop:2 }}>⚠ OVERDUE — fines accruing</div>}
-                            {isPending && <div style={{ color:'#d97706', fontSize:11, marginTop:2 }}>⏳ Awaiting staff approval at the desk</div>}
-                          </td>
-                          <td style={{ padding:'12px 16px', fontFamily:'monospace', color:'#3b82f6', fontSize:13 }}>{r.RequestCode || '—'}</td>
-                          <td style={{ padding:'12px 16px', color:c.muted, fontSize:13 }}>{fmt(r.BorrowDate)}</td>
-                          <td style={{ padding:'12px 16px', color: isOD?'#ef4444':c.muted, fontWeight: isOD?800:400, fontSize:13 }}>{fmt(r.DueDate)}</td>
-                          <td style={{ padding:'12px 16px', color:c.muted, fontSize:13 }}>{fmt(r.ReturnDate)}</td>
-                          <td style={{ padding:'12px 16px' }}><StatusBadge v={r.Status} /></td>
-                          <td style={{ padding:'12px 16px' }}>
-                            {isPending && (
-                              <button onClick={() => retractBorrow(r.BorrowID)}
-                                style={{ background:'#fee2e2', color:'#991b1b', border:'none', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontWeight:700, fontSize:12, whiteSpace:'nowrap' }}>
-                                ✕ Retract
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )
-          }
+          <div className="m-card" style={{ background:c.card, border:`1px solid ${c.border}`, borderRadius:16, overflow:'hidden', padding: 8 }}>
+            <MyBorrowTable borrows={borrows} onCancel={retractBorrow} />
+          </div>
         </div>
       )}
 
